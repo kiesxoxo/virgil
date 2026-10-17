@@ -14,6 +14,13 @@ a fast web UI for your local library, plus AirPlay 2 (multi-room, no subscriptio
 docker pull ghcr.io/mpkonmbk/hifi:0.2.0
 ```
 
+**On a Windows PC**, download `hifi.exe` from the [latest release](https://github.com/mpkonmbk/hifi/releases/latest)
+and run it. It's one file: the official `mpd.exe` is inside and unpacks to `%LOCALAPPDATA%\hifi`.
+hifi plays to the device you pick in Settings (headphone amp, USB DAC, S/PDIF) in WASAPI
+exclusive mode, so Windows' mixer never touches the audio, and runs in its own window (WebView2,
+built into Windows). Closing the window quits hifi. Set the music folder (a local folder or a
+share like `\\nas\Music`) in Settings.
+
 ```
  phone / laptop ──HTTP + WebSocket──▶ hifid (Rust) ──MPD protocol──▶ MPD ──hw:──▶ Digi2 Pro ──S/PDIF──▶ DAC
                                         │    ▲

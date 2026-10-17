@@ -10,6 +10,8 @@ mod signal;
 mod sync;
 mod tags;
 mod web;
+#[cfg(windows)]
+mod window;
 mod ws;
 
 use std::path::PathBuf;
@@ -79,14 +81,22 @@ fn run_desktop(restarted: bool) -> anyhow::Result<()> {
     let base = desktop::base_dir();
     std::fs::create_dir_all(&base).with_context(|| format!("creating {}", base.display()))?;
     let log = base.join("hifi.log");
-    let file = std::fs::File::create(&log).with_context(|| format!("creating {}", log.display()))?;
+    // Appended to, not recreated: a second launch (which only brings the
+    // running hifi to the front) mustn't wipe the running one's log.
+    if std::fs::metadata(&log).is_ok_and(|m| m.len() > 4 << 20) {
+        let _ = std::fs::rename(&log, base.join("hifi.old.log"));
+    }
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log)
+        .with_context(|| format!("opening {}", log.display()))?;
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
         .with_writer(std::sync::Mutex::new(file))
         .with_ansi(false)
         .init();
-    let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
-    let result = runtime.block_on(desktop_main(base, restarted));
+    let result = desktop_start(base, restarted, &log);
     if let Err(e) = &result {
         error!("{e:#}");
         desktop::open(&log.to_string_lossy());
@@ -94,34 +104,50 @@ fn run_desktop(restarted: bool) -> anyhow::Result<()> {
     result
 }
 
-async fn desktop_main(base: PathBuf, restarted: bool) -> anyhow::Result<()> {
+/// Claims hifi's port, or hands over to the hifi that already has it, then
+/// runs hifi with its window (Windows) or opens the UI in a browser.
+fn desktop_start(base: PathBuf, restarted: bool, #[allow(unused)] log: &std::path::Path) -> anyhow::Result<()> {
     let (desktop, config) = Desktop::prepare(base)?;
-    let url = desktop.url();
     // One hifi at a time: if the port is taken, hifi is already running; show it.
     // After a restart, give the old instance a moment to let go of the port.
     let deadline = Instant::now() + if restarted { Duration::from_secs(15) } else { Duration::ZERO };
     let listener = loop {
-        match TcpListener::bind(config.listen).await {
+        match std::net::TcpListener::bind(config.listen) {
             Ok(listener) => break listener,
-            Err(_) if Instant::now() < deadline => tokio::time::sleep(Duration::from_millis(200)).await,
+            Err(_) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(200)),
             Err(_) if !restarted => {
-                info!("hifi is already running; opening its window");
-                desktop::open_window(&url);
+                info!("hifi is already running; bringing it to the front");
+                if !desktop::show_running(config.listen.port()) {
+                    desktop::open_window(&desktop.url());
+                }
                 return Ok(());
             }
             Err(e) => return Err(e).with_context(|| format!("binding {}", config.listen)),
         }
     };
+    listener.set_nonblocking(true)?;
     let desktop = Arc::new(desktop);
+    let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    let main = desktop_main(desktop.clone(), config, listener);
+    #[cfg(windows)]
+    window::run(runtime, desktop, main, log);
+    #[cfg(not(windows))]
+    {
+        // A restarted hifi's browser tab reconnects by itself.
+        if !restarted {
+            desktop::open_window(&desktop.url());
+        }
+        runtime.block_on(main)
+    }
+}
+
+async fn desktop_main(desktop: Arc<Desktop>, config: Config, listener: std::net::TcpListener) -> anyhow::Result<()> {
+    let listener = TcpListener::from_std(listener)?;
     desktop.start_mpd().await?;
     tokio::spawn({
         let desktop = desktop.clone();
         async move { desktop.supervise().await }
     });
-    // A restarted hifi's window reconnects by itself.
-    if !restarted {
-        desktop::open_window(&url);
-    }
     serve(config, listener, Some(desktop)).await
 }
 

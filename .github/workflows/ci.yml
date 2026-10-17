@@ -155,3 +155,59 @@ jobs:
             $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
             $(printf "$IMAGE@sha256:%s " *)
           docker buildx imagetools inspect "$IMAGE:${{ steps.meta.outputs.version }}"
+
+  # hifi.exe: the desktop app for Windows, one file with the official mpd.exe
+  # inside. Built natively, which also lints the Windows-only code. Release
+  # tags attach it to the GitHub release.
+  windows:
+    needs: test
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    env:
+      # Bump together with the checksum. The file is signed by MPD's maintainer
+      # (key 0392335A78083894A4301C43236E8A58C6DB4512); it was verified when pinned.
+      MPD_URL: https://www.musicpd.org/download/win32/0.24.16/mpd.exe
+      MPD_SHA256: b358ddbf4421fef72546473d9442ca7c73cecfa0638ed566b94ddacf147b02c1
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Web UI
+        working-directory: web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: mpd.exe
+        shell: pwsh
+        run: |
+          Invoke-WebRequest $env:MPD_URL -OutFile "$env:RUNNER_TEMP\mpd.exe"
+          $hash = (Get-FileHash "$env:RUNNER_TEMP\mpd.exe" -Algorithm SHA256).Hash
+          if ($hash -ne $env:MPD_SHA256) { throw "mpd.exe checksum mismatch: $hash" }
+          "HIFI_MPD_EXE=$env:RUNNER_TEMP\mpd.exe" >> $env:GITHUB_ENV
+      - run: cargo clippy -p hifid --features bundled-mpd -- -D warnings
+      - run: cargo build --release --locked -p hifid --features bundled-mpd
+      - name: hifi.exe
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item target\release\hifid.exe dist\hifi.exe
+      - uses: actions/upload-artifact@v5
+        with:
+          name: hifi-windows
+          path: dist/hifi.exe
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" dist/hifi.exe --clobber

@@ -26,6 +26,10 @@ tracing-subscriber.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 wasapi = "0.26"
+# The desktop app window: WebView2 in a native window.
+tao = "0.37"
+wry = "0.57"
+image.workspace = true
 
 [features]
 # Embed mpd.exe into hifi.exe (desktop mode); HIFI_MPD_EXE names the file at build time.

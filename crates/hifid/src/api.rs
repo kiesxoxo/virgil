@@ -95,6 +95,7 @@ pub fn router(app: App) -> Router {
         .route("/api/outputs/{id}/select", post(select_output))
         .route("/api/restart", post(restart))
         .route("/api/desktop", get(desktop_settings).post(save_desktop_settings))
+        .route("/api/desktop/show", post(show_window))
         .route("/api/quit", post(quit))
         .route("/api/tags/read", post(tags::read))
         .route("/api/tags/write", post(tags::write))
@@ -288,6 +289,12 @@ async fn restart(State(app): State<App>) -> ApiResult {
 
 fn desktop(app: &App) -> ApiResult<&std::sync::Arc<crate::desktop::Desktop>> {
     app.desktop.as_ref().ok_or_else(|| ApiError::not_found("not running in desktop mode"))
+}
+
+/// A second launch of hifi.exe asks for the running one's window.
+async fn show_window(State(app): State<App>) -> ApiResult {
+    desktop(&app)?.show_window();
+    Ok(DONE)
 }
 
 async fn desktop_settings(State(app): State<App>) -> ApiResult<Json<DesktopSettings>> {

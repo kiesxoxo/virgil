@@ -7,7 +7,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex as StdMutex};
+use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 use std::time::Duration;
 
 use anyhow::{Context, bail};
@@ -39,6 +39,8 @@ pub struct Desktop {
     quitting: AtomicBool,
     /// The format WASAPI last accepted in exclusive mode; None after a failed open.
     opened: Arc<StdMutex<Option<HwParams>>>,
+    /// Brings the app window to the front (set once the window exists).
+    show_window: OnceLock<Box<dyn Fn() + Send + Sync>>,
 }
 
 /// A playback device as Windows names it.
@@ -286,6 +288,7 @@ impl Desktop {
                 child: Mutex::new(None),
                 quitting: AtomicBool::new(false),
                 opened: Arc::default(),
+                show_window: OnceLock::new(),
             },
             config,
         ))
@@ -297,6 +300,20 @@ impl Desktop {
 
     pub fn url(&self) -> String {
         format!("http://127.0.0.1:{}", self.settings().port)
+    }
+
+    /// Called by the app window (Windows only).
+    #[cfg_attr(not(windows), allow(dead_code))]
+    pub fn set_show_window(&self, show: Box<dyn Fn() + Send + Sync>) {
+        let _ = self.show_window.set(show);
+    }
+
+    /// Brings hifi to the front: its own window, else (no window) a browser.
+    pub fn show_window(&self) {
+        match self.show_window.get() {
+            Some(show) => show(),
+            None => open_window(&self.url()),
+        }
     }
 
     /// Saves new settings; they apply after [`Desktop::restart`].
@@ -421,6 +438,20 @@ impl Desktop {
         }
         self.quit().await
     }
+}
+
+/// Asks the hifi already running on `port` to bring its window to the front.
+pub fn show_running(port: u16) -> bool {
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    let Ok(mut stream) = TcpStream::connect_timeout(&addr, Duration::from_secs(1)) else { return false };
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(3)));
+    let request =
+        "POST /api/desktop/show HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+    if stream.write_all(request.as_bytes()).is_err() {
+        return false;
+    }
+    let mut status = String::new();
+    BufReader::new(&stream).read_line(&mut status).is_ok() && status.split_whitespace().nth(1) == Some("204")
 }
 
 /// Edge or Chrome, whichever is installed: both open a URL as an app window (`--app`).
