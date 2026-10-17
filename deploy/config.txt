@@ -1,0 +1,8 @@
+# Add to /boot/firmware/config.txt on the Pi, then reboot.
+
+# HiFiBerry Digi2 Pro (S/PDIF out, up to 192 kHz / 24-bit, onboard clocks).
+dtoverlay=hifiberry-digi-pro
+
+# Remove the onboard and HDMI audio devices so nothing else claims card 0.
+dtparam=audio=off
+dtoverlay=vc4-kms-v3d,noaudio

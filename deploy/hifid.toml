@@ -1,0 +1,19 @@
+# /etc/hifi/hifid.toml
+
+# Port 80 is allowed by the systemd unit (CAP_NET_BIND_SERVICE): http://hifi.local/
+listen = "0.0.0.0:80"
+
+# The Unix socket also lets hifid queue files outside MPD's database.
+mpd = "/run/mpd/socket"
+
+# Library database and artwork cache (systemd's StateDirectory).
+data_dir = "/var/lib/hifi"
+
+# HiFiBerry Digi2 Pro; see `cat /proc/asound/cards`.
+alsa_card = "sndrpihifiberry"
+
+# AirPlay (shairport-sync) shares the DAC. Its session hooks call
+# `hifid ctl acquire|release airplay`; when you press play in the web UI
+# during an AirPlay session, hifid runs `preempt` to end that session.
+[sources.airplay]
+preempt = "dbus-send --system --type=method_call --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.gnome.ShairportSync.DropSession"

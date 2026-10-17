@@ -1,0 +1,18 @@
+[package]
+name = "hifi-library"
+description = "MPD database projected into SQLite, plus the artwork cache"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+hifi-core.workspace = true
+hifi-engine-mpd.workspace = true
+image.workspace = true
+rusqlite.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }

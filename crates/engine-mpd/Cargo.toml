@@ -1,0 +1,12 @@
+[package]
+name = "hifi-engine-mpd"
+description = "MPD as hifi's playback engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+hifi-core.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
