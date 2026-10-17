@@ -16,6 +16,9 @@ pub struct Config {
     pub data_dir: PathBuf,
     /// ALSA card id of the DAC, as in `/proc/asound/<id>`.
     pub alsa_card: String,
+    /// Where ALSA's procfs tree is visible. Docker hides `/proc/asound`, so the
+    /// container image bind-mounts the host's copy elsewhere.
+    pub asound_dir: PathBuf,
     /// External sources that share the DAC (AirPlay, Spotify…), by name.
     pub sources: BTreeMap<String, SourceConfig>,
 }
@@ -34,6 +37,7 @@ impl Default for Config {
             mpd: "127.0.0.1:6600".into(),
             data_dir: "data".into(),
             alsa_card: "sndrpihifiberry".into(),
+            asound_dir: "/proc/asound".into(),
             sources: BTreeMap::new(),
         }
     }
@@ -49,7 +53,7 @@ impl Config {
 
     /// What the DAC is being fed right now: `closed`, or format/rate/channels.
     pub fn hw_params_path(&self) -> PathBuf {
-        format!("/proc/asound/{}/pcm0p/sub0/hw_params", self.alsa_card).into()
+        self.asound_dir.join(&self.alsa_card).join("pcm0p/sub0/hw_params")
     }
 }
 

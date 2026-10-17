@@ -52,7 +52,8 @@ crates/engine-mpd  MPD protocol client and typed commands (the playback-engine s
 crates/library     MPD database → SQLite projection, search, artwork cache
 crates/hifid       the daemon: HTTP API, WebSocket, DAC arbitration, signal path, embedded UI
 web/               SvelteKit 3 app (Tailwind 4, Lucide icons)
-deploy/            mpd.conf, shairport-sync.conf, hifid.toml, systemd unit, boot config
+deploy/            native install: mpd.conf, shairport-sync.conf, hifid.toml, systemd unit, boot config
+docker/            container install: compose.yaml, entrypoint, AirPlay config and D-Bus policy
 scripts/           cross-build and deploy helpers
 ```
 
@@ -77,7 +78,57 @@ Point it at the Pi instead with `HIFI_URL=http://hifi.local npm run dev`.
 Debug builds read `web/build` from disk, so `npm run build` + refresh is enough; release builds
 embed it.
 
-## Install on the Pi
+## Install on the Pi with Docker (recommended)
+
+[`ghcr.io/mpkonmbk/hifi`](https://github.com/mpkonmbk/hifi/pkgs/container/hifi) (linux/arm64 and
+linux/amd64) bundles hifid and MPD and is rebuilt by CI on every push to `main`. AirPlay 2 runs next
+to it in the official [`mikebrady/shairport-sync`](https://hub.docker.com/r/mikebrady/shairport-sync)
+image. [docker/compose.yaml](docker/compose.yaml) wires the two together.
+
+On **Raspberry Pi OS Lite (64-bit)**:
+
+1. Append [deploy/config.txt](deploy/config.txt) to `/boot/firmware/config.txt`, reboot, and check
+   `cat /proc/asound/cards` lists `sndrpihifiberry`.
+2. Install Docker: `curl -fsSL https://get.docker.com | sh`, then `sudo usermod -aG docker $USER`
+   and log in again.
+3. Let the AirPlay container publish its D-Bus interface on the Pi's bus (hifi uses it to end an
+   AirPlay session when you press play):
+
+   ```bash
+   sudo curl -fsSL -o /etc/dbus-1/system.d/shairport-sync-dbus.conf \
+     https://raw.githubusercontent.com/mpkonmbk/hifi/main/docker/shairport-sync-dbus.conf
+   sudo systemctl reload dbus
+   ```
+
+4. Fetch the compose file and AirPlay config, set your music folder in `compose.yaml`
+   (`/mnt/music` by default), and start:
+
+   ```bash
+   mkdir -p ~/hifi && cd ~/hifi
+   curl -fsSLO https://raw.githubusercontent.com/mpkonmbk/hifi/main/docker/compose.yaml
+   curl -fsSLO https://raw.githubusercontent.com/mpkonmbk/hifi/main/docker/shairport-sync.conf
+   docker compose up -d
+   ```
+
+5. Open `http://<hostname>.local/` on your phone and *Add to Home Screen*.
+
+Update with `docker compose pull && docker compose up -d`. Settings live in `compose.yaml`:
+
+| Variable | Default | |
+|---|---|---|
+| `HIFI_PORT` | `80` | Web UI port (also change it in `shairport-sync.conf`'s hooks) |
+| `ALSA_CARD` | `sndrpihifiberry` | DAC card id from `cat /proc/asound/cards` |
+| `MPD_DOP` | `yes` | DSD64 as DoP; `no` if your DAC does not accept DoP |
+| `AIRPLAY` | `on` | `off` if you run hifi without the shairport-sync container |
+
+To take full control, mount your own `/config/mpd.conf` and/or `/config/hifid.toml` into the
+`hifi` container. Both containers use host networking (AirPlay 2, mDNS and NQPTP need it) and the
+Pi's own avahi-daemon. Don't also run MPD or shairport-sync natively: only one program can hold
+the DAC.
+
+Use wired Ethernet: Wi-Fi power saving causes AirPlay dropouts.
+
+## Install on the Pi natively
 
 On **Raspberry Pi OS Lite (64-bit)**:
 
@@ -94,8 +145,6 @@ On **Raspberry Pi OS Lite (64-bit)**:
    ```
 
 5. Open `http://<hostname>.local/` on your phone and *Add to Home Screen*.
-
-Use wired Ethernet: Wi-Fi power saving causes AirPlay dropouts.
 
 ## API
 
