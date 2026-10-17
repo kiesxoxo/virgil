@@ -7,13 +7,19 @@
 	let { signal }: { signal: SignalPath } = $props();
 
 	const explain = {
-		bitPerfect: 'Every bit of the file reaches the DAC unchanged.',
+		bitPerfect: '',
 		resampled: 'The sample rate is being converted before the DAC.',
 		converted: 'Samples are being altered before the DAC.',
 		external: 'Another device is streaming to this player.',
 		unknown: 'The output could not be verified.',
 		idle: 'The output is closed.'
 	} as const;
+
+	const description = $derived(
+		[explain[signal.verdict], signal.note && signal.verdict !== 'external' ? `${signal.note}.` : '']
+			.filter(Boolean)
+			.join(' ')
+	);
 </script>
 
 <div class="rounded-2xl bg-surface p-4">
@@ -21,7 +27,9 @@
 		<span class="text-sm font-semibold">Signal path</span>
 		<SignalBadge {signal} />
 	</div>
-	<p class="mt-2 text-sm text-muted">{signal.note && signal.verdict !== 'external' ? `${explain[signal.verdict]} ${signal.note}.` : explain[signal.verdict]}</p>
+	{#if description}
+		<p class="mt-2 text-sm text-muted">{description}</p>
+	{/if}
 	{#if signal.source || signal.output}
 		<div class="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-xs">
 			<div class="rounded-xl bg-bg px-3 py-2">
