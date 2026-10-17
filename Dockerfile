@@ -104,7 +104,7 @@ FROM debian:trixie-slim AS rootfs
 COPY --from=mpd /out/ /usr/local/
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
-		tini dbus-bin \
+		tini dbus-bin ca-certificates \
 		libasound2t64 libflac14 libmpg123-0t64 libvorbis0a libopus0 libogg0 libwavpack1 \
 		libsoxr0 libid3tag0 libsqlite3-0 libpcre2-8-0 libfmt10 zlib1g \
 	&& ldconfig \
