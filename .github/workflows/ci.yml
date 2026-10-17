@@ -1,10 +1,10 @@
 name: ci
 
+# Builds run only on request (Actions tab > ci > Run workflow, or
+# `gh workflow run ci --ref <branch>`) and when a v* tag is pushed.
 on:
   push:
-    branches: [main]
     tags: ["v*"]
-  pull_request:
   workflow_dispatch:
 
 permissions:
