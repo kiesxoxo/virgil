@@ -12,6 +12,7 @@ clap.workspace = true
 hifi-core.workspace = true
 hifi-engine-mpd.workspace = true
 hifi-library.workspace = true
+hifi-tags.workspace = true
 mime_guess.workspace = true
 rust-embed.workspace = true
 serde.workspace = true

@@ -1,0 +1,14 @@
+[package]
+name = "hifi-tags"
+description = "Reading and writing audio file tags, foobar2000-style field names"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+hifi-core.workspace = true
+lofty.workspace = true
+
+[dev-dependencies]
+lofty.workspace = true

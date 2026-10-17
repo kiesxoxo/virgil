@@ -360,6 +360,86 @@ pub struct MoveRequest {
     pub to: u32,
 }
 
+/// One tag field and its values, foobar2000-style: `ARTIST`, `ALBUM ARTIST`,
+/// `TRACKNUMBER`, any custom name. Most fields have one value.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct TagField {
+    pub name: String,
+    pub values: Vec<String>,
+}
+
+/// A file's tags and technical details, as the tag editor shows them.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct TaggedFile {
+    pub uri: String,
+    /// Fields in file order. Empty when the file can't be read (see `error`).
+    pub fields: Vec<TagField>,
+    pub info: Option<FileInfo>,
+    /// Why the file can't be read or written (e.g. a format without tag support).
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct FileInfo {
+    /// "FLAC", "MP3", "ALAC", …
+    pub codec: String,
+    /// "Vorbis comments", "ID3v2", "APEv2", "iTunes metadata"
+    pub tag_type: String,
+    pub sample_rate: Option<u32>,
+    pub bits: Option<u8>,
+    pub channels: Option<u8>,
+    /// Seconds.
+    pub duration: f64,
+    /// kbit/s.
+    pub bitrate: Option<u32>,
+    /// Bytes.
+    #[ts(type = "number")]
+    pub size: u64,
+}
+
+#[derive(Debug, Clone, Deserialize, TS)]
+#[ts(export)]
+pub struct TagsRequest {
+    pub uris: Vec<String>,
+}
+
+/// Changes to one file. `set` replaces a field's values (an empty list
+/// removes it); `remove` drops fields. Names match case-insensitively.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct TagEdit {
+    pub uri: String,
+    #[serde(default)]
+    pub set: Vec<TagField>,
+    #[serde(default)]
+    pub remove: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, TS)]
+#[ts(export)]
+pub struct TagWriteRequest {
+    pub edits: Vec<TagEdit>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, TS)]
+#[ts(export)]
+pub struct TagWriteResult {
+    /// Files whose tags changed.
+    pub written: u32,
+    pub failed: Vec<TagWriteError>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct TagWriteError {
+    pub uri: String,
+    pub error: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

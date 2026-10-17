@@ -11,10 +11,12 @@ rust-version = "1.85"
 hifi-core = { path = "crates/core" }
 hifi-engine-mpd = { path = "crates/engine-mpd" }
 hifi-library = { path = "crates/library" }
+hifi-tags = { path = "crates/tags" }
 
 anyhow = "1"
 axum = { version = "0.8", features = ["ws"] }
 clap = { version = "4", features = ["derive", "env"] }
+lofty = "0.25"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 mime_guess = "2"
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "http2", "system-proxy", "json", "query"] }

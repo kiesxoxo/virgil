@@ -4,6 +4,7 @@ mod config;
 mod ctl;
 mod signal;
 mod sync;
+mod tags;
 mod web;
 mod ws;
 

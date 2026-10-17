@@ -15,7 +15,7 @@ use tower_http::services::ServeDir;
 use tower_http::set_header::SetResponseHeaderLayer;
 
 use crate::app::App;
-use crate::{web, ws};
+use crate::{tags, web, ws};
 
 #[derive(Debug)]
 pub struct ApiError {
@@ -57,7 +57,7 @@ impl From<anyhow::Error> for ApiError {
     }
 }
 
-type ApiResult<T = StatusCode> = Result<T, ApiError>;
+pub type ApiResult<T = StatusCode> = Result<T, ApiError>;
 
 const DONE: StatusCode = StatusCode::NO_CONTENT;
 
@@ -92,6 +92,8 @@ pub fn router(app: App) -> Router {
         .route("/api/library/albums/{id}/art", post(download_art))
         .route("/api/library/albums/{id}/art/upload", post(upload_art).layer(DefaultBodyLimit::max(MAX_UPLOAD)))
         .route("/api/library/art/download-missing", post(download_missing_art))
+        .route("/api/tags/read", post(tags::read))
+        .route("/api/tags/write", post(tags::write))
         .route("/api/sources/{name}/acquire", post(acquire))
         .route("/api/sources/{name}/release", post(release))
         .nest_service("/art", art)

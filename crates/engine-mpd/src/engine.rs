@@ -315,6 +315,11 @@ impl MpdEngine {
         self.cmd("update").await
     }
 
+    /// Rescans one file or directory.
+    pub async fn update_path(&self, uri: &str) -> Result<()> {
+        self.cmd(&format!("update {}", quote(uri))).await
+    }
+
     pub async fn lsinfo(&self, dir: &str) -> Result<Vec<Entry>> {
         Ok(parse_entries(self.mpd.run(&format!("lsinfo {}", quote(dir))).await?.pairs))
     }

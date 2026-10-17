@@ -1,14 +1,16 @@
 <script lang="ts">
-	import { ChevronLeft, Layers, ListEnd, ListPlus, Play } from '@lucide/svelte';
+	import { ChevronLeft, CircleCheck, Circle, Layers, ListChecks, ListEnd, ListPlus, Play, Tags } from '@lucide/svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import Cover from '#lib/components/Cover.svelte';
 	import Equalizer from '#lib/components/Equalizer.svelte';
 	import Menu from '#lib/components/Menu.svelte';
 	import { trackHeader, trackItems } from '#lib/actions.ts';
-	import { queue } from '#lib/api.ts';
+	import { api, queue } from '#lib/api.ts';
 	import { contextMenu } from '#lib/menu.svelte.ts';
 	import { artUrl, clock, formatLong, formatShort, isHiRes, span } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
+	import { tagEditor } from '#lib/tageditor.svelte.ts';
 	import type { AlbumDetail } from '#lib/types/AlbumDetail.ts';
 	import type { PageProps } from './$types';
 
@@ -31,11 +33,72 @@
 		);
 	});
 
+	// Refetch the tracks when the library changes (e.g. after a tag edit),
+	// keeping the current list on screen until the new one arrives.
+	let seenRevision = hub.library.revision;
+	$effect(() => {
+		const revision = hub.library.revision;
+		if (revision === seenRevision) return;
+		seenRevision = revision;
+		const id = data.id;
+		api.album(id).then(
+			(d) => {
+				if (data.id === id) detail = d;
+			},
+			() => {}
+		);
+	});
+
 	let album = $derived(detail?.album ?? library.get(data.id));
 	let versions = $derived(library.versions(data.id));
 	let tracks = $derived(detail?.tracks ?? []);
 	let multiDisc = $derived(new Set(tracks.map((t) => t.disc ?? 1)).size > 1);
 	let backdrop = $derived(artUrl(album?.art, 300));
+	// Picking tracks to edit, like a selection in foobar2000's playlist.
+	let selecting = $state(false);
+	const selected = new SvelteSet<string>();
+	let anchor = 0;
+
+	$effect(() => {
+		void data.id;
+		selecting = false;
+		selected.clear();
+	});
+
+	/** Click toggles; Shift-click selects the range from the last click. */
+	function pick(i: number, range: boolean) {
+		const uri = tracks[i].uri;
+		if (range) {
+			const [from, to] = anchor < i ? [anchor, i] : [i, anchor];
+			for (const t of tracks.slice(from, to + 1)) selected.add(t.uri);
+		} else if (selected.has(uri)) {
+			selected.delete(uri);
+		} else {
+			selected.add(uri);
+		}
+		anchor = i;
+	}
+
+	function trackClick(e: MouseEvent, i: number) {
+		if (!selecting && (e.shiftKey || e.metaKey || e.ctrlKey)) selecting = true;
+		if (selecting) {
+			e.preventDefault();
+			pick(i, e.shiftKey);
+		} else if (album) {
+			queue.playAlbum(album.id, tracks[i].uri);
+		}
+	}
+
+	function stopSelecting() {
+		selecting = false;
+		selected.clear();
+	}
+
+	function editSelected() {
+		const uris = tracks.filter((t) => selected.has(t.uri)).map((t) => t.uri);
+		tagEditor.show(uris, uris.length === 1 ? (tracks.find((t) => t.uri === uris[0])?.title ?? '') : (album?.title ?? ''));
+	}
+
 	let meta = $derived(
 		album
 			? [album.genre, album.year, `${album.tracks} ${album.tracks === 1 ? 'song' : 'songs'}`, span(album.duration)].filter(Boolean)
@@ -52,7 +115,8 @@
 		<a href="/" class="mt-4 inline-block text-sm font-semibold text-accent">Back to albums</a>
 	</div>
 {:else}
-	<div class="relative isolate overflow-hidden">
+	<!-- clip, not hidden: it can't be scrolled sideways by focus, and the selection bar can stick. -->
+	<div class="relative isolate overflow-clip">
 		{#if backdrop}
 			<img
 				src={backdrop}
@@ -127,11 +191,45 @@
 						>
 							<ListEnd class="size-[18px]" /> <span class="max-sm:hidden">Add to queue</span>
 						</button>
+						<button
+							type="button"
+							class="press inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm font-semibold {selecting
+								? 'bg-fg text-bg'
+								: 'bg-surface hover:bg-surface-2'}"
+							disabled={!detail}
+							aria-pressed={selecting}
+							title="Select tracks to edit their tags"
+							onclick={() => (selecting ? stopSelecting() : (selecting = true))}
+						>
+							<ListChecks class="size-[18px]" /> <span class="max-sm:hidden">Select</span>
+						</button>
 					</div>
 				</div>
 			</header>
 
-			<ol class="mt-8 md:mt-10">
+			{#if selecting}
+				<div class="glass pt-safe sticky top-0 z-10 -mx-4 mt-6 flex items-center gap-2 border-b border-line px-4 py-2 lg:-mx-8 lg:px-8">
+					<span class="flex-1 text-sm font-semibold tabular-nums">{selected.size} selected</span>
+					<button
+						type="button"
+						class="press h-9 rounded-full px-3 text-[13px] font-semibold text-accent"
+						onclick={() => (selected.size === tracks.length ? selected.clear() : tracks.forEach((t) => selected.add(t.uri)))}
+					>
+						{selected.size === tracks.length ? 'None' : 'All'}
+					</button>
+					<button
+						type="button"
+						class="press inline-flex h-9 items-center gap-1.5 rounded-full bg-accent px-4 text-[13px] font-semibold text-accent-fg disabled:opacity-40"
+						disabled={!selected.size}
+						onclick={editSelected}
+					>
+						<Tags class="size-4" /> Edit tags
+					</button>
+					<button type="button" class="press h-9 rounded-full bg-surface px-3.5 text-[13px] font-semibold" onclick={stopSelecting}>Done</button>
+				</div>
+			{/if}
+
+			<ol class={selecting ? "mt-2" : "mt-8 md:mt-10"}>
 				{#if !detail}
 					{#each { length: Math.min(album?.tracks ?? 8, 12) } as _, i (i)}
 						<li class="flex h-14 animate-pulse items-center gap-4 px-3">
@@ -142,11 +240,12 @@
 				{/if}
 				{#each tracks as track, i (track.uri)}
 					{@const current = hub.current?.uri === track.uri}
+					{@const picked = selecting && selected.has(track.uri)}
 					{#if multiDisc && (i === 0 || tracks[i - 1].disc !== track.disc)}
 						<li class="px-3 pt-5 pb-1.5 text-xs font-semibold tracking-wider text-muted uppercase">Disc {track.disc ?? 1}</li>
 					{/if}
 					<li
-						class="group flex items-center rounded-xl hover:bg-fg/4 {current ? 'bg-accent/6' : ''}"
+						class="group flex items-center rounded-xl hover:bg-fg/4 {picked ? 'bg-accent/10' : current ? 'bg-accent/6' : ''}"
 						{@attach contextMenu(
 							() => trackItems(track, data.id),
 							() => trackHeader(track, album?.art)
@@ -154,11 +253,14 @@
 					>
 						<button
 							type="button"
-							class="grid min-w-0 flex-1 grid-cols-[2rem_1fr_auto] items-center gap-3 py-2.5 pl-3 text-left"
-							onclick={() => album && queue.playAlbum(album.id, track.uri)}
+							class="grid min-w-0 flex-1 grid-cols-[2rem_1fr_auto] items-center gap-3 py-2.5 pl-3 text-left select-none"
+							aria-pressed={selecting ? picked : undefined}
+							onclick={(e) => trackClick(e, i)}
 						>
 							<span class="flex justify-center text-sm text-muted tabular-nums">
-								{#if current}<Equalizer playing={hub.playing} />{:else}{track.track ?? i + 1}{/if}
+								{#if selecting}
+									{#if picked}<CircleCheck class="size-5 text-accent" />{:else}<Circle class="size-5 text-faint" />{/if}
+								{:else if current}<Equalizer playing={hub.playing} />{:else}{track.track ?? i + 1}{/if}
 							</span>
 							<span class="min-w-0">
 								<span class="block truncate text-[15px] font-medium {current ? 'text-accent' : ''}">{track.title}</span>

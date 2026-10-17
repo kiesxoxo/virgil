@@ -1,8 +1,9 @@
 // Menu items for albums, tracks and queue entries, shared by every view.
 
-import { ArrowUpToLine, ImageDown, ImageUp, ListEnd, ListPlus, ListX, Play } from '@lucide/svelte';
+import { ArrowUpToLine, ImageDown, ImageUp, ListEnd, ListPlus, ListX, Play, Tags } from '@lucide/svelte';
 import { api, queue } from './api.ts';
 import type { MenuHeader, MenuItem } from './menu.svelte.ts';
+import { tagEditor } from './tageditor.svelte.ts';
 import { toasts } from './toast.svelte.ts';
 import type { Album } from './types/Album.ts';
 import type { ArtOutcome } from './types/ArtOutcome.ts';
@@ -62,6 +63,11 @@ export function albumItems(album: Album): MenuItem[] {
 			}
 		});
 	}
+	items.push({
+		label: 'Edit tags…',
+		icon: Tags,
+		run: () => tagEditor.show(api.album(album.id).then((d) => d.tracks.map((t) => t.uri)), album.title)
+	});
 	items.push({ label: album.art ? 'Replace artwork…' : 'Upload artwork…', icon: ImageUp, run: () => uploadArt(album) });
 	return items;
 }
@@ -73,7 +79,8 @@ export function trackItems(track: Track, albumId: string): MenuItem[] {
 	return [
 		{ label: 'Play', icon: Play, run: () => queue.playAlbum(albumId, track.uri) },
 		{ label: 'Play next', icon: ListPlus, run: () => queue.trackNext(track.uri) },
-		{ label: 'Add to end of queue', icon: ListEnd, run: () => queue.trackLast(track.uri) }
+		{ label: 'Add to end of queue', icon: ListEnd, run: () => queue.trackLast(track.uri) },
+		{ label: 'Edit tags…', icon: Tags, run: () => tagEditor.show([track.uri], track.title) }
 	];
 }
 
@@ -96,6 +103,7 @@ export function queueItems(item: QueueItem, index: number, current: number): Men
 			run: () => api.move(item.id, index > current ? current + 1 : current)
 		});
 	}
+	items.push({ label: 'Edit tags…', icon: Tags, run: () => tagEditor.show([item.uri], item.title) });
 	items.push({ label: 'Remove from queue', icon: ListX, run: () => api.remove(item.id), danger: true });
 	return items;
 }

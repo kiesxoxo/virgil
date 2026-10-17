@@ -5,6 +5,7 @@
 	import { page } from '$app/state';
 	import ContextMenu from '#lib/components/ContextMenu.svelte';
 	import PlayerBar from '#lib/components/PlayerBar.svelte';
+	import TagEditor from '#lib/components/TagEditor.svelte';
 	import Toaster from '#lib/components/Toaster.svelte';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
@@ -103,5 +104,6 @@
 	</nav>
 {/if}
 
+<TagEditor />
 <ContextMenu />
 <Toaster />

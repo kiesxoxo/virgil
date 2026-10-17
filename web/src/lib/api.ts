@@ -5,6 +5,9 @@ import type { ArtOutcome } from './types/ArtOutcome.ts';
 import type { AlbumDetail } from './types/AlbumDetail.ts';
 import type { ModesRequest } from './types/ModesRequest.ts';
 import type { SearchResults } from './types/SearchResults.ts';
+import type { TagEdit } from './types/TagEdit.ts';
+import type { TaggedFile } from './types/TaggedFile.ts';
+import type { TagWriteResult } from './types/TagWriteResult.ts';
 
 async function call(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<Response> {
 	let res: Response;
@@ -69,7 +72,11 @@ export const api = {
 	downloadArt: (id: string) =>
 		call('POST', `/api/library/albums/${encodeURIComponent(id)}/art`).then((r) => r.json() as Promise<ArtOutcome>),
 	downloadMissingArt: () => post('/api/library/art/download-missing'),
-	uploadArt: (id: string, image: Blob) => call('POST', `/api/library/albums/${encodeURIComponent(id)}/art/upload`, image)
+	uploadArt: (id: string, image: Blob) => call('POST', `/api/library/albums/${encodeURIComponent(id)}/art/upload`, image),
+
+	readTags: (uris: string[]) => call('POST', '/api/tags/read', { uris }).then((r) => r.json() as Promise<TaggedFile[]>),
+	writeTags: (edits: TagEdit[]) =>
+		call('POST', '/api/tags/write', { edits }).then((r) => r.json() as Promise<TagWriteResult>)
 };
 
 const next = () => toasts.done('Playing next');
