@@ -74,6 +74,8 @@ fn fingerprint(songs: &[Song]) -> i64 {
         .map(|s| format!("{}\0{}\0{:?}", s.uri, s.last_modified.as_deref().unwrap_or(""), s.format))
         .collect();
     lines.sort_unstable();
+    // A new grouping algorithm must regroup an unchanged library.
+    lines.push(format!("grouping {}", group::GROUPING_VERSION));
     fnv1a64(lines.join("\n").as_bytes()) as i64
 }
 
@@ -88,6 +90,7 @@ pub fn project(conn: &mut Connection, songs: Vec<Song>) -> rusqlite::Result<bool
     let tx = conn.transaction()?;
     tx.execute_batch("DELETE FROM tracks; DELETE FROM albums; DELETE FROM fts;")?;
     insert_albums(&tx, &albums)?;
+    tx.execute("DELETE FROM art WHERE album_id NOT IN (SELECT id FROM albums)", [])?;
     tx.execute("UPDATE meta SET value = ?1 WHERE key = 'fingerprint'", [fingerprint])?;
     bump_revision(&tx)?;
     tx.commit()?;

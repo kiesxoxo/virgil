@@ -3,6 +3,7 @@
 	import { ListMusic, LibraryBig, LoaderCircle, Settings2, WifiOff } from '@lucide/svelte';
 	import { onMount, type Snippet } from 'svelte';
 	import { page } from '$app/state';
+	import ContextMenu from '#lib/components/ContextMenu.svelte';
 	import PlayerBar from '#lib/components/PlayerBar.svelte';
 	import Toaster from '#lib/components/Toaster.svelte';
 	import { hub } from '#lib/hub.svelte.ts';
@@ -102,4 +103,5 @@
 	</nav>
 {/if}
 
+<ContextMenu />
 <Toaster />

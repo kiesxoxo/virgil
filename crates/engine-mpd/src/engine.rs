@@ -293,6 +293,23 @@ impl MpdEngine {
         self.cmd("clear").await
     }
 
+    /// Clears the queue except for the current song, which keeps playing.
+    pub async fn clear_except_current(&self) -> Result<()> {
+        let status = self.status().await?;
+        let Some(pos) = status.song_pos.filter(|_| status.state != PlayState::Stop) else {
+            return self.clear().await;
+        };
+        let mut commands = Vec::new();
+        // Delete after the current song first so its position stays valid.
+        if pos + 1 < status.queue_length {
+            commands.push(format!("delete {}:{}", pos + 1, status.queue_length));
+        }
+        if pos > 0 {
+            commands.push(format!("delete 0:{pos}"));
+        }
+        self.mpd.run_list(&commands).await.map(drop)
+    }
+
     /// Asks MPD to rescan the music directory; `database` fires when done.
     pub async fn update(&self) -> Result<()> {
         self.cmd("update").await
@@ -346,6 +363,49 @@ mod tests {
                 (k.to_string(), v.to_string())
             })
             .collect()
+    }
+
+    /// A one-connection fake MPD that answers `status` with `status` and
+    /// records every other line until the command list ends.
+    async fn fake_mpd(status: &'static str) -> (String, tokio::task::JoinHandle<Vec<String>>) {
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap().to_string();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let (read, mut write) = socket.into_split();
+            let mut lines = BufReader::new(read).lines();
+            write.write_all(b"OK MPD 0.24.0\n").await.unwrap();
+            let mut seen = Vec::new();
+            while let Some(line) = lines.next_line().await.unwrap() {
+                match line.as_str() {
+                    "status" => write.write_all(format!("{status}\nOK\n").as_bytes()).await.unwrap(),
+                    "command_list_end" | "clear" => {
+                        seen.push(line);
+                        write.write_all(b"OK\n").await.unwrap();
+                        break;
+                    }
+                    _ => seen.push(line),
+                }
+            }
+            seen
+        });
+        (addr, server)
+    }
+
+    #[tokio::test]
+    async fn clearing_keeps_the_playing_song() {
+        let (addr, server) = fake_mpd("state: play\nsong: 2\nplaylistlength: 6").await;
+        MpdEngine::new(&addr).clear_except_current().await.unwrap();
+        assert_eq!(server.await.unwrap(), ["command_list_begin", "delete 3:6", "delete 0:2", "command_list_end"]);
+
+        let (addr, server) = fake_mpd("state: pause\nsong: 0\nplaylistlength: 3").await;
+        MpdEngine::new(&addr).clear_except_current().await.unwrap();
+        assert_eq!(server.await.unwrap(), ["command_list_begin", "delete 1:3", "command_list_end"]);
+
+        let (addr, server) = fake_mpd("state: stop\nsong: 1\nplaylistlength: 3").await;
+        MpdEngine::new(&addr).clear_except_current().await.unwrap();
+        assert_eq!(server.await.unwrap(), ["clear"]);
     }
 
     #[test]

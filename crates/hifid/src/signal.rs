@@ -43,6 +43,16 @@ pub async fn read_hw(path: &Path) -> Hw {
     }
 }
 
+/// The PCM's name from `pcm0p/info` (what `aplay -l` shows), without the
+/// codec part: "HiFiBerry Digi+ Pro HiFi wm8804-spdif-0" → "HiFiBerry Digi+ Pro".
+pub fn parse_device_name(info: &str) -> Option<String> {
+    let name = info.lines().find_map(|line| line.strip_prefix("name:"))?.trim();
+    // ASoC names PCMs "<link name> <codec DAI>"; links on the Pi end in " HiFi".
+    let name = name.split_once(" HiFi ").map_or(name, |(device, _)| device);
+    let name = name.strip_suffix(" HiFi").unwrap_or(name).trim();
+    (!name.is_empty()).then(|| name.to_string())
+}
+
 /// Significant bits of an ALSA sample format (`S24_LE` and `S24_3LE` are both 24).
 fn alsa_bits(format: &str) -> Option<u8> {
     match format.split('_').next()? {
@@ -106,7 +116,7 @@ pub fn evaluate(hw: &Hw, player: &PlayerState, source: &SourceState) -> SignalPa
                 };
             };
             let (verdict, dop, note) = classify(&audio, output);
-            SignalPath { verdict, source: Some(audio), output: Some(output.clone()), dop, note }
+            SignalPath { verdict, source: Some(audio), output: Some(output.clone()), dop, note, device: None }
         }
     }
 }
@@ -114,12 +124,20 @@ pub fn evaluate(hw: &Hw, player: &PlayerState, source: &SourceState) -> SignalPa
 /// Re-evaluates the signal path twice a second; only changes are broadcast.
 pub async fn run(app: App) {
     let path = app.config.hw_params_path();
+    let info_path = path.with_file_name("info");
+    let mut device: Option<String> = None;
     let mut tick = tokio::time::interval(Duration::from_millis(500));
     tick.set_missed_tick_behavior(MissedTickBehavior::Skip);
     loop {
         tick.tick().await;
         let hw = read_hw(&path).await;
-        app.set_signal(evaluate(&hw, &app.player(), &app.source()));
+        // The name never changes; look it up until the card is there.
+        if device.is_none() && hw != Hw::Missing {
+            device = tokio::fs::read_to_string(&info_path).await.ok().as_deref().and_then(parse_device_name);
+        }
+        let mut signal = evaluate(&hw, &app.player(), &app.source());
+        signal.device = device.clone();
+        app.set_signal(signal);
     }
 }
 
@@ -142,6 +160,17 @@ mod tests {
                     rate: 96000 (96000/1)\nperiod_size: 2048\nbuffer_size: 8192\n";
         assert_eq!(parse_hw_params(text), open("S24_LE", 96_000));
         assert_eq!(parse_hw_params("closed\n"), Hw::Closed);
+    }
+
+    #[test]
+    fn names_the_device_like_aplay_without_the_codec() {
+        let info = "card: 0\ndevice: 0\nsubdevice: 0\nstream: PLAYBACK\n\
+                    id: HiFiBerry Digi+ Pro HiFi wm8804-spdif-0\n\
+                    name: HiFiBerry Digi+ Pro HiFi wm8804-spdif-0\nsubname: subdevice #0\n";
+        assert_eq!(parse_device_name(info).as_deref(), Some("HiFiBerry Digi+ Pro"));
+        assert_eq!(parse_device_name("name: USB Audio\n").as_deref(), Some("USB Audio"));
+        assert_eq!(parse_device_name("name: \n"), None);
+        assert_eq!(parse_device_name("closed\n"), None);
     }
 
     #[test]

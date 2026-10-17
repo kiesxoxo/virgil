@@ -1,6 +1,9 @@
 <script lang="ts">
-	import { Play } from '@lucide/svelte';
+	import { Layers, Play } from '@lucide/svelte';
+	import { albumHeader, albumItems } from '../actions.ts';
 	import { queue } from '../api.ts';
+	import { library } from '../library.svelte.ts';
+	import { contextMenu } from '../menu.svelte.ts';
 	import type { Album } from '../types/Album.ts';
 	import Cover from './Cover.svelte';
 
@@ -43,13 +46,28 @@
 <div bind:this={grid} bind:clientWidth={width} class="relative" style:height="{Math.max(0, rows * rowHeight - GAP_Y)}px">
 	{#each visible as album, i (album.id)}
 		{@const index = first * cols + i}
+		{@const versions = library.versions(album.id).length}
 		<div
 			class="group absolute top-0 left-0"
 			style:width="{tile}px"
 			style:transform="translate3d({(index % cols) * (tile + gapX)}px, {Math.floor(index / cols) * rowHeight}px, 0)"
+			{@attach contextMenu(
+				() => albumItems(album),
+				() => albumHeader(album)
+			)}
 		>
 			<a href="/album/{album.id}" class="block press">
-				<Cover art={album.art} class="rounded-xl shadow-cover ring-1 ring-line" />
+				<div class="relative">
+					<Cover art={album.art} class="rounded-xl shadow-cover ring-1 ring-line" />
+					{#if versions > 1}
+						<span
+							class="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm"
+							title="{versions} versions"
+						>
+							<Layers class="size-3" />{versions}
+						</span>
+					{/if}
+				</div>
 				<div class="mt-2.5 truncate text-[13px] leading-5 font-semibold">{album.title}</div>
 				<div class="truncate text-[13px] leading-5 text-muted">{album.artist}</div>
 			</a>

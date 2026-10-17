@@ -242,6 +242,8 @@ pub struct SignalPath {
     pub verdict: Verdict,
     pub source: Option<AudioFormat>,
     pub output: Option<HwParams>,
+    /// The output device's name, e.g. "HiFiBerry Digi+ Pro".
+    pub device: Option<String>,
     /// DSD is being carried as DoP inside PCM frames.
     pub dop: bool,
     pub note: Option<String>,

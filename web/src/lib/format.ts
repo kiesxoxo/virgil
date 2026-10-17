@@ -43,6 +43,22 @@ export function formatLong(f: AudioFormat | null | undefined): string {
 	return `${bits} · ${khz(f.rate)} kHz${channels}`;
 }
 
+/** ALSA sample format as words: "S24_LE" → "24-bit". */
+export function alsaFormat(format: string): string {
+	const bits = /^[SU](\d+)/.exec(format)?.[1];
+	if (bits) return `${bits}-bit`;
+	if (format.startsWith('FLOAT')) return '32-bit float';
+	return format;
+}
+
+const BITS = { s8: 8, s16: 16, s24: 24, s32: 32, f32: 32, dsd: 1 } as const;
+
+/** Orders formats by resolution: DSD above PCM, PCM by rate × bits, unknown/mixed last. */
+export function qualityRank(f: AudioFormat | null | undefined): number {
+	if (!f) return 0;
+	return f.format === 'dsd' ? 1e9 + f.rate : f.rate * BITS[f.format];
+}
+
 /** Better than CD: more than 16 bits or faster than 48 kHz. */
 export function isHiRes(f: AudioFormat | null | undefined): boolean {
 	if (!f) return false;

@@ -1,0 +1,52 @@
+// Menu items for albums, tracks and queue entries, shared by every view.
+
+import { ArrowUpToLine, ListEnd, ListPlus, ListX, Play } from '@lucide/svelte';
+import { api, queue } from './api.ts';
+import type { MenuHeader, MenuItem } from './menu.svelte.ts';
+import type { Album } from './types/Album.ts';
+import type { QueueItem } from './types/QueueItem.ts';
+import type { Track } from './types/Track.ts';
+
+export function albumItems(album: Album): MenuItem[] {
+	return [
+		{ label: 'Play', icon: Play, run: () => queue.playAlbum(album.id) },
+		{ label: 'Play next', icon: ListPlus, run: () => queue.albumNext(album.id) },
+		{ label: 'Add to end of queue', icon: ListEnd, run: () => queue.albumLast(album.id) }
+	];
+}
+
+export const albumHeader = (album: Album): MenuHeader => ({ title: album.title, subtitle: album.artist, art: album.art });
+
+/** For a track on an album: "Play" starts the album from that track. */
+export function trackItems(track: Track, albumId: string): MenuItem[] {
+	return [
+		{ label: 'Play', icon: Play, run: () => queue.playAlbum(albumId, track.uri) },
+		{ label: 'Play next', icon: ListPlus, run: () => queue.trackNext(track.uri) },
+		{ label: 'Add to end of queue', icon: ListEnd, run: () => queue.trackLast(track.uri) }
+	];
+}
+
+export const trackHeader = (track: Track, art?: string | null): MenuHeader => ({
+	title: track.title,
+	subtitle: track.artist,
+	art
+});
+
+/**
+ * For a queue entry. `index` is its position and `current` the playing one's
+ * (-1 when nothing plays); "Play next" moves it to right after the current song.
+ */
+export function queueItems(item: QueueItem, index: number, current: number): MenuItem[] {
+	const items: MenuItem[] = [{ label: 'Play', icon: Play, run: () => api.playItem(item.id) }];
+	if (current >= 0 && index !== current && index !== current + 1) {
+		items.push({
+			label: 'Play next',
+			icon: ArrowUpToLine,
+			run: () => api.move(item.id, index > current ? current + 1 : current)
+		});
+	}
+	items.push({ label: 'Remove from queue', icon: ListX, run: () => api.remove(item.id), danger: true });
+	return items;
+}
+
+export const queueHeader = (item: QueueItem): MenuHeader => ({ title: item.title, subtitle: item.artist, art: item.art });

@@ -75,6 +75,14 @@
 		-webkit-tap-highlight-color: transparent;
 		-webkit-text-size-adjust: 100%;
 		font-feature-settings: 'cv11', 'ss01';
+		/* No double-tap zoom: taps respond at once, like a native app. Pinch zoom stays. */
+		touch-action: manipulation;
+	}
+	/* iOS zooms into any field with text under 16px when it gets focus. */
+	input,
+	select,
+	textarea {
+		font-size: max(16px, 1em);
 	}
 	body {
 		@apply min-h-dvh font-sans antialiased;
@@ -90,6 +98,13 @@
 		outline: 2px solid var(--accent);
 		outline-offset: 2px;
 	}
+}
+
+/* Elements with a long-press menu: no iOS link callout or text selection. */
+.touch-menu {
+	-webkit-touch-callout: none;
+	-webkit-user-select: none;
+	user-select: none;
 }
 
 @utility pb-safe {

@@ -169,8 +169,9 @@ async fn add(State(app): State<App>, Json(req): Json<AddRequest>) -> ApiResult {
     Ok(DONE)
 }
 
+/// Clears the queue but lets the current song finish.
 async fn clear(State(app): State<App>) -> ApiResult {
-    app.mpd.clear().await?;
+    app.mpd.clear_except_current().await?;
     Ok(DONE)
 }
 

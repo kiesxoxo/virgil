@@ -5,6 +5,10 @@ import type { Verdict } from "./Verdict";
 
 export type SignalPath = { verdict: Verdict, source: AudioFormat | null, output: HwParams | null, 
 /**
+ * The output device's name, e.g. "HiFiBerry Digi+ Pro".
+ */
+device: string | null, 
+/**
  * DSD is being carried as DoP inside PCM frames.
  */
 dop: boolean, note: string | null, };

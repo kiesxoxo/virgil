@@ -37,7 +37,7 @@ class Hub {
 	ready = $state(false);
 	player = $state.raw<PlayerState>(idlePlayer);
 	queue = $state.raw<Queue>({ version: 0, items: [] });
-	signal = $state.raw<SignalPath>({ verdict: 'idle', source: null, output: null, dop: false, note: null });
+	signal = $state.raw<SignalPath>({ verdict: 'idle', source: null, output: null, device: null, dop: false, note: null });
 	source = $state.raw<SourceState>({ active: 'local', available: [] });
 	library = $state.raw<LibraryStatus>({ revision: 0, scanning: false, albums: 0, tracks: 0 });
 

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { ArrowRight } from '@lucide/svelte';
-	import { formatLong, khz } from '../format.ts';
+	import { alsaFormat, formatLong, khz } from '../format.ts';
 	import type { SignalPath } from '../types/SignalPath.ts';
 	import SignalBadge from './SignalBadge.svelte';
 
@@ -29,10 +29,10 @@
 				<div class="mt-0.5 font-medium tabular-nums">{signal.source ? formatLong(signal.source) : '—'}</div>
 			</div>
 			<ArrowRight class="size-4 text-faint" />
-			<div class="rounded-xl bg-bg px-3 py-2">
-				<div class="text-faint">DAC</div>
-				<div class="mt-0.5 font-medium tabular-nums">
-					{signal.output ? `${signal.output.format} · ${khz(signal.output.rate)} kHz` : '—'}
+			<div class="min-w-0 rounded-xl bg-bg px-3 py-2">
+				<div class="truncate text-faint" title={signal.device ?? undefined}>{signal.device ?? 'DAC'}</div>
+				<div class="mt-0.5 font-medium tabular-nums" title={signal.output?.format}>
+					{signal.output ? `${alsaFormat(signal.output.format)} · ${khz(signal.output.rate)} kHz` : '—'}
 				</div>
 			</div>
 		</div>

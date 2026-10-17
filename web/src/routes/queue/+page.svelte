@@ -1,11 +1,14 @@
 <script lang="ts">
-	import { ArrowUpToLine, ListMusic, ListX, Trash } from '@lucide/svelte';
+	import { ListMusic, Trash } from '@lucide/svelte';
 	import Cover from '#lib/components/Cover.svelte';
 	import Equalizer from '#lib/components/Equalizer.svelte';
 	import Menu from '#lib/components/Menu.svelte';
+	import { queueHeader, queueItems } from '#lib/actions.ts';
 	import { api } from '#lib/api.ts';
 	import { clock, span } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
+	import { contextMenu } from '#lib/menu.svelte.ts';
+	import { toasts } from '#lib/toast.svelte.ts';
 	import type { QueueItem } from '#lib/types/QueueItem.ts';
 
 	let items = $derived(hub.queue.items);
@@ -25,20 +28,24 @@
 			return;
 		}
 		confirmClear = false;
-		api.clear();
+		api.clear().then(() => toasts.done(hub.current ? 'Queue cleared; this song keeps playing' : 'Queue cleared'));
 	}
 
-	/** Moves an item to play right after the current one. */
-	function playNext(item: QueueItem) {
-		const from = items.indexOf(item);
-		api.move(item.id, from > cur ? cur + 1 : cur);
-	}
+	const actions = (item: QueueItem) => queueItems(item, items.indexOf(item), cur);
 </script>
 
 <svelte:head><title>Queue · hifi</title></svelte:head>
 
 {#snippet row(item: QueueItem, dim: boolean)}
-	<li class="group flex items-center rounded-xl hover:bg-fg/4 [contain-intrinsic-size:auto_60px] [content-visibility:auto] {dim ? 'opacity-55 hover:opacity-100' : ''}">
+	<li
+		class="group flex items-center rounded-xl hover:bg-fg/4 [contain-intrinsic-size:auto_60px] [content-visibility:auto] {dim
+			? 'opacity-55 hover:opacity-100'
+			: ''}"
+		{@attach contextMenu(
+			() => actions(item),
+			() => queueHeader(item)
+		)}
+	>
 		<button type="button" class="flex min-w-0 flex-1 items-center gap-3 py-2 pl-2 text-left" onclick={() => api.playItem(item.id)}>
 			<Cover art={item.art} class="size-11 shrink-0 rounded-md" />
 			<span class="min-w-0 flex-1">
@@ -47,13 +54,7 @@
 			</span>
 			<span class="text-xs text-faint tabular-nums">{clock(item.duration)}</span>
 		</button>
-		<Menu
-			class="mx-1"
-			items={[
-				...(cur >= 0 ? [{ label: 'Play next', icon: ArrowUpToLine, run: () => playNext(item) }] : []),
-				{ label: 'Remove from queue', icon: ListX, run: () => api.remove(item.id) }
-			]}
-		/>
+		<Menu class="mx-1" items={() => actions(item)} header={queueHeader(item)} />
 	</li>
 {/snippet}
 
@@ -85,6 +86,7 @@
 					class="press inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold whitespace-nowrap {confirmClear
 						? 'bg-accent text-accent-fg'
 						: 'bg-surface text-muted hover:text-fg'}"
+					title={hub.current ? 'Remove everything except the song that is playing' : 'Remove everything'}
 					onclick={clear}
 				>
 					<Trash class="size-3.5" />

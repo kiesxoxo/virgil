@@ -31,19 +31,36 @@ fn parent_dir(uri: &str) -> &str {
     uri.rsplit_once('/').map_or("", |(dir, _)| dir)
 }
 
-/// Which album a song belongs to. Album artist + album when tagged; otherwise
-/// album + directory, so untagged compilations don't split per track artist.
-fn album_key(song: &Song) -> String {
-    if let Some(mbid) = &song.mb_album_id {
-        return format!("mb:{mbid}");
+/// Bumped whenever [`album_key`] changes, so existing libraries are regrouped.
+pub const GROUPING_VERSION: u32 = 2;
+
+/// `CD1`, `Disc 2`, `disk_03`: a folder holding one disc of a multi-disc album.
+fn is_disc_folder(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    ["cd", "disc", "disk"]
+        .iter()
+        .filter_map(|prefix| lower.strip_prefix(prefix))
+        .map(|rest| rest.trim_start_matches([' ', '_', '-', '.']))
+        .any(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
+}
+
+/// The folder an album lives in; a disc subfolder counts as its parent.
+fn album_dir(uri: &str) -> &str {
+    let dir = parent_dir(uri);
+    match dir.rsplit_once('/') {
+        Some((parent, last)) if is_disc_folder(last) => parent,
+        None if is_disc_folder(dir) => "",
+        _ => dir,
     }
-    let dir = parent_dir(&song.uri);
-    match (&song.album, &song.album_artist) {
-        (Some(album), Some(artist)) => {
-            format!("aa:{}\u{1f}{}", artist.to_lowercase(), album.to_lowercase())
-        }
-        (Some(album), None) => format!("dir:{dir}\u{1f}{}", album.to_lowercase()),
-        (None, _) => format!("dir:{dir}"),
+}
+
+/// Which album a song belongs to: its folder plus the album title. Tags such as
+/// album artist are often inconsistent within one album, so they don't split it.
+fn album_key(song: &Song) -> String {
+    let dir = album_dir(&song.uri);
+    match &song.album {
+        Some(album) => format!("{dir}\u{1f}{}", album.to_lowercase()),
+        None => dir.to_string(),
     }
 }
 
@@ -155,13 +172,37 @@ mod tests {
     }
 
     #[test]
-    fn groups_by_album_artist_across_directories() {
+    fn merges_disc_subfolders() {
         let groups = group(vec![
             song("X/CD1/01.flac", Some("Box"), Some("Band"), "Band", 1),
-            song("X/CD2/01.flac", Some("Box"), Some("Band"), "Band", 1),
+            song("X/Disc 2/01.flac", Some("Box"), Some("Band"), "Band", 1),
         ]);
         assert_eq!(groups.len(), 1);
         assert_eq!(groups[0].artist, "Band");
+    }
+
+    #[test]
+    fn inconsistent_album_artist_tags_do_not_split_an_album() {
+        let groups = group(vec![
+            song("36/Void Dance/01.flac", Some("Void Dance"), Some("36"), "36", 1),
+            song("36/Void Dance/11.flac", Some("Void Dance"), None, "36", 11),
+            song("36/Void Dance/12.flac", Some("void dance"), Some("36 & Friend"), "36", 12),
+        ]);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].tracks.len(), 3);
+        assert_eq!(groups[0].artist, "36");
+    }
+
+    #[test]
+    fn recognises_disc_folders() {
+        for name in ["CD1", "cd 2", "Disc 3", "disk_04", "DISC-1"] {
+            assert!(is_disc_folder(name), "{name}");
+        }
+        for name in ["CD", "Discography", "Disco Inferno", "2014", "CDs"] {
+            assert!(!is_disc_folder(name), "{name}");
+        }
+        assert_eq!(album_dir("A/B/CD2/01.flac"), "A/B");
+        assert_eq!(album_dir("A/B/01.flac"), "A/B");
     }
 
     #[test]

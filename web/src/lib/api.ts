@@ -65,11 +65,14 @@ export const api = {
 	rescan: () => post('/api/library/rescan')
 };
 
+const next = () => toasts.done('Playing next');
+const last = () => toasts.done('Added to the end of the queue');
+
 /** Queue helpers shared by album, search and track views. */
 export const queue = {
 	playAlbum: (album: string, start?: string) => api.add({ uris: [], album, start, mode: 'replace', play: true }),
-	albumNext: (album: string) => api.add({ uris: [], album, mode: 'next', play: false }),
-	albumLast: (album: string) => api.add({ uris: [], album, mode: 'append', play: false }),
-	trackNext: (uri: string) => api.add({ uris: [uri], mode: 'next', play: false }),
-	trackLast: (uri: string) => api.add({ uris: [uri], mode: 'append', play: false })
+	albumNext: (album: string) => api.add({ uris: [], album, mode: 'next', play: false }).then(next),
+	albumLast: (album: string) => api.add({ uris: [], album, mode: 'append', play: false }).then(last),
+	trackNext: (uri: string) => api.add({ uris: [uri], mode: 'next', play: false }).then(next),
+	trackLast: (uri: string) => api.add({ uris: [uri], mode: 'append', play: false }).then(last)
 };

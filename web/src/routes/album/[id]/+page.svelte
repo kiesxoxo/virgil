@@ -1,9 +1,11 @@
 <script lang="ts">
-	import { ChevronLeft, ListEnd, ListPlus, Play } from '@lucide/svelte';
+	import { ChevronLeft, Layers, ListEnd, ListPlus, Play } from '@lucide/svelte';
 	import Cover from '#lib/components/Cover.svelte';
 	import Equalizer from '#lib/components/Equalizer.svelte';
 	import Menu from '#lib/components/Menu.svelte';
+	import { trackHeader, trackItems } from '#lib/actions.ts';
 	import { queue } from '#lib/api.ts';
+	import { contextMenu } from '#lib/menu.svelte.ts';
 	import { artUrl, clock, formatLong, formatShort, isHiRes, span } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
@@ -30,6 +32,7 @@
 	});
 
 	let album = $derived(detail?.album ?? library.get(data.id));
+	let versions = $derived(library.versions(data.id));
 	let tracks = $derived(detail?.tracks ?? []);
 	let multiDisc = $derived(new Set(tracks.map((t) => t.disc ?? 1)).size > 1);
 	let backdrop = $derived(artUrl(album?.art, 300));
@@ -79,6 +82,26 @@
 							<span class="text-xs font-medium text-muted tabular-nums" title={formatLong(album.format)}>{formatLong(album.format)}</span>
 						</p>
 					{/if}
+					{#if versions.length > 1}
+						<div class="mt-3 flex flex-wrap items-center justify-center gap-1.5 md:justify-start" role="radiogroup" aria-label="Versions">
+							<span class="mr-1 inline-flex items-center gap-1 text-xs font-semibold text-muted"><Layers class="size-3.5" /> Versions</span>
+							{#each versions as version (version.id)}
+								{@const active = version.id === data.id}
+								<a
+									href="/album/{version.id}"
+									role="radio"
+									aria-checked={active}
+									title={version.title}
+									class="press inline-flex h-8 items-center gap-1 rounded-full px-3 text-xs font-semibold whitespace-nowrap tabular-nums {active
+										? 'bg-fg text-bg'
+										: 'bg-surface text-muted hover:text-fg'}"
+								>
+									{version.format ? formatShort(version.format) : 'Mixed'}
+									<span class="font-medium opacity-70">· {version.tracks} {version.tracks === 1 ? 'track' : 'tracks'}</span>
+								</a>
+							{/each}
+						</div>
+					{/if}
 					<div class="mt-5 flex items-center justify-center gap-2.5 md:justify-start">
 						<button
 							type="button"
@@ -122,7 +145,13 @@
 					{#if multiDisc && (i === 0 || tracks[i - 1].disc !== track.disc)}
 						<li class="px-3 pt-5 pb-1.5 text-xs font-semibold tracking-wider text-muted uppercase">Disc {track.disc ?? 1}</li>
 					{/if}
-					<li class="group flex items-center rounded-xl hover:bg-fg/4 {current ? 'bg-accent/6' : ''}">
+					<li
+						class="group flex items-center rounded-xl hover:bg-fg/4 {current ? 'bg-accent/6' : ''}"
+						{@attach contextMenu(
+							() => trackItems(track, data.id),
+							() => trackHeader(track, album?.art)
+						)}
+					>
 						<button
 							type="button"
 							class="grid min-w-0 flex-1 grid-cols-[2rem_1fr_auto] items-center gap-3 py-2.5 pl-3 text-left"
@@ -144,13 +173,7 @@
 								{clock(track.duration)}
 							</span>
 						</button>
-						<Menu
-							class="mr-1 ml-1"
-							items={[
-								{ label: 'Play next', icon: ListPlus, run: () => queue.trackNext(track.uri) },
-								{ label: 'Add to queue', icon: ListEnd, run: () => queue.trackLast(track.uri) }
-							]}
-						/>
+						<Menu class="mr-1 ml-1" items={() => trackItems(track, data.id)} header={trackHeader(track, album?.art)} />
 					</li>
 				{/each}
 			</ol>
