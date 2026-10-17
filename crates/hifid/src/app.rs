@@ -2,7 +2,9 @@ use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
-use hifi_core::{LOCAL_SOURCE, PlayState, PlayerState, Queue, QueueItem, ServerEvent, SignalPath, SourceState};
+use hifi_core::{
+    LOCAL_SOURCE, Outputs, PlayState, PlayerState, Queue, QueueItem, ServerEvent, SignalPath, SourceState,
+};
 use hifi_engine_mpd::MpdEngine;
 use hifi_library::Library;
 use tokio::sync::{Mutex, broadcast};
@@ -10,7 +12,8 @@ use tracing::{info, warn};
 
 use crate::api::ApiError;
 use crate::config::Config;
-use crate::signal::{Hw, read_hw};
+use crate::desktop::{self, Desktop};
+use crate::signal::{Hw, card_label, parse_cards, read_hw};
 
 /// Latest state of everything the UI shows; `hello` sends it whole.
 #[derive(Default)]
@@ -19,6 +22,7 @@ struct Snapshot {
     queue: Queue,
     signal: SignalPath,
     source: SourceState,
+    outputs: Outputs,
 }
 
 /// Serializes hand-overs of the DAC between local playback and external sources.
@@ -36,6 +40,8 @@ pub struct Inner {
     pub mpd: MpdEngine,
     pub library: Library,
     pub events: broadcast::Sender<ServerEvent>,
+    /// Set in desktop mode (hifi.exe), which runs MPD itself.
+    pub desktop: Option<Arc<Desktop>>,
     snapshot: RwLock<Snapshot>,
     arbiter: Mutex<Arbiter>,
 }
@@ -48,12 +54,13 @@ impl Deref for App {
 }
 
 impl App {
-    pub fn new(config: Config, library: Library) -> Self {
+    pub fn new(config: Config, library: Library, desktop: Option<Arc<Desktop>>) -> Self {
         let source = SourceState { active: LOCAL_SOURCE.into(), available: config.sources.keys().cloned().collect() };
         App(Arc::new(Inner {
             mpd: MpdEngine::new(&config.mpd),
             library,
             events: broadcast::channel(256).0,
+            desktop,
             snapshot: RwLock::new(Snapshot { source, ..Snapshot::default() }),
             arbiter: Mutex::default(),
             config,
@@ -68,7 +75,65 @@ impl App {
             signal: s.signal.clone(),
             source: s.source.clone(),
             library: self.library.status(),
+            outputs: s.outputs.clone(),
         }
+    }
+
+    /// Re-reads MPD's outputs, names ALSA cards like `aplay -l` does, and
+    /// notes cards that have no output yet (plugged in after MPD started).
+    pub async fn refresh_outputs(&self) {
+        let mut outputs = match self.mpd.outputs().await {
+            Ok(outputs) => outputs,
+            Err(e) => return warn!("mpd outputs: {e}"),
+        };
+        let dir = &self.config.asound_dir;
+        let cards = tokio::fs::read_to_string(dir.join("cards")).await.map(|t| parse_cards(&t)).unwrap_or_default();
+        for output in outputs.iter_mut().filter(|o| o.plugin == "alsa") {
+            if dir.join(&output.name).is_dir() {
+                output.label = card_label(dir, &output.name, &cards).await;
+            }
+        }
+        // Devices connected since MPD started: on a PC from Windows' list, on
+        // Linux where outputs are named after ALSA cards (the container image).
+        let new_cards = if self.desktop.is_some() {
+            let devices = tokio::task::spawn_blocking(desktop::devices).await.unwrap_or_default();
+            devices.into_iter().map(|d| d.name).filter(|name| !outputs.iter().any(|o| o.name == *name)).collect()
+        } else if outputs.iter().any(|o| o.plugin == "alsa" && cards.iter().any(|(id, _)| *id == o.name)) {
+            cards
+                .into_iter()
+                .filter(|(id, _)| !outputs.iter().any(|o| o.name == *id))
+                .map(|(id, description)| if description.is_empty() { id } else { description })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        self.update(|s| &mut s.outputs, Outputs { outputs, new_cards }, ServerEvent::Outputs);
+    }
+
+    pub async fn select_output(&self, id: u32) -> Result<(), ApiError> {
+        let was_playing = self.mpd.status().await?.state == PlayState::Play;
+        self.mpd.select_output(id).await?;
+        // Switching can still leave MPD paused (e.g. the new device was busy a moment); carry on.
+        if was_playing && self.mpd.status().await?.state == PlayState::Pause {
+            self.mpd.pause(false).await?;
+        }
+        self.refresh_outputs().await;
+        Ok(())
+    }
+
+    pub fn enabled_output_label(&self) -> Option<String> {
+        let s = self.snapshot.read().expect("snapshot lock");
+        s.outputs.outputs.iter().find(|o| o.enabled).map(|o| o.label.clone())
+    }
+
+    /// The ALSA card being played to: the enabled output's, if it names a card, else `alsa_card`.
+    pub fn active_card(&self) -> String {
+        let s = self.snapshot.read().expect("snapshot lock");
+        s.outputs
+            .outputs
+            .iter()
+            .find(|o| o.enabled && o.plugin == "alsa" && self.config.asound_dir.join(&o.name).is_dir())
+            .map_or_else(|| self.config.alsa_card.clone(), |o| o.name.clone())
     }
 
     pub fn player(&self) -> PlayerState {
@@ -224,7 +289,7 @@ impl App {
     }
 
     async fn wait_until_dac_free(&self, timeout: Duration) {
-        let path = self.config.hw_params_path();
+        let path = self.config.hw_params_path(&self.active_card());
         let deadline = Instant::now() + timeout;
         while matches!(read_hw(&path).await, Hw::Open(_)) {
             if Instant::now() >= deadline {

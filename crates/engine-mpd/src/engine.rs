@@ -1,4 +1,4 @@
-use hifi_core::{AddMode, AudioFormat, ModesRequest, PlayState, PlayerState, QueueItem};
+use hifi_core::{AddMode, AudioFormat, ModesRequest, Output, PlayState, PlayerState, QueueItem};
 use tokio::sync::mpsc;
 
 use crate::client::{self, Event, Mpd};
@@ -123,6 +123,35 @@ pub fn parse_entries(pairs: Vec<(String, String)>) -> Vec<Entry> {
     }
     entries.extend(song.map(Entry::Song));
     entries
+}
+
+/// `outputs`: one output per `outputid`. Labels start out as the name.
+pub fn parse_outputs(pairs: &[(String, String)]) -> Vec<Output> {
+    let mut outputs: Vec<Output> = Vec::new();
+    for (key, value) in pairs {
+        if key == "outputid" {
+            let Ok(id) = value.parse() else { continue };
+            outputs.push(Output {
+                id,
+                name: String::new(),
+                label: String::new(),
+                plugin: String::new(),
+                enabled: false,
+            });
+            continue;
+        }
+        let Some(output) = outputs.last_mut() else { continue };
+        match key.as_str() {
+            "outputname" => {
+                output.name = value.clone();
+                output.label = value.clone();
+            }
+            "plugin" => output.plugin = value.clone(),
+            "outputenabled" => output.enabled = value == "1",
+            _ => {}
+        }
+    }
+    outputs
 }
 
 pub fn parse_status(pairs: &[(String, String)]) -> PlayerState {
@@ -315,6 +344,22 @@ impl MpdEngine {
         self.cmd("update").await
     }
 
+    pub async fn outputs(&self) -> Result<Vec<Output>> {
+        Ok(parse_outputs(&self.mpd.run("outputs").await?.pairs))
+    }
+
+    /// Plays to output `id` only. Enables it first, then disables the others,
+    /// in one command list: MPD pauses if it is ever left without an output.
+    pub async fn select_output(&self, id: u32) -> Result<()> {
+        let outputs = self.outputs().await?;
+        if !outputs.iter().any(|o| o.id == id) {
+            return Err(Error::Ack { code: 50, command: "enableoutput".into(), message: format!("no output {id}") });
+        }
+        let mut commands = vec![format!("enableoutput {id}")];
+        commands.extend(outputs.iter().filter(|o| o.id != id && o.enabled).map(|o| format!("disableoutput {}", o.id)));
+        self.mpd.run_list(&commands).await.map(drop)
+    }
+
     /// Rescans one file or directory.
     pub async fn update_path(&self, uri: &str) -> Result<()> {
         self.cmd(&format!("update {}", quote(uri))).await
@@ -360,6 +405,17 @@ impl MpdEngine {
 mod tests {
     use super::*;
     use hifi_core::SampleFormat;
+
+    #[test]
+    fn parses_outputs() {
+        let outputs = parse_outputs(&pairs(
+            "outputid: 0\noutputname: sndrpihifiberry\nplugin: alsa\noutputenabled: 1\nattribute: dop=1\n\
+             outputid: 1\noutputname: Device\nplugin: alsa\noutputenabled: 0",
+        ));
+        assert_eq!(outputs.len(), 2);
+        assert_eq!((outputs[0].name.as_str(), outputs[0].enabled), ("sndrpihifiberry", true));
+        assert_eq!((outputs[1].id, outputs[1].plugin.as_str(), outputs[1].enabled), (1, "alsa", false));
+    }
 
     fn pairs(text: &str) -> Vec<(String, String)> {
         text.lines()

@@ -53,6 +53,28 @@ pub fn parse_device_name(info: &str) -> Option<String> {
     (!name.is_empty()).then(|| name.to_string())
 }
 
+/// `/proc/asound/cards`: (card id, description) per card.
+/// " 1 [Device         ]: USB-Audio - USB Audio Device" → ("Device", "USB Audio Device").
+pub fn parse_cards(text: &str) -> Vec<(String, String)> {
+    text.lines()
+        .filter_map(|line| {
+            let (_, rest) = line.split_once('[')?;
+            let (id, rest) = rest.split_once(']')?;
+            let description = rest.split_once(" - ").map_or("", |(_, d)| d).trim();
+            Some((id.trim().to_string(), description.to_string()))
+        })
+        .collect()
+}
+
+/// What to call a card: its PCM name, else the description from `cards`, else its id.
+pub async fn card_label(asound_dir: &Path, card: &str, cards: &[(String, String)]) -> String {
+    let info = tokio::fs::read_to_string(asound_dir.join(card).join("pcm0p/info")).await.ok();
+    info.as_deref()
+        .and_then(parse_device_name)
+        .or_else(|| cards.iter().find(|(id, d)| id == card && !d.is_empty()).map(|(_, d)| d.clone()))
+        .unwrap_or_else(|| card.to_string())
+}
+
 /// Significant bits of an ALSA sample format (`S24_LE` and `S24_3LE` are both 24).
 fn alsa_bits(format: &str) -> Option<u8> {
     match format.split('_').next()? {
@@ -93,10 +115,20 @@ fn classify(source: &AudioFormat, output: &HwParams) -> (Verdict, bool, Option<S
 
 pub fn evaluate(hw: &Hw, player: &PlayerState, source: &SourceState) -> SignalPath {
     match hw {
+        // Without ALSA (a PC) there's nothing to read; idle unless something plays.
+        Hw::Missing if !cfg!(target_os = "linux") && player.audio.is_none() => SignalPath::default(),
         Hw::Missing => SignalPath {
             verdict: Verdict::Unknown,
             source: player.audio,
-            note: Some("ALSA card not found".into()),
+            note: Some(
+                if cfg!(target_os = "linux") {
+                    "ALSA card not found"
+                } else {
+                    // Desktop mode: MPD logs the format WASAPI accepted when it opens the device.
+                    "the device didn't accept an exclusive-mode format (is another app using it?)"
+                }
+                .into(),
+            ),
             ..SignalPath::default()
         },
         Hw::Closed => SignalPath::default(),
@@ -121,22 +153,38 @@ pub fn evaluate(hw: &Hw, player: &PlayerState, source: &SourceState) -> SignalPa
     }
 }
 
-/// Re-evaluates the signal path twice a second; only changes are broadcast.
+/// Re-evaluates the signal path twice a second, for whichever card is
+/// selected; only changes are broadcast. Every 5 s it also looks for sound
+/// cards plugged in since MPD started.
 pub async fn run(app: App) {
-    let path = app.config.hw_params_path();
-    let info_path = path.with_file_name("info");
-    let mut device: Option<String> = None;
+    let mut device: Option<(String, String)> = None;
     let mut tick = tokio::time::interval(Duration::from_millis(500));
     tick.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    let mut ticks = 0u32;
     loop {
         tick.tick().await;
-        let hw = read_hw(&path).await;
-        // The name never changes; look it up until the card is there.
-        if device.is_none() && hw != Hw::Missing {
-            device = tokio::fs::read_to_string(&info_path).await.ok().as_deref().and_then(parse_device_name);
+        ticks = (ticks + 1) % 10;
+        if ticks == 0 {
+            app.refresh_outputs().await;
         }
-        let mut signal = evaluate(&hw, &app.player(), &app.source());
-        signal.device = device.clone();
+        let player = app.player();
+        // Desktop mode: the format WASAPI accepted, and the selected device's name.
+        if let Some(desktop) = &app.desktop {
+            let mut signal = evaluate(&desktop.hw(&player), &player, &app.source());
+            signal.device = app.enabled_output_label();
+            app.set_signal(signal);
+            continue;
+        }
+        let card = app.active_card();
+        let path = app.config.hw_params_path(&card);
+        let hw = read_hw(&path).await;
+        // A card's name never changes; look it up until the card is there.
+        if device.as_ref().is_none_or(|(c, _)| *c != card) && hw != Hw::Missing {
+            let info = tokio::fs::read_to_string(path.with_file_name("info")).await.ok();
+            device = info.as_deref().and_then(parse_device_name).map(|name| (card.clone(), name));
+        }
+        let mut signal = evaluate(&hw, &player, &app.source());
+        signal.device = device.as_ref().filter(|(c, _)| *c == card).map(|(_, name)| name.clone());
         app.set_signal(signal);
     }
 }
@@ -171,6 +219,21 @@ mod tests {
         assert_eq!(parse_device_name("name: USB Audio\n").as_deref(), Some("USB Audio"));
         assert_eq!(parse_device_name("name: \n"), None);
         assert_eq!(parse_device_name("closed\n"), None);
+    }
+
+    #[test]
+    fn parses_proc_cards() {
+        let text = " 0 [sndrpihifiberry]: RPi-WM8804 - snd_rpi_hifiberry_digi\n\
+                    \x20                     snd_rpi_hifiberry_digi\n\
+                    \x201 [Device         ]: USB-Audio - USB Audio Device\n\
+                    \x20                     Generic USB Audio Device at usb-xhci-hcd.0-1, full speed\n";
+        assert_eq!(
+            parse_cards(text),
+            vec![
+                ("sndrpihifiberry".into(), "snd_rpi_hifiberry_digi".into()),
+                ("Device".into(), "USB Audio Device".into())
+            ]
+        );
     }
 
     #[test]

@@ -1,5 +1,6 @@
 import { api } from './api.ts';
 import type { LibraryStatus } from './types/LibraryStatus.ts';
+import type { Outputs } from './types/Outputs.ts';
 import type { PlayerState } from './types/PlayerState.ts';
 import type { Queue } from './types/Queue.ts';
 import type { QueueItem } from './types/QueueItem.ts';
@@ -47,6 +48,7 @@ class Hub {
 		missingArt: 0,
 		artDownload: null
 	});
+	outputs = $state.raw<Outputs>({ outputs: [], newCards: [] });
 
 	#receivedAt = $state(0);
 	#now = $state(0);
@@ -107,8 +109,14 @@ class Hub {
 				this.signal = event.signal;
 				this.source = event.source;
 				this.library = event.library;
+				this.outputs = event.outputs;
 				this.ready = true;
 				break;
+			case 'outputs': {
+				const { type: _, ...outputs } = event;
+				this.outputs = outputs;
+				break;
+			}
 			case 'player': {
 				const { type: _, ...player } = event;
 				this.#setPlayer(player);

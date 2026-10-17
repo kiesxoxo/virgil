@@ -3,6 +3,7 @@ import type { AddRequest } from './types/AddRequest.ts';
 import type { Album } from './types/Album.ts';
 import type { ArtOutcome } from './types/ArtOutcome.ts';
 import type { AlbumDetail } from './types/AlbumDetail.ts';
+import type { DesktopSettings } from './types/DesktopSettings.ts';
 import type { ModesRequest } from './types/ModesRequest.ts';
 import type { SearchResults } from './types/SearchResults.ts';
 import type { TagEdit } from './types/TagEdit.ts';
@@ -73,6 +74,13 @@ export const api = {
 		call('POST', `/api/library/albums/${encodeURIComponent(id)}/art`).then((r) => r.json() as Promise<ArtOutcome>),
 	downloadMissingArt: () => post('/api/library/art/download-missing'),
 	uploadArt: (id: string, image: Blob) => call('POST', `/api/library/albums/${encodeURIComponent(id)}/art/upload`, image),
+
+	selectOutput: (id: number) => post(`/api/outputs/${id}/select`),
+	restart: () => post('/api/restart'),
+	/** Desktop mode only (hifi.exe); 404 elsewhere. */
+	desktop: () => get<DesktopSettings>('/api/desktop'),
+	saveDesktop: (settings: DesktopSettings) => post('/api/desktop', settings),
+	quit: () => post('/api/quit'),
 
 	readTags: (uris: string[]) => call('POST', '/api/tags/read', { uris }).then((r) => r.json() as Promise<TaggedFile[]>),
 	writeTags: (edits: TagEdit[]) =>

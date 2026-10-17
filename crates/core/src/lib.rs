@@ -292,6 +292,42 @@ impl Default for SourceState {
     }
 }
 
+/// One of MPD's audio outputs: a sound card (or, on a desktop, a device) hifi can play to.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export)]
+pub struct Output {
+    /// MPD's output id.
+    pub id: u32,
+    /// MPD's output name; on Linux the ALSA card id ("sndrpihifiberry").
+    pub name: String,
+    /// What people call it ("HiFiBerry Digi+ Pro").
+    pub label: String,
+    /// MPD's output plugin: "alsa", "wasapi", "null", …
+    pub plugin: String,
+    pub enabled: bool,
+}
+
+/// The outputs, and sound cards plugged in since MPD started (usable after a restart).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Outputs {
+    pub outputs: Vec<Output>,
+    /// Descriptions of cards without an output yet ("USB Audio Device").
+    pub new_cards: Vec<String>,
+}
+
+/// Desktop mode (hifi.exe on a PC): settings hifi keeps itself.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DesktopSettings {
+    /// The music library folder MPD plays from.
+    pub music_dir: String,
+    /// Port of the web UI on 127.0.0.1.
+    pub port: u16,
+}
+
 /// Pushed over `/api/ws`. `hello` carries the full state; the rest replace one slice of it.
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(tag = "type", rename_all = "camelCase")]
@@ -299,8 +335,16 @@ impl Default for SourceState {
 // `Hello` is sent once per connection; boxing it would only add noise.
 #[allow(clippy::large_enum_variant)]
 pub enum ServerEvent {
-    Hello { player: PlayerState, queue: Queue, signal: SignalPath, source: SourceState, library: LibraryStatus },
+    Hello {
+        player: PlayerState,
+        queue: Queue,
+        signal: SignalPath,
+        source: SourceState,
+        library: LibraryStatus,
+        outputs: Outputs,
+    },
     Player(PlayerState),
+    Outputs(Outputs),
     Queue(Queue),
     Signal(SignalPath),
     Source(SourceState),

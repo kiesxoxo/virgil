@@ -12,8 +12,11 @@ services:
     image: ghcr.io/mpkonmbk/hifi:latest
     network_mode: host
     restart: unless-stopped
-    devices:
-      - /dev/snd
+    # Sound devices, including USB DACs plugged in later: /dev/snd is mounted
+    # rather than listed under `devices`, and ALSA's device numbers (major
+    # 116) are allowed. Settings offers new cards after a restart of hifi.
+    device_cgroup_rules:
+      - "c 116:* rmw"
     environment:
       HIFI_PORT: "80"            # web UI: http://<pi>.local/
       ALSA_CARD: sndrpihifiberry # your DAC, from `cat /proc/asound/cards`
@@ -28,6 +31,7 @@ services:
         read_only: false # hifi saves downloaded covers (cover.jpg) into album folders
         bind:
           propagation: rslave
+      - /dev/snd:/dev/snd            # sound devices (see device_cgroup_rules)
       - hifi-data:/data              # library database, artwork, MPD state
       - /proc/asound:/host/asound:ro # for the bit-perfect check (Docker hides /proc/asound)
       - /run/dbus:/run/dbus          # to end an AirPlay session when you press play

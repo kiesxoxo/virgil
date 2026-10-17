@@ -55,9 +55,9 @@ impl Config {
         toml::from_str(&text).with_context(|| format!("parsing {}", path.display()))
     }
 
-    /// What the DAC is being fed right now: `closed`, or format/rate/channels.
-    pub fn hw_params_path(&self) -> PathBuf {
-        self.asound_dir.join(&self.alsa_card).join("pcm0p/sub0/hw_params")
+    /// What `card` is being fed right now: `closed`, or format/rate/channels.
+    pub fn hw_params_path(&self, card: &str) -> PathBuf {
+        self.asound_dir.join(card).join("pcm0p/sub0/hw_params")
     }
 }
 

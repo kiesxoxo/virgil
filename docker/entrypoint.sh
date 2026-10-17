@@ -9,6 +9,41 @@ set -euo pipefail
 
 mkdir -p /data/mpd/playlists /data/hifi /run/mpd /run/hifi
 
+# One MPD output per sound card, named by its ALSA id, so hifi can offer them
+# all (e.g. a USB DAC next to the HiFiBerry). ALSA_CARD is set up for
+# bit-perfect playback and enabled; other cards are off until picked in
+# Settings, and may convert formats they can't take (the signal path says so).
+asound=/host/asound
+[ -r "$asound/cards" ] || asound=/proc/asound
+cards=$(sed -n 's/^ *[0-9][0-9]* \[\([^] ]*\) *\].*/\1/p' "$asound/cards" 2>/dev/null || true)
+
+alsa_output() { # card enabled strict
+	local auto=yes dop=no
+	if [ "$3" = strict ]; then auto=no; dop="${MPD_DOP}"; fi
+	cat <<EOF
+
+audio_output {
+	type            "alsa"
+	name            "$1"
+	device          "hw:CARD=$1,DEV=0"
+	enabled         "$2"
+	mixer_type      "none"
+	auto_resample   "$auto"
+	auto_channels   "$auto"
+	auto_format     "$auto"
+	dop             "$dop"
+}
+EOF
+}
+
+alsa_outputs() {
+	# The configured DAC even when it isn't there yet (MPD retries it).
+	alsa_output "${ALSA_CARD}" yes strict
+	for card in $cards; do
+		[ "$card" = "${ALSA_CARD}" ] || alsa_output "$card" no lenient
+	done
+}
+
 mpd_conf=/config/mpd.conf
 if [ ! -f "$mpd_conf" ]; then
 	mpd_conf=/run/hifi/mpd.conf
@@ -29,17 +64,7 @@ resampler {
 	plugin  "soxr"
 	quality "very high"
 }
-
-audio_output {
-	type            "alsa"
-	name            "${ALSA_CARD}"
-	device          "hw:CARD=${ALSA_CARD},DEV=0"
-	mixer_type      "none"
-	auto_resample   "no"
-	auto_channels   "no"
-	auto_format     "no"
-	dop             "${MPD_DOP}"
-}
+$(alsa_outputs)
 EOF
 fi
 

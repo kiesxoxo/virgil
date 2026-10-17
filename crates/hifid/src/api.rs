@@ -5,8 +5,8 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use hifi_core::{
-    AddRequest, AlbumDetail, ArtOutcome, LibraryStatus, ModesRequest, MoveRequest, PlayState, Queue, SearchResults,
-    SeekRequest, ServerEvent,
+    AddRequest, AlbumDetail, ArtOutcome, DesktopSettings, LibraryStatus, ModesRequest, MoveRequest, PlayState, Queue,
+    SearchResults, SeekRequest, ServerEvent,
 };
 use serde::Deserialize;
 use tower::ServiceBuilder;
@@ -92,6 +92,10 @@ pub fn router(app: App) -> Router {
         .route("/api/library/albums/{id}/art", post(download_art))
         .route("/api/library/albums/{id}/art/upload", post(upload_art).layer(DefaultBodyLimit::max(MAX_UPLOAD)))
         .route("/api/library/art/download-missing", post(download_missing_art))
+        .route("/api/outputs/{id}/select", post(select_output))
+        .route("/api/restart", post(restart))
+        .route("/api/desktop", get(desktop_settings).post(save_desktop_settings))
+        .route("/api/quit", post(quit))
         .route("/api/tags/read", post(tags::read))
         .route("/api/tags/write", post(tags::write))
         .route("/api/sources/{name}/acquire", post(acquire))
@@ -260,6 +264,53 @@ async fn download_missing_art(State(app): State<App>) -> ApiResult {
         Err(ApiError::conflict("artwork is already being downloaded"))
     }
 }
+
+async fn select_output(State(app): State<App>, Path(id): Path<u32>) -> ApiResult {
+    app.select_output(id).await?;
+    Ok(DONE)
+}
+
+/// Restarts hifi so MPD gets outputs for sound devices connected since it
+/// started. Desktop mode starts a fresh hifi.exe itself; otherwise hifid
+/// exits and its supervisor (Docker, systemd) brings it back.
+async fn restart(State(app): State<App>) -> ApiResult {
+    tracing::info!("restart requested from the UI");
+    tokio::spawn(async move {
+        // Let the response go out first.
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        match &app.desktop {
+            Some(desktop) => desktop.restart().await,
+            None => std::process::exit(RESTART_EXIT_CODE),
+        }
+    });
+    Ok(StatusCode::ACCEPTED)
+}
+
+fn desktop(app: &App) -> ApiResult<&std::sync::Arc<crate::desktop::Desktop>> {
+    app.desktop.as_ref().ok_or_else(|| ApiError::not_found("not running in desktop mode"))
+}
+
+async fn desktop_settings(State(app): State<App>) -> ApiResult<Json<DesktopSettings>> {
+    Ok(Json(desktop(&app)?.settings()))
+}
+
+/// Saves the settings and restarts hifi to apply them.
+async fn save_desktop_settings(State(app): State<App>, Json(settings): Json<DesktopSettings>) -> ApiResult {
+    desktop(&app)?.save_settings(settings).map_err(|e| ApiError::bad_request(format!("{e:#}")))?;
+    restart(State(app)).await
+}
+
+async fn quit(State(app): State<App>) -> ApiResult {
+    let desktop = desktop(&app)?.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        desktop.quit().await
+    });
+    Ok(StatusCode::ACCEPTED)
+}
+
+/// Non-zero, so `Restart=on-failure` (systemd) and Docker's restart policy both bring hifi back.
+const RESTART_EXIT_CODE: i32 = 75;
 
 async fn acquire(State(app): State<App>, Path(name): Path<String>) -> ApiResult {
     app.acquire(&name).await?;

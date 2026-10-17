@@ -322,15 +322,17 @@ pub fn write(path: &Path, edit: &TagEdit) -> anyhow::Result<bool> {
 }
 
 /// The rewritten copy belongs to whoever owned the original, not to hifid.
+#[cfg(unix)]
 fn keep_owner(original: &Path, copy: &Path) {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::MetadataExt;
-        if let Ok(meta) = std::fs::metadata(original) {
-            let _ = std::os::unix::fs::chown(copy, Some(meta.uid()), Some(meta.gid()));
-        }
+    use std::os::unix::fs::MetadataExt;
+    if let Ok(meta) = std::fs::metadata(original) {
+        let _ = std::os::unix::fs::chown(copy, Some(meta.uid()), Some(meta.gid()));
     }
 }
+
+/// Elsewhere a new file simply belongs to the user running hifi.
+#[cfg(not(unix))]
+fn keep_owner(_original: &Path, _copy: &Path) {}
 
 #[cfg(test)]
 mod tests {
