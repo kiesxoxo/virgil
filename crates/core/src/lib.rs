@@ -220,6 +220,8 @@ pub struct ArtProgress {
     pub done: u32,
     pub total: u32,
     pub saved: u32,
+    /// Albums whose cover could not be saved (e.g. a folder that isn't writable).
+    pub failed: u32,
     /// Why the run stopped early (e.g. no internet access).
     pub error: Option<String>,
 }

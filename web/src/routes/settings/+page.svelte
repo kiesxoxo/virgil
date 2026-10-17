@@ -24,6 +24,7 @@
 
 	let airplay = $derived(hub.source.available.includes('airplay'));
 	let download = $derived(hub.library.artDownload);
+	let downloading = $derived(!!download && !download.error && download.done < download.total);
 </script>
 
 <svelte:head><title>Settings · hifi</title></svelte:head>
@@ -102,11 +103,15 @@
 		<div class="min-w-0">
 			<div class="text-sm font-medium">Album artwork</div>
 			<div class="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
-				{#if download && !download.error}
+				{#if downloading && download}
 					<LoaderCircle class="size-3 shrink-0 animate-spin" />
 					Downloading… {download.done} of {download.total}, {download.saved} saved
 				{:else if download?.error}
 					<span class="text-warn">Stopped: {download.error}</span>
+				{:else if download?.failed}
+					<span class="text-warn">
+						Saved {download.saved}; {download.failed} couldn't be saved (is the album folder writable?)
+					</span>
 				{:else if hub.library.missingArt}
 					{hub.library.missingArt.toLocaleString()}
 					{hub.library.missingArt === 1 ? 'album has' : 'albums have'} no artwork
@@ -118,7 +123,7 @@
 		<button
 			type="button"
 			class="press inline-flex h-9 shrink-0 items-center gap-2 rounded-full bg-bg px-4 text-[13px] font-semibold ring-1 ring-line disabled:opacity-50"
-			disabled={(!!download && !download.error) || !hub.library.missingArt}
+			disabled={downloading || !hub.library.missingArt}
 			title="Saves cover.jpg in each album folder that has no embedded or folder art"
 			onclick={() => api.downloadMissingArt()}
 		>

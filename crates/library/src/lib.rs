@@ -51,6 +51,11 @@ fn unix_now() -> u32 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs() as u32)
 }
 
+/// The cover services could not be reached at all.
+fn is_offline(e: &anyhow::Error) -> bool {
+    e.chain().any(|cause| cause.downcast_ref::<reqwest::Error>().is_some_and(|e| e.is_connect() || e.is_timeout()))
+}
+
 /// A cover/folder/front/album image already in `dir`, if any.
 fn folder_image(dir: &Path) -> anyhow::Result<Option<PathBuf>> {
     let entries = std::fs::read_dir(dir).with_context(|| format!("reading album folder {}", dir.display()))?;
@@ -355,7 +360,7 @@ impl Library {
             Ok(ids) => ids,
             Err(e) => return warn!("artwork download: {e:#}"),
         };
-        let mut progress = ArtProgress { done: 0, total: ids.len() as u32, saved: 0, error: None };
+        let mut progress = ArtProgress { done: 0, total: ids.len() as u32, saved: 0, failed: 0, error: None };
         self.set_progress(Some(progress.clone()));
         info!("artwork: downloading covers for {} albums", progress.total);
         for id in ids {
@@ -368,20 +373,25 @@ impl Library {
                         let _ = self.bump().await;
                     }
                 }
-                // The first album failing means no internet or no write access: stop and say why.
-                Err(e) if progress.done == 0 => {
+                // No internet: every other album would fail the same way, so stop and say why.
+                Err(e) if is_offline(&e) => {
                     warn!("artwork download stopped: {e:#}");
                     progress.error = Some(format!("{e:#}"));
                     self.set_progress(Some(progress));
                     return;
                 }
-                Err(e) => warn!("artwork for album {id}: {e:#}"),
+                // One folder failing (e.g. not writable) doesn't stop the rest.
+                Err(e) => {
+                    warn!("artwork for album {id}: {e:#}");
+                    progress.failed += 1;
+                }
             }
             progress.done += 1;
             self.set_progress(Some(progress.clone()));
         }
-        info!("artwork: saved {} of {} covers", progress.saved, progress.total);
-        self.set_progress(None);
+        info!("artwork: saved {} of {} covers, {} failed", progress.saved, progress.total, progress.failed);
+        // Failures stay on screen; a clean run clears the progress.
+        self.set_progress((progress.failed > 0).then_some(progress));
         let _ = self.bump().await;
     }
 

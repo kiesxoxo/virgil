@@ -2,6 +2,10 @@
 
 export type ArtProgress = { done: number, total: number, saved: number, 
 /**
+ * Albums whose cover could not be saved (e.g. a folder that isn't writable).
+ */
+failed: number, 
+/**
  * Why the run stopped early (e.g. no internet access).
  */
 error: string | null, };

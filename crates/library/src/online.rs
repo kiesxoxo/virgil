@@ -13,6 +13,17 @@ const USER_AGENT: &str = concat!("hifi/", env!("CARGO_PKG_VERSION"), " ( https:/
 const MUSICBRAINZ_INTERVAL: Duration = Duration::from_millis(1100);
 /// Covers larger than this are not downloaded.
 const MAX_COVER: usize = 20 << 20;
+/// Below this edge length (pixels) another source is tried for a sharper cover.
+const GOOD_EDGE: u32 = 600;
+
+/// The shorter side of an image, 0 when unreadable.
+fn edge(bytes: &[u8]) -> u32 {
+    image::ImageReader::new(std::io::Cursor::new(bytes))
+        .with_guessed_format()
+        .ok()
+        .and_then(|reader| reader.into_dimensions().ok())
+        .map_or(0, |(w, h)| w.min(h))
+}
 
 pub struct Finder {
     http: reqwest::Client,
@@ -102,7 +113,15 @@ impl Finder {
     /// The cover's bytes (JPEG or PNG as published), or None when nothing matches.
     pub async fn find(&self, artist: &str, title: &str) -> anyhow::Result<Option<Vec<u8>>> {
         match self.musicbrainz(artist, title).await {
-            Ok(Some(cover)) => return Ok(Some(cover)),
+            Ok(Some(cover)) if edge(&cover) >= GOOD_EDGE => return Ok(Some(cover)),
+            // Small scan on MusicBrainz: keep whichever source has the bigger one.
+            Ok(Some(cover)) => {
+                let other = self.itunes(artist, title).await.unwrap_or_default();
+                return Ok(Some(match other {
+                    Some(other) if edge(&other) > edge(&cover) => other,
+                    _ => cover,
+                }));
+            }
             Ok(None) => {}
             // No connection at all: iTunes won't fare better, so say so.
             Err(e) if e.downcast_ref::<reqwest::Error>().is_some_and(|e| e.is_connect() || e.is_timeout()) => {
