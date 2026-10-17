@@ -38,7 +38,9 @@ COPY Cargo.toml Cargo.lock ./
 COPY .cargo .cargo
 COPY crates crates
 COPY --from=web /src/web/build web/build
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
+# The registry cache is shared by the parallel arm64/amd64 builds; lock it so
+# they don't unpack the same crates at once.
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
 	--mount=type=cache,target=/src/target,id=hifi-target-$TARGETARCH \
 	. /cross.env \
 	&& cargo build --release --locked -p hifid --target "$TRIPLE" \
