@@ -10,7 +10,7 @@
 
 <script lang="ts">
 	import { albumHeader, albumItems } from '../actions.ts';
-	import { clock, formatShort, isHiRes } from '../format.ts';
+	import { clock, formatShort } from '../format.ts';
 	import { hub } from '../hub.svelte.ts';
 	import { library } from '../library.svelte.ts';
 	import { contextMenu } from '../menu.svelte.ts';
@@ -56,7 +56,7 @@
 
 {#snippet quality(album: Album)}
 	{#if album.format}
-		<span class="text-xs font-semibold tabular-nums {isHiRes(album.format) ? 'text-accent' : 'text-muted'}">
+		<span class="text-xs font-semibold tabular-nums text-muted">
 			{formatShort(album.format)}
 		</span>
 	{:else}
