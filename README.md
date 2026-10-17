@@ -3,6 +3,17 @@
 A headless, bit-perfect music player for a Raspberry Pi with a HiFiBerry Digi2 Pro:
 a fast web UI for your local library, plus AirPlay 2 (multi-room, no subscription).
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/phones-dark.png">
+    <img src="docs/screenshots/phones-light.png" alt="hifi on a phone: the album grid, an album with its tracks and hi-res badge, and Now Playing">
+  </picture>
+</p>
+
+```sh
+docker pull ghcr.io/mpkonmbk/hifi:0.1.0
+```
+
 ```
  phone / laptop ──HTTP + WebSocket──▶ hifid (Rust) ──MPD protocol──▶ MPD ──hw:──▶ Digi2 Pro ──S/PDIF──▶ DAC
                                         │    ▲
