@@ -38,16 +38,28 @@ jobs:
       - name: TypeScript types are up to date
         run: git diff --exit-code -- web/src/lib/types
 
+  # Each architecture builds on its own native runner (MPD and FFmpeg compile
+  # from source, far too slow under QEMU), is pushed by digest and smoke-tested;
+  # the manifest job then tags both as one multi-arch image.
   image:
     needs: test
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    name: image (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}
     steps:
       - uses: actions/checkout@v7
-      - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v4
         with:
@@ -57,20 +69,89 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ${{ env.IMAGE }}
+          labels: |
+            org.opencontainers.image.title=hifi
+            org.opencontainers.image.description=Bit-perfect music player with a web UI and AirPlay 2 hand-off, for Raspberry Pi
+      - id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=image-${{ matrix.arch }}
+          cache-to: type=gha,scope=image-${{ matrix.arch }},mode=max
+
+      - name: Smoke test
+        env:
+          REF: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
+        run: |
+          docker pull -q "$REF"
+          version=$(docker run --rm --entrypoint mpd "$REF" --version)
+          echo "$version"
+          for want in '\[flac\]' '\[mpg123\]' '\[vorbis\]' '\[opus\]' '\[wavpack\]' '\[dsf\]' '\[dsdiff\]' \
+            '\[ffmpeg\].* m4a ' '\[ffmpeg\].* wav' '^ soxr$' ' alsa$'; do
+            grep -q "$want" <<< "$version" || { echo "::error::mpd --version lacks $want"; exit 1; }
+          done
+
+          # The entrypoint's generated mpd.conf must parse: MPD and hifid both come up.
+          mkdir -p "$RUNNER_TEMP/music"
+          docker run -d --name hifi -e HIFI_PORT=8080 -p 8080:8080 -v "$RUNNER_TEMP/music:/music:ro" "$REF"
+          for _ in $(seq 50); do curl -sf http://localhost:8080/api/state > /dev/null && break; sleep 0.2; done
+          sleep 2
+          docker logs hifi
+          curl -sf http://localhost:8080/api/state > /dev/null
+          [ "$(docker inspect -f '{{.State.Running}}' hifi)" = true ]
+          docker rm -f hifi > /dev/null
+
+          size=$(docker image inspect -f '{{.Size}}' "$REF")
+          echo "linux/${{ matrix.arch }}: $((size / 1000000)) MB uncompressed" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Export digest
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          digest="${{ steps.build.outputs.digest }}"
+          touch "$RUNNER_TEMP/digests/${digest#sha256:}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: digests-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  manifest:
+    needs: image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=semver,pattern={{version}}
             type=sha
-          labels: |
-            org.opencontainers.image.title=hifi
-            org.opencontainers.image.description=Bit-perfect music player with a web UI and AirPlay 2 hand-off, for Raspberry Pi
-      - uses: docker/build-push-action@v7
-        with:
-          context: .
-          platforms: linux/arm64,linux/amd64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Tag the multi-arch image
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf "$IMAGE@sha256:%s " *)
+          docker buildx imagetools inspect "$IMAGE:${{ steps.meta.outputs.version }}"
