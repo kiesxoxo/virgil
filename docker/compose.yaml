@@ -20,7 +20,14 @@ services:
       MPD_DOP: "yes"             # DSD64 as DoP; set "no" if your DAC lacks DoP
       AIRPLAY: "on"
     volumes:
-      - /mnt/music:/music:ro         # your music library
+      # Your music library. rslave: a NAS share mounted here after the
+      # container starts (e.g. from /etc/fstab) still shows up inside.
+      - type: bind
+        source: /mnt/music
+        target: /music
+        read_only: true
+        bind:
+          propagation: rslave
       - hifi-data:/data              # library database, artwork, MPD state
       - /proc/asound:/host/asound:ro # for the bit-perfect check (Docker hides /proc/asound)
       - /run/dbus:/run/dbus          # to end an AirPlay session when you press play

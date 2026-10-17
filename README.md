@@ -112,7 +112,22 @@ On **Raspberry Pi OS Lite (64-bit)**:
 
 5. Open `http://<hostname>.local/` on your phone and *Add to Home Screen*.
 
-Update with `docker compose pull && docker compose up -d`. Settings live in `compose.yaml`:
+Update with `docker compose pull && docker compose up -d`. If the Pi has no internet access, push
+the image from your computer instead (`scripts/push-image.sh user@pi`), then run
+`docker compose up -d --pull never` on the Pi.
+
+Music on a NAS: mount the share on the Pi at `/mnt/music`, e.g. with this `/etc/fstab` line and a
+`credentials` file holding `username=` and `password=` (mode 600):
+
+```
+//nas/share/Music  /mnt/music  cifs  credentials=/etc/samba/credentials-nas,ro,iocharset=utf8,nofail,_netdev  0  0
+```
+
+The bind in `compose.yaml` uses `propagation: rslave`, so the share shows up even when it is
+mounted after the container started. Network shares send no change notifications: use *Rescan*
+in Settings after adding music.
+
+Settings live in `compose.yaml`:
 
 | Variable | Default | |
 |---|---|---|
