@@ -77,7 +77,7 @@
 				<Transport size="lg" />
 			{/if}
 
-			<SignalPathCard signal={hub.signal} />
+			<SignalPathCard signal={hub.signal} details={false} />
 
 			{#if upNext.length}
 				<div>

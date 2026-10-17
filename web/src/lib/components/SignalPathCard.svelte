@@ -4,7 +4,8 @@
 	import type { SignalPath } from '../types/SignalPath.ts';
 	import SignalBadge from './SignalBadge.svelte';
 
-	let { signal }: { signal: SignalPath } = $props();
+	/** `details`: the sentence explaining the verdict (Settings shows it, Now Playing doesn't). */
+	let { signal, details = true }: { signal: SignalPath; details?: boolean } = $props();
 
 	const explain = {
 		bitPerfect: 'Every bit of the file reaches the DAC unchanged.',
@@ -16,12 +17,14 @@
 	} as const;
 </script>
 
-<div class="group rounded-2xl bg-surface p-4">
+<div class="rounded-2xl bg-surface p-4">
 	<div class="flex items-center justify-between gap-3">
 		<span class="text-sm font-semibold">Signal path</span>
 		<SignalBadge {signal} />
 	</div>
-	<p class="mt-2 hidden text-sm text-muted group-hover:block">{signal.note && signal.verdict !== 'external' ? `${explain[signal.verdict]} ${signal.note}.` : explain[signal.verdict]}</p>
+	{#if details}
+		<p class="mt-2 text-sm text-muted">{signal.note && signal.verdict !== 'external' ? `${explain[signal.verdict]} ${signal.note}.` : explain[signal.verdict]}</p>
+	{/if}
 	{#if signal.source || signal.output}
 		<div class="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-xs">
 			<div class="rounded-xl bg-bg px-3 py-2">
