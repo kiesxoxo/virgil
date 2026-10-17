@@ -11,7 +11,7 @@ a fast web UI for your local library, plus AirPlay 2 (multi-room, no subscriptio
 </p>
 
 ```sh
-docker pull ghcr.io/mpkonmbk/hifi:0.1.0
+docker pull ghcr.io/mpkonmbk/hifi:0.2.0
 ```
 
 ```
