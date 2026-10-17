@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Airplay, LoaderCircle, Monitor, Moon, RefreshCw, Sun } from '@lucide/svelte';
+	import { Airplay, ImageDown, LoaderCircle, Monitor, Moon, RefreshCw, Sun } from '@lucide/svelte';
 	import SignalPathCard from '#lib/components/SignalPathCard.svelte';
 	import { api } from '#lib/api.ts';
 	import { hub } from '#lib/hub.svelte.ts';
@@ -23,6 +23,7 @@
 	}
 
 	let airplay = $derived(hub.source.available.includes('airplay'));
+	let download = $derived(hub.library.artDownload);
 </script>
 
 <svelte:head><title>Settings · hifi</title></svelte:head>
@@ -74,7 +75,8 @@
 	</div>
 
 	{@render section('Library')}
-	<div class="flex items-center justify-between gap-4 rounded-2xl bg-surface px-4 py-3.5">
+	<div class="divide-y divide-line rounded-2xl bg-surface">
+	<div class="flex items-center justify-between gap-4 px-4 py-3.5">
 		<div>
 			<div class="text-sm font-medium">
 				{hub.library.albums.toLocaleString()} albums · {hub.library.tracks.toLocaleString()} songs
@@ -95,6 +97,34 @@
 		>
 			<RefreshCw class="size-3.5 {rescanning ? 'animate-spin' : ''}" /> Rescan
 		</button>
+	</div>
+	<div class="flex items-center justify-between gap-4 px-4 py-3.5">
+		<div class="min-w-0">
+			<div class="text-sm font-medium">Album artwork</div>
+			<div class="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
+				{#if download && !download.error}
+					<LoaderCircle class="size-3 shrink-0 animate-spin" />
+					Downloading… {download.done} of {download.total}, {download.saved} saved
+				{:else if download?.error}
+					<span class="text-warn">Stopped: {download.error}</span>
+				{:else if hub.library.missingArt}
+					{hub.library.missingArt.toLocaleString()}
+					{hub.library.missingArt === 1 ? 'album has' : 'albums have'} no artwork
+				{:else}
+					Every album has artwork
+				{/if}
+			</div>
+		</div>
+		<button
+			type="button"
+			class="press inline-flex h-9 shrink-0 items-center gap-2 rounded-full bg-bg px-4 text-[13px] font-semibold ring-1 ring-line disabled:opacity-50"
+			disabled={(!!download && !download.error) || !hub.library.missingArt}
+			title="Saves cover.jpg in each album folder that has no embedded or folder art"
+			onclick={() => api.downloadMissingArt()}
+		>
+			<ImageDown class="size-3.5" /> Download missing
+		</button>
+	</div>
 	</div>
 
 	{#if airplay}

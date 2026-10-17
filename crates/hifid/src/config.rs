@@ -14,6 +14,9 @@ pub struct Config {
     pub mpd: String,
     /// Library database and artwork cache.
     pub data_dir: PathBuf,
+    /// MPD's music directory as hifid sees it. Needed (and must be writable)
+    /// to save downloaded covers next to the music.
+    pub music_dir: Option<PathBuf>,
     /// ALSA card id of the DAC, as in `/proc/asound/<id>`.
     pub alsa_card: String,
     /// Where ALSA's procfs tree is visible. Docker hides `/proc/asound`, so the
@@ -36,6 +39,7 @@ impl Default for Config {
             listen: ([0, 0, 0, 0], 8080).into(),
             mpd: "127.0.0.1:6600".into(),
             data_dir: "data".into(),
+            music_dir: None,
             alsa_card: "sndrpihifiberry".into(),
             asound_dir: "/proc/asound".into(),
             sources: BTreeMap::new(),

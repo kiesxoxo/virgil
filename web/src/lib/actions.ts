@@ -1,18 +1,39 @@
 // Menu items for albums, tracks and queue entries, shared by every view.
 
-import { ArrowUpToLine, ListEnd, ListPlus, ListX, Play } from '@lucide/svelte';
+import { ArrowUpToLine, ImageDown, ListEnd, ListPlus, ListX, Play } from '@lucide/svelte';
 import { api, queue } from './api.ts';
 import type { MenuHeader, MenuItem } from './menu.svelte.ts';
+import { toasts } from './toast.svelte.ts';
 import type { Album } from './types/Album.ts';
+import type { ArtOutcome } from './types/ArtOutcome.ts';
 import type { QueueItem } from './types/QueueItem.ts';
 import type { Track } from './types/Track.ts';
 
+const artMessages: Record<ArtOutcome, string> = {
+	saved: 'Artwork saved to the album folder',
+	alreadyPresent: 'This album already has artwork',
+	notFound: 'No matching artwork found online'
+};
+
 export function albumItems(album: Album): MenuItem[] {
-	return [
+	const items: MenuItem[] = [
 		{ label: 'Play', icon: Play, run: () => queue.playAlbum(album.id) },
 		{ label: 'Play next', icon: ListPlus, run: () => queue.albumNext(album.id) },
 		{ label: 'Add to end of queue', icon: ListEnd, run: () => queue.albumLast(album.id) }
 	];
+	if (!album.art) {
+		items.push({
+			label: 'Download artwork',
+			icon: ImageDown,
+			run: () => {
+				toasts.done('Looking for artwork…');
+				return api.downloadArt(album.id).then((outcome) =>
+					outcome === 'notFound' ? toasts.show(artMessages[outcome]) : toasts.done(artMessages[outcome])
+				);
+			}
+		});
+	}
+	return items;
 }
 
 export const albumHeader = (album: Album): MenuHeader => ({ title: album.title, subtitle: album.artist, art: album.art });

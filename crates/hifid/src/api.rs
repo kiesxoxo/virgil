@@ -4,8 +4,8 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use hifi_core::{
-    AddRequest, AlbumDetail, LibraryStatus, ModesRequest, MoveRequest, PlayState, Queue, SearchResults, SeekRequest,
-    ServerEvent,
+    AddRequest, AlbumDetail, ArtOutcome, LibraryStatus, ModesRequest, MoveRequest, PlayState, Queue, SearchResults,
+    SeekRequest, ServerEvent,
 };
 use serde::Deserialize;
 use tower::ServiceBuilder;
@@ -29,6 +29,10 @@ impl ApiError {
 
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self { status: StatusCode::BAD_REQUEST, message: message.into() }
+    }
+
+    pub fn conflict(message: impl Into<String>) -> Self {
+        Self { status: StatusCode::CONFLICT, message: message.into() }
     }
 }
 
@@ -84,6 +88,8 @@ pub fn router(app: App) -> Router {
         .route("/api/library/albums/{id}", get(album))
         .route("/api/library/search", get(search))
         .route("/api/library/rescan", post(rescan))
+        .route("/api/library/albums/{id}/art", post(download_art))
+        .route("/api/library/art/download-missing", post(download_missing_art))
         .route("/api/sources/{name}/acquire", post(acquire))
         .route("/api/sources/{name}/release", post(release))
         .nest_service("/art", art)
@@ -222,6 +228,21 @@ async fn search(State(app): State<App>, Query(params): Query<SearchParams>) -> A
 async fn rescan(State(app): State<App>) -> ApiResult {
     app.mpd.update().await?;
     Ok(StatusCode::ACCEPTED)
+}
+
+/// Downloads a cover for one album into its folder, unless it already has art.
+async fn download_art(State(app): State<App>, Path(id): Path<String>) -> ApiResult<Json<ArtOutcome>> {
+    Ok(Json(app.library.download_art(id).await?))
+}
+
+/// Starts downloading covers for every album without art; progress arrives
+/// in the library status.
+async fn download_missing_art(State(app): State<App>) -> ApiResult {
+    if app.library.download_missing_art() {
+        Ok(StatusCode::ACCEPTED)
+    } else {
+        Err(ApiError::conflict("artwork is already being downloaded"))
+    }
 }
 
 async fn acquire(State(app): State<App>, Path(name): Path<String>) -> ApiResult {

@@ -263,13 +263,41 @@ pub fn set_art(conn: &Connection, album_id: &str, art: Option<&str>, checked: u3
     .map(drop)
 }
 
+/// What a cover download needs to know about an album.
+pub struct ArtTarget {
+    pub title: String,
+    pub artist: String,
+    pub cover_uri: String,
+    pub art: Option<String>,
+}
+
+pub fn art_target(conn: &Connection, id: &str) -> rusqlite::Result<Option<ArtTarget>> {
+    conn.query_row(
+        "SELECT a.title, a.artist, a.cover_uri, art.art FROM albums a LEFT JOIN art ON art.album_id = a.id
+         WHERE a.id = ?1",
+        [id],
+        |r| Ok(ArtTarget { title: r.get(0)?, artist: r.get(1)?, cover_uri: r.get(2)?, art: r.get(3)? }),
+    )
+    .optional()
+}
+
+/// Albums that were checked and have no artwork, newest first.
+pub fn missing_art(conn: &Connection) -> rusqlite::Result<Vec<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT a.id FROM albums a JOIN art ON art.album_id = a.id WHERE art.art IS NULL ORDER BY a.added DESC",
+    )?;
+    stmt.query_map([], |row| row.get(0))?.collect()
+}
+
 pub fn status(conn: &Connection) -> rusqlite::Result<LibraryStatus> {
-    let count = |table: &str| conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get::<_, u32>(0));
+    let count = |sql: &str| conn.query_row(sql, [], |r| r.get::<_, u32>(0));
     Ok(LibraryStatus {
         revision: meta(conn, "revision")? as u32,
         scanning: false,
-        albums: count("albums")?,
-        tracks: count("tracks")?,
+        albums: count("SELECT COUNT(*) FROM albums")?,
+        tracks: count("SELECT COUNT(*) FROM tracks")?,
+        missing_art: count("SELECT COUNT(*) FROM albums a JOIN art ON art.album_id = a.id WHERE art.art IS NULL")?,
+        art_download: None,
     })
 }
 

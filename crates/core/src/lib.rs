@@ -200,6 +200,7 @@ pub struct SearchResults {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct LibraryStatus {
     /// Bumped whenever album data or artwork changes; doubles as the album list's ETag.
@@ -207,6 +208,32 @@ pub struct LibraryStatus {
     pub scanning: bool,
     pub albums: u32,
     pub tracks: u32,
+    /// Albums checked for artwork and found to have none.
+    pub missing_art: u32,
+    /// Set while missing artwork is being downloaded.
+    pub art_download: Option<ArtProgress>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct ArtProgress {
+    pub done: u32,
+    pub total: u32,
+    pub saved: u32,
+    /// Why the run stopped early (e.g. no internet access).
+    pub error: Option<String>,
+}
+
+/// What a cover-art download for one album did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum ArtOutcome {
+    /// Downloaded and saved as cover.jpg / cover.png in the album's folder.
+    Saved,
+    /// The album already has embedded or folder art; nothing was downloaded.
+    AlreadyPresent,
+    NotFound,
 }
 
 /// What the DAC is actually being fed, from `/proc/asound/<card>/pcm0p/sub0/hw_params`.
@@ -267,6 +294,8 @@ impl Default for SourceState {
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(tag = "type", rename_all = "camelCase")]
 #[ts(export)]
+// `Hello` is sent once per connection; boxing it would only add noise.
+#[allow(clippy::large_enum_variant)]
 pub enum ServerEvent {
     Hello { player: PlayerState, queue: Queue, signal: SignalPath, source: SourceState, library: LibraryStatus },
     Player(PlayerState),

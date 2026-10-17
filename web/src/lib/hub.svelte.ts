@@ -39,7 +39,14 @@ class Hub {
 	queue = $state.raw<Queue>({ version: 0, items: [] });
 	signal = $state.raw<SignalPath>({ verdict: 'idle', source: null, output: null, device: null, dop: false, note: null });
 	source = $state.raw<SourceState>({ active: 'local', available: [] });
-	library = $state.raw<LibraryStatus>({ revision: 0, scanning: false, albums: 0, tracks: 0 });
+	library = $state.raw<LibraryStatus>({
+		revision: 0,
+		scanning: false,
+		albums: 0,
+		tracks: 0,
+		missingArt: 0,
+		artDownload: null
+	});
 
 	#receivedAt = $state(0);
 	#now = $state(0);

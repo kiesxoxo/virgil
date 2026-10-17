@@ -1,6 +1,7 @@
 import { toasts } from './toast.svelte.ts';
 import type { AddRequest } from './types/AddRequest.ts';
 import type { Album } from './types/Album.ts';
+import type { ArtOutcome } from './types/ArtOutcome.ts';
 import type { AlbumDetail } from './types/AlbumDetail.ts';
 import type { ModesRequest } from './types/ModesRequest.ts';
 import type { SearchResults } from './types/SearchResults.ts';
@@ -62,7 +63,10 @@ export const api = {
 	album: (id: string) => get<AlbumDetail>(`/api/library/albums/${encodeURIComponent(id)}`),
 	search: (q: string, signal?: AbortSignal) =>
 		get<SearchResults>(`/api/library/search?q=${encodeURIComponent(q)}`, signal),
-	rescan: () => post('/api/library/rescan')
+	rescan: () => post('/api/library/rescan'),
+	downloadArt: (id: string) =>
+		call('POST', `/api/library/albums/${encodeURIComponent(id)}/art`).then((r) => r.json() as Promise<ArtOutcome>),
+	downloadMissingArt: () => post('/api/library/art/download-missing')
 };
 
 const next = () => toasts.done('Playing next');

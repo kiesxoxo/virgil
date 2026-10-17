@@ -53,7 +53,7 @@ fn main() -> anyhow::Result<()> {
 
 async fn serve(config: Config) -> anyhow::Result<()> {
     std::fs::create_dir_all(&config.data_dir).with_context(|| format!("creating {}", config.data_dir.display()))?;
-    let library = Library::open(&config.data_dir, &config.mpd)?;
+    let library = Library::open(&config.data_dir, &config.mpd, config.music_dir.clone())?;
     let listen = config.listen;
     let app = App::new(config, library);
 

@@ -9,6 +9,9 @@ mpd = "/run/mpd/socket"
 # Library database and artwork cache (systemd's StateDirectory).
 data_dir = "/var/lib/hifi"
 
+# MPD's music_directory; hifid saves downloaded covers (cover.jpg) there.
+music_dir = "/mnt/music"
+
 # HiFiBerry Digi2 Pro; see `cat /proc/asound/cards`.
 alsa_card = "sndrpihifiberry"
 

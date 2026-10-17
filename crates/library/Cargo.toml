@@ -10,7 +10,10 @@ anyhow.workspace = true
 hifi-core.workspace = true
 hifi-engine-mpd.workspace = true
 image.workspace = true
+reqwest.workspace = true
 rusqlite.workspace = true
+rustls.workspace = true
+serde.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 

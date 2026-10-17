@@ -50,6 +50,8 @@ if [ ! -f "$hifi_conf" ]; then
 listen = "0.0.0.0:${HIFI_PORT}"
 mpd = "/run/mpd/socket"
 data_dir = "/data/hifi"
+# Downloaded covers are saved next to the music.
+music_dir = "/music"
 alsa_card = "${ALSA_CARD}"
 # Docker hides /proc/asound; compose.yaml mounts the host's copy here.
 asound_dir = "/host/asound"

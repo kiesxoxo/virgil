@@ -17,6 +17,8 @@ axum = { version = "0.8", features = ["ws"] }
 clap = { version = "4", features = ["derive", "env"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 mime_guess = "2"
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "http2", "system-proxy", "json", "query"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 rusqlite = { version = "0.37", features = ["bundled"] }
 rust-embed = "8"
 serde = { version = "1", features = ["derive"] }
