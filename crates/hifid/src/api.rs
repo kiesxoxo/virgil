@@ -1,4 +1,5 @@
-use axum::extract::{Path, Query, State};
+use axum::body::Bytes;
+use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post};
@@ -89,6 +90,7 @@ pub fn router(app: App) -> Router {
         .route("/api/library/search", get(search))
         .route("/api/library/rescan", post(rescan))
         .route("/api/library/albums/{id}/art", post(download_art))
+        .route("/api/library/albums/{id}/art/upload", post(upload_art).layer(DefaultBodyLimit::max(MAX_UPLOAD)))
         .route("/api/library/art/download-missing", post(download_missing_art))
         .route("/api/sources/{name}/acquire", post(acquire))
         .route("/api/sources/{name}/release", post(release))
@@ -233,6 +235,18 @@ async fn rescan(State(app): State<App>) -> ApiResult {
 /// Downloads a cover for one album into its folder, unless it already has art.
 async fn download_art(State(app): State<App>, Path(id): Path<String>) -> ApiResult<Json<ArtOutcome>> {
     Ok(Json(app.library.download_art(id).await?))
+}
+
+/// Covers bigger than this are refused.
+const MAX_UPLOAD: usize = 20 << 20;
+
+/// Saves the uploaded image (the request body) as the album's cover, replacing any cover.* file.
+async fn upload_art(State(app): State<App>, Path(id): Path<String>, body: Bytes) -> ApiResult {
+    if hifi_library::cover_extension(&body).is_none() {
+        return Err(ApiError::bad_request("choose a JPEG, PNG or WebP image"));
+    }
+    app.library.upload_art(id, body.to_vec()).await?;
+    Ok(DONE)
 }
 
 /// Starts downloading covers for every album without art; progress arrives

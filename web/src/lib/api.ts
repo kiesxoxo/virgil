@@ -9,11 +9,13 @@ import type { SearchResults } from './types/SearchResults.ts';
 async function call(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<Response> {
 	let res: Response;
 	try {
+		// A Blob (e.g. a picked file) goes as the raw body; anything else as JSON.
+		const raw = body instanceof Blob;
 		res = await fetch(path, {
 			method,
 			signal,
-			headers: body === undefined ? undefined : { 'content-type': 'application/json' },
-			body: body === undefined ? undefined : JSON.stringify(body)
+			headers: body === undefined || raw ? undefined : { 'content-type': 'application/json' },
+			body: body === undefined ? undefined : raw ? body : JSON.stringify(body)
 		});
 	} catch (e) {
 		if ((e as Error).name !== 'AbortError') toasts.show('hifi is not reachable');
@@ -66,7 +68,8 @@ export const api = {
 	rescan: () => post('/api/library/rescan'),
 	downloadArt: (id: string) =>
 		call('POST', `/api/library/albums/${encodeURIComponent(id)}/art`).then((r) => r.json() as Promise<ArtOutcome>),
-	downloadMissingArt: () => post('/api/library/art/download-missing')
+	downloadMissingArt: () => post('/api/library/art/download-missing'),
+	uploadArt: (id: string, image: Blob) => call('POST', `/api/library/albums/${encodeURIComponent(id)}/art/upload`, image)
 };
 
 const next = () => toasts.done('Playing next');

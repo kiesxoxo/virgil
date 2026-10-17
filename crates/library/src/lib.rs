@@ -83,6 +83,43 @@ fn write_new(path: &Path, data: &[u8]) -> std::io::Result<()> {
     Ok(())
 }
 
+/// The file extension for a cover image hifi accepts (JPEG, PNG or WebP), None otherwise.
+pub fn cover_extension(bytes: &[u8]) -> Option<&'static str> {
+    match image::guess_format(bytes).ok()? {
+        image::ImageFormat::Jpeg => Some("jpg"),
+        image::ImageFormat::Png => Some("png"),
+        image::ImageFormat::WebP => Some("webp"),
+        _ => None,
+    }
+}
+
+/// Makes `name` the album's only cover.* image, so MPD can't pick an older
+/// one. The image is written to a staging file first; old covers are removed
+/// before it is renamed into place, because on a case-insensitive share
+/// "Cover.JPG" and "cover.jpg" are the same file.
+fn replace_cover(dir: &Path, name: &str, data: &[u8]) -> anyhow::Result<PathBuf> {
+    let path = dir.join(name);
+    let staging = dir.join(".hifi-cover-upload.tmp");
+    let _ = std::fs::remove_file(&staging);
+    write_new(&staging, data).with_context(|| format!("saving {}", path.display()))?;
+    let result = (|| {
+        for entry in std::fs::read_dir(dir)?.flatten() {
+            let old = entry.path();
+            let lower = |s: Option<&std::ffi::OsStr>| s.and_then(|s| s.to_str()).map(str::to_lowercase);
+            if lower(old.file_stem()).as_deref() == Some("cover")
+                && lower(old.extension()).is_some_and(|ext| IMAGE_EXTENSIONS.contains(&ext.as_str()))
+            {
+                std::fs::remove_file(&old).with_context(|| format!("removing old cover {}", old.display()))?;
+            }
+        }
+        std::fs::rename(&staging, &path).with_context(|| format!("saving {}", path.display()))
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(&staging);
+    }
+    result.map(|()| path)
+}
+
 impl Library {
     /// Opens (or creates) `data_dir/library.db` and starts the background
     /// worker. Nothing is scanned until [`Library::request_sync`]. Without a
@@ -341,6 +378,25 @@ impl Library {
         Ok(ArtOutcome::Saved)
     }
 
+    /// Saves an image the user picked as the album's cover.<ext>, replacing
+    /// any cover.* already in its folder. Check it with [`cover_extension`] first.
+    pub async fn upload_art(&self, album_id: String, bytes: Vec<u8>) -> anyhow::Result<()> {
+        let Some(extension) = cover_extension(&bytes) else { bail!("not a JPEG, PNG or WebP image") };
+        let id = album_id.clone();
+        let Some(target) = self.db(move |conn| db::art_target(conn, &id)).await? else { bail!("no such album") };
+        let Some(music_dir) = &self.inner.music_dir else {
+            bail!("music_dir is not set in hifid's config, so covers can't be saved");
+        };
+        let dir = music_dir.join(target.cover_uri.rsplit_once('/').map_or("", |(dir, _)| dir));
+        // Thumbnails first: an image that won't decode never replaces a working cover.
+        let key = self.thumbs(bytes.clone()).await.context("unreadable image")?;
+        let name = format!("cover.{extension}");
+        let path = tokio::task::spawn_blocking(move || replace_cover(&dir, &name, &bytes)).await??;
+        info!("artwork: uploaded {}", path.display());
+        self.record_art(album_id, Some(key)).await?;
+        self.bump().await
+    }
+
     /// Starts downloading covers for every album without art. False when a run
     /// is already going.
     pub fn download_missing_art(&self) -> bool {
@@ -432,5 +488,22 @@ mod tests {
         assert_eq!(folder_image(&dir).unwrap(), Some(dir.join("Folder.JPG")));
         std::fs::remove_dir_all(&dir).unwrap();
         assert!(folder_image(&dir).is_err(), "a missing folder (share not mounted) is an error");
+    }
+
+    #[test]
+    fn uploaded_cover_replaces_other_covers_only() {
+        let dir = std::env::temp_dir().join(format!("hifi-upload-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        for name in ["cover.jpg", "Cover.PNG", "folder.jpg", "01 Track.flac"] {
+            std::fs::write(dir.join(name), b"old").unwrap();
+        }
+        let path = replace_cover(&dir, "cover.png", b"new").unwrap();
+        assert_eq!(path, dir.join("cover.png"));
+        assert_eq!(std::fs::read(&path).unwrap(), b"new");
+        let mut left: Vec<_> =
+            std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect();
+        left.sort();
+        assert_eq!(left, ["01 Track.flac", "cover.png", "folder.jpg"]);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

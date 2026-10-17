@@ -1,6 +1,6 @@
 // Menu items for albums, tracks and queue entries, shared by every view.
 
-import { ArrowUpToLine, ImageDown, ListEnd, ListPlus, ListX, Play } from '@lucide/svelte';
+import { ArrowUpToLine, ImageDown, ImageUp, ListEnd, ListPlus, ListX, Play } from '@lucide/svelte';
 import { api, queue } from './api.ts';
 import type { MenuHeader, MenuItem } from './menu.svelte.ts';
 import { toasts } from './toast.svelte.ts';
@@ -14,6 +14,35 @@ const artMessages: Record<ArtOutcome, string> = {
 	alreadyPresent: 'This album already has artwork',
 	notFound: 'No matching artwork found online'
 };
+
+/** Covers bigger than this are refused by hifid. */
+const MAX_UPLOAD = 20 << 20;
+
+/**
+ * Opens the file picker (must run straight from the tap, or iOS ignores it)
+ * and saves the picked image as the album's cover.
+ */
+function uploadArt(album: Album) {
+	const input = document.createElement('input');
+	input.type = 'file';
+	input.accept = 'image/jpeg,image/png,image/webp';
+	input.hidden = true;
+	const done = () => input.remove();
+	input.addEventListener('cancel', done);
+	input.addEventListener('change', () => {
+		const file = input.files?.[0];
+		done();
+		if (!file) return;
+		if (file.size > MAX_UPLOAD) return toasts.show('That image is too large (20 MB at most)');
+		toasts.done('Uploading artwork…');
+		api.uploadArt(album.id, file).then(
+			() => toasts.done('Artwork saved to the album folder'),
+			() => {} // the error toast is already up
+		);
+	});
+	document.body.append(input);
+	input.click();
+}
 
 export function albumItems(album: Album): MenuItem[] {
 	const items: MenuItem[] = [
@@ -33,6 +62,7 @@ export function albumItems(album: Album): MenuItem[] {
 			}
 		});
 	}
+	items.push({ label: album.art ? 'Replace artwork…' : 'Upload artwork…', icon: ImageUp, run: () => uploadArt(album) });
 	return items;
 }
 
