@@ -16,12 +16,12 @@
 	} as const;
 </script>
 
-<div class="rounded-2xl bg-surface p-4">
+<div class="group rounded-2xl bg-surface p-4">
 	<div class="flex items-center justify-between gap-3">
 		<span class="text-sm font-semibold">Signal path</span>
 		<SignalBadge {signal} />
 	</div>
-	<p class="mt-2 text-sm text-muted">{signal.note && signal.verdict !== 'external' ? `${explain[signal.verdict]} ${signal.note}.` : explain[signal.verdict]}</p>
+	<p class="mt-2 hidden text-sm text-muted group-hover:block">{signal.note && signal.verdict !== 'external' ? `${explain[signal.verdict]} ${signal.note}.` : explain[signal.verdict]}</p>
 	{#if signal.source || signal.output}
 		<div class="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-xs">
 			<div class="rounded-xl bg-bg px-3 py-2">
