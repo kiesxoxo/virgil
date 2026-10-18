@@ -56,6 +56,18 @@ fn is_offline(e: &anyhow::Error) -> bool {
     e.chain().any(|cause| cause.downcast_ref::<reqwest::Error>().is_some_and(|e| e.is_connect() || e.is_timeout()))
 }
 
+/// Folders and files systems leave behind that are never music.
+const JUNK: [&str; 7] =
+    [".DS_Store", ".AppleDouble", ".Trashes", ".Spotlight-V100", ".fseventsd", ".TemporaryItems", "@eaDir"];
+
+/// Not music, though MPD may list it: above all the `._name` files macOS
+/// leaves on non-Mac drives (MPD takes `._01 Song.flac` for a song), and the
+/// system folders in [`JUNK`]. Other names starting with a dot are kept:
+/// "...And Justice for All" is an album.
+fn hidden(uri: &str) -> bool {
+    uri.rsplit('/').next().is_some_and(|name| name.starts_with("._") || JUNK.contains(&name))
+}
+
 /// A cover/folder/front/album image already in `dir`, if any.
 fn folder_image(dir: &Path) -> anyhow::Result<Option<PathBuf>> {
     let entries = std::fs::read_dir(dir).with_context(|| format!("reading album folder {}", dir.display()))?;
@@ -262,9 +274,9 @@ impl Library {
         while let Some(dir) = dirs.pop() {
             for entry in self.inner.mpd.lsinfo(&dir).await? {
                 match entry {
-                    Entry::Directory(path) => dirs.push(path),
-                    Entry::Song(song) => songs.push(*song),
-                    Entry::Playlist(_) => {}
+                    Entry::Directory(path) if !hidden(&path) => dirs.push(path),
+                    Entry::Song(song) if !hidden(&song.uri) => songs.push(*song),
+                    _ => {}
                 }
             }
         }
@@ -470,6 +482,19 @@ impl Library {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn skips_hidden_files_and_folders() {
+        assert!(hidden("BKE018-LP - Abul Mogard/._01. Place of Forever.flac"));
+        assert!(hidden("Album/.DS_Store"));
+        assert!(hidden("Album/.AppleDouble"));
+        assert!(hidden(".Trashes"));
+        assert!(hidden("Album/@eaDir"));
+        assert!(!hidden("BKE018-LP - Abul Mogard/01. Place of Forever.flac"));
+        assert!(!hidden("...And Justice for All"), "an album, not junk");
+        assert!(!hidden("Slipknot/.5: The Gray Chapter/01 Prelude 3.0.flac"));
+        assert!(!hidden("Artist/Album"));
+    }
 
     #[test]
     fn finds_folder_art_and_never_overwrites() {
