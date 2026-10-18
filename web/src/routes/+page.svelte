@@ -4,6 +4,7 @@
 	import AlbumList, { LIST_COLUMNS_MIN_WIDTH, listColumns } from '#lib/components/AlbumList.svelte';
 	import Cover from '#lib/components/Cover.svelte';
 	import Equalizer from '#lib/components/Equalizer.svelte';
+	import LibraryTabs from '#lib/components/LibraryTabs.svelte';
 	import { trackHeader, trackItems } from '#lib/actions.ts';
 	import { api, queue } from '#lib/api.ts';
 	import { clock, fold, qualityRank } from '#lib/format.ts';
@@ -140,6 +141,7 @@
 
 <div class="pt-safe glass sticky top-0 z-20 border-b border-line lg:border-none lg:bg-bg/80">
 	<div class="mx-auto max-w-[110rem] px-4 pt-4 pb-3 lg:px-8 lg:pt-8">
+		<LibraryTabs />
 		<div class="flex items-center justify-between gap-3">
 			<h1 class="text-[28px] font-bold tracking-tight lg:text-[32px]">Albums</h1>
 			<div class="flex items-center gap-2">

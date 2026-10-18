@@ -1,6 +1,6 @@
 <script lang="ts">
 	import '../app.css';
-	import { ListMusic, LibraryBig, LoaderCircle, Settings2, WifiOff } from '@lucide/svelte';
+	import { ListMusic, LibraryBig, LoaderCircle, MicVocal, Settings2, Shapes, WifiOff } from '@lucide/svelte';
 	import { onMount, type Snippet } from 'svelte';
 	import { page } from '$app/state';
 	import ContextMenu from '#lib/components/ContextMenu.svelte';
@@ -13,10 +13,25 @@
 
 	let { children }: { children: Snippet } = $props();
 
+	const albums = (id: string) => id === '/' || id.startsWith('/album/');
+	const artists = (id: string) => id === '/artists' || id.startsWith('/artist/');
+	const genres = (id: string) => id === '/genres' || id.startsWith('/genre/');
+	const queuePage = { href: '/queue', label: 'Queue', icon: ListMusic, active: (id: string) => id === '/queue' };
+	const settings = { href: '/settings', label: 'Settings', icon: Settings2, active: (id: string) => id === '/settings' };
+
+	// Desktop: every view in the sidebar.
 	const nav = [
-		{ href: '/', label: 'Albums', icon: LibraryBig, active: (id: string) => id === '/' || id.startsWith('/album') },
-		{ href: '/queue', label: 'Queue', icon: ListMusic, active: (id: string) => id === '/queue' },
-		{ href: '/settings', label: 'Settings', icon: Settings2, active: (id: string) => id === '/settings' }
+		{ href: '/', label: 'Albums', icon: LibraryBig, active: albums },
+		{ href: '/artists', label: 'Artists', icon: MicVocal, active: artists },
+		{ href: '/genres', label: 'Genres', icon: Shapes, active: genres },
+		queuePage,
+		settings
+	];
+	// Phones: one Library tab; its pages switch between albums, artists and genres.
+	const tabs = [
+		{ href: '/', label: 'Library', icon: LibraryBig, active: (id: string) => albums(id) || artists(id) || genres(id) },
+		queuePage,
+		settings
 	];
 
 	let routeId = $derived(page.route.id ?? '');
@@ -89,7 +104,7 @@
 
 	<nav class="glass pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line lg:hidden">
 		<div class="grid h-14 grid-cols-3">
-			{#each nav as item (item.href)}
+			{#each tabs as item (item.href)}
 				{@const active = item.active(routeId)}
 				<a
 					href={item.href}

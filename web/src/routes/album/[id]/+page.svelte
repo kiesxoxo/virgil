@@ -136,7 +136,9 @@
 				<Cover art={album?.art} size={600} eager class="w-[min(68vw,18rem)] shrink-0 rounded-2xl shadow-cover ring-1 ring-line md:w-60" />
 				<div class="min-w-0 flex-1">
 					<h1 class="text-2xl font-bold tracking-tight text-balance md:text-4xl">{album?.title ?? ''}</h1>
-					<p class="mt-1 text-lg font-semibold text-accent md:text-xl">{album?.artist ?? ''}</p>
+					<p class="mt-1 text-lg font-semibold text-accent md:text-xl">
+						{#if album}<a href="/artist/{encodeURIComponent(album.artist)}" class="hover:underline">{album.artist}</a>{/if}
+					</p>
 					<p class="mt-1.5 text-sm text-muted">{meta.join(' · ')}</p>
 					{#if album?.format}
 						<p class="mt-2.5 flex items-center justify-center gap-2 md:justify-start">

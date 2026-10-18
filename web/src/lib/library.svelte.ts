@@ -1,4 +1,5 @@
 import { api } from './api.ts';
+import { artists, genres, type Group } from './browse.ts';
 import { fold, qualityRank } from './format.ts';
 import type { Album } from './types/Album.ts';
 
@@ -62,6 +63,19 @@ class Library {
 	/** The albums to show: duplicates collapsed into their best version. */
 	get entries(): Album[] {
 		return this.#grouped.entries;
+	}
+
+	#artists = $derived(artists(this.#grouped.entries));
+	#genres = $derived(genres(this.#grouped.entries));
+
+	/** One entry per album artist, A–Z. */
+	get artists(): Group[] {
+		return this.#artists;
+	}
+
+	/** One entry per genre, A–Z, with "No genre" last. */
+	get genres(): Group[] {
+		return this.#genres;
 	}
 
 	get(id: string): Album | undefined {

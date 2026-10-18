@@ -17,7 +17,8 @@ export default defineConfig({
 	server: {
 		proxy: {
 			'/api': { target, ws: true },
-			'/art': target
+			// Artwork only: a bare '/art' would also send /artists and /artist/… to virgild.
+			'^/art/': target
 		}
 	}
 });
