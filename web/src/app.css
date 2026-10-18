@@ -115,10 +115,12 @@
 	padding-top: env(safe-area-inset-top);
 }
 
+/* Frosted bars and menus. Tailwind's backdrop utilities write both the
+   standard and the -webkit- property; hand-written, the minifier kept only
+   the -webkit- one, so Chrome, Edge and WebView2 showed no blur. */
 @utility glass {
 	background: var(--elevated);
-	backdrop-filter: saturate(1.8) blur(20px);
-	-webkit-backdrop-filter: saturate(1.8) blur(20px);
+	@apply backdrop-blur-[20px] backdrop-saturate-180;
 }
 
 @utility press {
