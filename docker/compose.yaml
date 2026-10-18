@@ -1,24 +1,24 @@
-# hifi on a Raspberry Pi — see the "Docker" section of README.md.
+# Virgil on a Raspberry Pi — see the "Docker" section of README.md.
 #
 #   docker compose up -d
 #
 # Before the first start:
 #   1. set the music path below (left side of `/music`)
-#   2. install shairport-sync-dbus.conf on the host (lets hifi end AirPlay sessions)
-name: hifi
+#   2. install shairport-sync-dbus.conf on the host (lets Virgil end AirPlay sessions)
+name: virgil
 
 services:
-  hifi:
-    image: ghcr.io/mpkonmbk/hifi:latest
+  virgil:
+    image: ghcr.io/kiesxoxo/virgil:latest
     network_mode: host
     restart: unless-stopped
     # Sound devices, including USB DACs plugged in later: /dev/snd is mounted
     # rather than listed under `devices`, and ALSA's device numbers (major
-    # 116) are allowed. Settings offers new cards after a restart of hifi.
+    # 116) are allowed. Settings offers new cards after a restart of Virgil.
     device_cgroup_rules:
       - "c 116:* rmw"
     environment:
-      HIFI_PORT: "80"            # web UI: http://<pi>.local/
+      VIRGIL_PORT: "80"            # web UI: http://<pi>.local/
       ALSA_CARD: sndrpihifiberry # your DAC, from `cat /proc/asound/cards`
       MPD_DOP: "yes"             # DSD64 as DoP; set "no" if your DAC lacks DoP
       AIRPLAY: "on"
@@ -28,11 +28,11 @@ services:
       - type: bind
         source: /mnt/music
         target: /music
-        read_only: false # hifi saves downloaded covers (cover.jpg) into album folders
+        read_only: false # Virgil saves downloaded covers (cover.jpg) into album folders
         bind:
           propagation: rslave
       - /dev/snd:/dev/snd            # sound devices (see device_cgroup_rules)
-      - hifi-data:/data              # library database, artwork, MPD state
+      - virgil-data:/data              # library database, artwork, MPD state
       - /proc/asound:/host/asound:ro # for the bit-perfect check (Docker hides /proc/asound)
       - /run/dbus:/run/dbus          # to end an AirPlay session when you press play
 
@@ -56,4 +56,4 @@ services:
         max-file: "5"
 
 volumes:
-  hifi-data:
+  virgil-data:

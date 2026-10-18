@@ -14,7 +14,7 @@ pub struct Config {
     pub mpd: String,
     /// Library database and artwork cache.
     pub data_dir: PathBuf,
-    /// MPD's music directory as hifid sees it. Needed (and must be writable)
+    /// MPD's music directory as virgild sees it. Needed (and must be writable)
     /// to save downloaded covers next to the music.
     pub music_dir: Option<PathBuf>,
     /// ALSA card id of the DAC, as in `/proc/asound/<id>`.
@@ -67,7 +67,7 @@ mod tests {
 
     #[test]
     fn deploy_config_parses() {
-        let text = include_str!("../../../deploy/hifid.toml");
+        let text = include_str!("../../../deploy/virgild.toml");
         let config: Config = toml::from_str(text).unwrap();
         assert_eq!(config.mpd, "/run/mpd/socket");
         assert!(config.sources["airplay"].preempt.is_some());

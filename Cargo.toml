@@ -8,10 +8,10 @@ edition = "2024"
 rust-version = "1.85"
 
 [workspace.dependencies]
-hifi-core = { path = "crates/core" }
-hifi-engine-mpd = { path = "crates/engine-mpd" }
-hifi-library = { path = "crates/library" }
-hifi-tags = { path = "crates/tags" }
+virgil-core = { path = "crates/core" }
+virgil-engine-mpd = { path = "crates/engine-mpd" }
+virgil-library = { path = "crates/library" }
+virgil-tags = { path = "crates/tags" }
 
 anyhow = "1"
 axum = { version = "0.8", features = ["ws"] }

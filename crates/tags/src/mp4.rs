@@ -6,9 +6,9 @@
 use std::borrow::Cow;
 
 use anyhow::Context;
-use hifi_core::TagField;
 use lofty::mp4::{Atom, AtomData, AtomIdent, Ilst};
 use lofty::tag::Accessor;
+use virgil_core::TagField;
 
 use crate::{Native, push};
 
@@ -45,7 +45,7 @@ fn text_values<'a>(atom: &'a Atom<'_>) -> Option<Vec<&'a str>> {
         .collect()
 }
 
-/// The field name hifi shows for this atom, or None to leave it alone.
+/// The field name Virgil shows for this atom, or None to leave it alone.
 fn name_of(atom: &Atom<'_>) -> Option<String> {
     match atom.ident() {
         AtomIdent::Fourcc(cc) if cc == b"trkn" || cc == b"disk" => Some(String::new()),

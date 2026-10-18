@@ -1,9 +1,9 @@
-//! Edits copies of real files: `HIFI_TAG_SAMPLES=a.flac:b.mp3 cargo test -p hifi-tags -- --ignored`.
+//! Edits copies of real files: `VIRGIL_TAG_SAMPLES=a.flac:b.mp3 cargo test -p virgil-tags -- --ignored`.
 
 use std::path::{Path, PathBuf};
 
-use hifi_core::{TagEdit, TagField};
 use lofty::file::TaggedFileExt;
+use virgil_core::{TagEdit, TagField};
 
 fn field(name: &str, values: &[&str]) -> TagField {
     TagField { name: name.into(), values: values.iter().map(|v| v.to_string()).collect() }
@@ -23,13 +23,13 @@ fn tail(path: &Path) -> Vec<u8> {
 #[test]
 #[ignore]
 fn edits_real_files_without_touching_audio_or_art() {
-    let samples = std::env::var("HIFI_TAG_SAMPLES").expect("HIFI_TAG_SAMPLES=path[:path…]");
-    let dir = std::env::temp_dir().join(format!("hifi-tags-{}", std::process::id()));
+    let samples = std::env::var("VIRGIL_TAG_SAMPLES").expect("VIRGIL_TAG_SAMPLES=path[:path…]");
+    let dir = std::env::temp_dir().join(format!("virgil-tags-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     for sample in samples.split(':') {
         let copy: PathBuf = dir.join(Path::new(sample).file_name().unwrap());
         std::fs::copy(sample, &copy).unwrap();
-        let (before, info) = hifi_tags::read(&copy).unwrap();
+        let (before, info) = virgil_tags::read(&copy).unwrap();
         let (art, audio) = (pictures(&copy), tail(&copy));
         println!("{sample}: {} {info:?}\n  {before:?}\n  {art} picture(s)", info.codec);
 
@@ -44,23 +44,27 @@ fn edits_real_files_without_touching_audio_or_art() {
             ],
             remove: vec!["COMMENT".into()],
         };
-        assert!(hifi_tags::write(&copy, &edit).unwrap());
-        let (after, info_after) = hifi_tags::read(&copy).unwrap();
+        assert!(virgil_tags::write(&copy, &edit).unwrap());
+        let (after, info_after) = virgil_tags::read(&copy).unwrap();
         println!("  after: {after:?}");
-        assert_eq!(after, hifi_tags::apply(before.clone(), &edit), "fields as edited");
+        assert_eq!(after, virgil_tags::apply(before.clone(), &edit), "fields as edited");
         assert_eq!(pictures(&copy), art, "embedded pictures kept");
         assert_eq!(tail(&copy), audio, "audio untouched");
         assert_eq!(info_after.duration, info.duration);
-        assert!(!hifi_tags::write(&copy, &edit).unwrap(), "same edit again changes nothing");
+        assert!(!virgil_tags::write(&copy, &edit).unwrap(), "same edit again changes nothing");
         assert!(
-            std::fs::read_dir(&dir).unwrap().all(|e| !e.unwrap().file_name().to_string_lossy().ends_with(".hifi-tags"))
+            std::fs::read_dir(&dir).unwrap().all(|e| !e
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".virgil-tags"))
         );
 
         // And back.
         let undo =
             TagEdit { uri: String::new(), set: before.clone(), remove: after.iter().map(|f| f.name.clone()).collect() };
-        hifi_tags::write(&copy, &undo).unwrap();
-        let (restored, _) = hifi_tags::read(&copy).unwrap();
+        virgil_tags::write(&copy, &undo).unwrap();
+        let (restored, _) = virgil_tags::read(&copy).unwrap();
         let sorted = |mut f: Vec<TagField>| {
             f.sort_by(|a, b| a.name.cmp(&b.name));
             f

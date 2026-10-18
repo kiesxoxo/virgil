@@ -1,7 +1,7 @@
 //! Keeps the snapshot in step with MPD and the library.
 
-use hifi_core::{PlayerState, ServerEvent};
-use hifi_engine_mpd::Event;
+use virgil_core::{PlayerState, ServerEvent};
+use virgil_engine_mpd::Event;
 
 use crate::app::App;
 

@@ -10,7 +10,7 @@ sudo apt-get install -y --no-install-recommends build-essential git autoconf aut
 	libplist-dev libsodium-dev uuid-dev libgcrypt-dev xxd libplist-utils \
 	libavutil-dev libavcodec-dev libavformat-dev libglib2.0-dev systemd-dev
 
-src="${XDG_CACHE_HOME:-$HOME/.cache}/hifi-src"
+src="${XDG_CACHE_HOME:-$HOME/.cache}/virgil-src"
 mkdir -p "$src"
 
 # NQPTP: the PTP clock companion AirPlay 2 needs (UDP 319/320).
@@ -18,7 +18,7 @@ if [ -d "$src/nqptp" ]; then git -C "$src/nqptp" pull; else git clone https://gi
 (cd "$src/nqptp" && autoreconf -fi && ./configure --with-systemd-startup && make && sudo make install)
 sudo systemctl enable --now nqptp
 
-# Shairport Sync with AirPlay 2 and the D-Bus interface (hifid uses DropSession).
+# Shairport Sync with AirPlay 2 and the D-Bus interface (virgild uses DropSession).
 if [ -d "$src/shairport-sync" ]; then git -C "$src/shairport-sync" pull; else git clone https://github.com/mikebrady/shairport-sync.git "$src/shairport-sync"; fi
 (
 	cd "$src/shairport-sync"

@@ -2,9 +2,9 @@
 
 use std::collections::HashMap;
 
-use hifi_core::{Album, AlbumDetail, AudioFormat, LibraryStatus, SearchResults, Track, TrackHit};
-use hifi_engine_mpd::Song;
 use rusqlite::{Connection, OptionalExtension, Row, Transaction, params};
+use virgil_core::{Album, AlbumDetail, AudioFormat, LibraryStatus, SearchResults, Track, TrackHit};
+use virgil_engine_mpd::Song;
 
 use crate::group::{self, fnv1a64, sort_key};
 

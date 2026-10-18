@@ -1,4 +1,4 @@
-"""Generate a small, realistic FLAC test library for hifi development.
+"""Generate a small, realistic FLAC test library for Virgil development.
 
 Silent audio (tiny files) with real tags, mixed formats, folder and embedded
 cover art. Usage: python3 -I scripts/gen-test-library.py <music_dir> [flac_binary]
@@ -125,7 +125,7 @@ def main():
         os.makedirs(d, exist_ok=True)
         cover = None
         if art != "none":
-            cover = os.path.join(d if art == "folder" else tempfile.gettempdir(), "cover.png" if art == "folder" else f"hifi-{year}-{bits}.png")
+            cover = os.path.join(d if art == "folder" else tempfile.gettempdir(), "cover.png" if art == "folder" else f"virgil-{year}-{bits}.png")
             png(cover, 360, *palette())
         multidisc = album == "Glass Cathedral"
         for i, title in enumerate(titles, 1):

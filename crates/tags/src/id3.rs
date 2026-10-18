@@ -5,13 +5,13 @@
 use std::borrow::Cow;
 
 use anyhow::Context;
-use hifi_core::TagField;
 use lofty::TextEncoding;
 use lofty::id3::v2::{
     CommentFrame, ExtendedTextFrame, Frame, FrameId, Id3v2Tag, TextInformationFrame, TimestampFrame,
     UnsynchronizedTextFrame,
 };
 use lofty::tag::items::Timestamp;
+use virgil_core::TagField;
 
 use crate::{Native, push};
 
@@ -67,7 +67,7 @@ fn frame_of(table: &[(&'static str, &'static str)], name: &str) -> Option<&'stat
     table.iter().find(|(_, n)| n.eq_ignore_ascii_case(name)).map(|(frame, _)| *frame)
 }
 
-/// A field hifi shows for this frame; everything else is kept as is.
+/// A field Virgil shows for this frame; everything else is kept as is.
 fn is_field(frame: &Frame<'_>) -> bool {
     match frame {
         Frame::Text(_) => true,
@@ -152,7 +152,7 @@ impl Native for Id3v2Tag {
             } else if let Some(id) = frame_of(&TEXT, name) {
                 text(id, joined)?
             } else if is_text_frame_id(name) {
-                // A text frame hifi has no name for, shown under its ID.
+                // A text frame Virgil has no name for, shown under its ID.
                 text(name, joined)?
             } else {
                 user_text(name, &joined)

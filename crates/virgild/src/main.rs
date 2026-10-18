@@ -1,4 +1,4 @@
-// hifi.exe is a desktop app: no console window in release builds.
+// Virgil.exe is a desktop app: no console window in release builds.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod api;
@@ -20,10 +20,10 @@ use std::time::{Duration, Instant};
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-use hifi_library::Library;
 use tokio::net::TcpListener;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
+use virgil_library::Library;
 
 use crate::app::App;
 use crate::config::Config;
@@ -34,7 +34,7 @@ use crate::desktop::Desktop;
 struct Cli {
     /// Config file (TOML). Without one, the defaults expect MPD on 127.0.0.1:6600
     /// (on Windows, no config means desktop mode).
-    #[arg(short, long, env = "HIFI_CONFIG")]
+    #[arg(short, long, env = "VIRGIL_CONFIG")]
     config: Option<PathBuf>,
     /// Started by a desktop-mode restart: wait for the old instance to let go.
     #[arg(long, hide = true)]
@@ -76,15 +76,15 @@ fn main() -> anyhow::Result<()> {
     })
 }
 
-/// hifi.exe: logs go to a file (there's no console), and a failure to start opens it.
+/// Virgil.exe: logs go to a file (there's no console), and a failure to start opens it.
 fn run_desktop(restarted: bool) -> anyhow::Result<()> {
     let base = desktop::base_dir();
     std::fs::create_dir_all(&base).with_context(|| format!("creating {}", base.display()))?;
-    let log = base.join("hifi.log");
+    let log = base.join("virgil.log");
     // Appended to, not recreated: a second launch (which only brings the
-    // running hifi to the front) mustn't wipe the running one's log.
+    // running Virgil to the front) mustn't wipe the running one's log.
     if std::fs::metadata(&log).is_ok_and(|m| m.len() > 4 << 20) {
-        let _ = std::fs::rename(&log, base.join("hifi.old.log"));
+        let _ = std::fs::rename(&log, base.join("virgil.old.log"));
     }
     let file = std::fs::OpenOptions::new()
         .create(true)
@@ -104,11 +104,11 @@ fn run_desktop(restarted: bool) -> anyhow::Result<()> {
     result
 }
 
-/// Claims hifi's port, or hands over to the hifi that already has it, then
-/// runs hifi with its window (Windows) or opens the UI in a browser.
+/// Claims Virgil's port, or hands over to the Virgil that already has it, then
+/// runs Virgil with its window (Windows) or opens the UI in a browser.
 fn desktop_start(base: PathBuf, restarted: bool, #[allow(unused)] log: &std::path::Path) -> anyhow::Result<()> {
     let (desktop, config) = Desktop::prepare(base)?;
-    // One hifi at a time: if the port is taken, hifi is already running; show it.
+    // One Virgil at a time: if the port is taken, Virgil is already running; show it.
     // After a restart, give the old instance a moment to let go of the port.
     let deadline = Instant::now() + if restarted { Duration::from_secs(15) } else { Duration::ZERO };
     let listener = loop {
@@ -116,7 +116,7 @@ fn desktop_start(base: PathBuf, restarted: bool, #[allow(unused)] log: &std::pat
             Ok(listener) => break listener,
             Err(_) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(200)),
             Err(_) if !restarted => {
-                info!("hifi is already running; bringing it to the front");
+                info!("Virgil is already running; bringing it to the front");
                 if !desktop::show_running(config.listen.port()) {
                     desktop::open_window(&desktop.url());
                 }
@@ -133,7 +133,7 @@ fn desktop_start(base: PathBuf, restarted: bool, #[allow(unused)] log: &std::pat
     window::run(runtime, desktop, main, log);
     #[cfg(not(windows))]
     {
-        // A restarted hifi's browser tab reconnects by itself.
+        // A restarted Virgil's browser tab reconnects by itself.
         if !restarted {
             desktop::open_window(&desktop.url());
         }
@@ -161,7 +161,7 @@ async fn serve(config: Config, listener: TcpListener, desktop: Option<Arc<Deskto
     tokio::spawn(sync::run_library(app.clone()));
     tokio::spawn(signal::run(app.clone()));
 
-    info!("hifid listening on http://{listen}");
+    info!("virgild listening on http://{listen}");
     // Open WebSockets would stall a graceful shutdown, and there is nothing to
     // flush (SQLite is in WAL mode), so just stop on a signal.
     tokio::select! {

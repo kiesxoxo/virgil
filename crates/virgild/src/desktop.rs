@@ -1,7 +1,7 @@
-//! Desktop mode: hifi.exe on a PC. hifid runs MPD itself (the official
+//! Desktop mode: Virgil.exe on a PC. virgild runs MPD itself (the official
 //! mpd.exe, embedded in release builds), with one WASAPI exclusive-mode output
 //! per playback device, and opens the UI as an app window. Everything lives in
-//! `%LOCALAPPDATA%\hifi`.
+//! `%LOCALAPPDATA%\Virgil`.
 
 use std::io::{BufRead, BufReader, Write};
 use std::net::{SocketAddr, TcpStream};
@@ -11,11 +11,11 @@ use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 use std::time::Duration;
 
 use anyhow::{Context, bail};
-use hifi_core::{DesktopSettings, HwParams, PlayState, PlayerState};
 use tokio::io::AsyncBufReadExt;
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 use tracing::{info, warn};
+use virgil_core::{DesktopSettings, HwParams, PlayState, PlayerState};
 
 use crate::config::Config;
 use crate::signal::Hw;
@@ -25,7 +25,7 @@ const MPD_PORT: u16 = 6612;
 const DEFAULT_PORT: u16 = 8484;
 
 #[cfg(feature = "bundled-mpd")]
-const MPD_EXE: &[u8] = include_bytes!(env!("HIFI_MPD_EXE"));
+const MPD_EXE: &[u8] = include_bytes!(env!("VIRGIL_MPD_EXE"));
 
 /// Don't flash a console window for child processes.
 #[cfg(windows)]
@@ -50,13 +50,21 @@ pub struct Device {
     pub default: bool,
 }
 
-/// `%LOCALAPPDATA%\hifi` (or `~/.local/share/hifi` when trying desktop mode elsewhere).
+/// `%LOCALAPPDATA%\Virgil` (or `~/.local/share/virgil` when trying desktop mode
+/// elsewhere). The folder of Virgil's earlier name, `hifi`, is moved here once.
 pub fn base_dir() -> PathBuf {
     let root = std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share")))
         .unwrap_or_else(|| PathBuf::from("."));
-    root.join("hifi")
+    let base = root.join(if cfg!(windows) { "Virgil" } else { "virgil" });
+    let old = root.join("hifi");
+    if !base.exists() && old.is_dir() {
+        let _ = std::fs::rename(&old, &base);
+        // Named after the old app; recreated with the new name on first write.
+        let _ = std::fs::rename(base.join("hifi.log"), base.join("virgil.log"));
+    }
+    base
 }
 
 fn settings_path(base: &Path) -> PathBuf {
@@ -91,7 +99,7 @@ pub fn mpd_conf(base: &Path, music_dir: &str, devices: &[Device]) -> String {
          db_file              {db}\n\
          state_file           {state}\n\
          sticker_file         {stickers}\n\
-         # Logs go to hifid over stderr; \"verbose\" includes the format\n\
+         # Logs go to virgild over stderr; \"verbose\" includes the format\n\
          # WASAPI accepted, which the signal path shows.\n\
          log_level            \"verbose\"\n\
          bind_to_address      \"127.0.0.1\"\n\
@@ -171,7 +179,7 @@ fn hw_params(rate: u32, sample: &str, channels: u8, pack24: bool) -> HwParams {
 }
 
 /// Follows MPD's log on stderr: records the format each WASAPI open settles
-/// on, and passes MPD's own messages on to hifi.log, leaving out the
+/// on, and passes MPD's own messages on to virgil.log, leaving out the
 /// per-command and per-file chatter "verbose" adds.
 async fn read_mpd_log(stderr: tokio::process::ChildStderr, opened: Arc<StdMutex<Option<HwParams>>>) {
     let mut lines = tokio::io::BufReader::new(stderr).split(b'\n');
@@ -242,7 +250,7 @@ fn mpd_listening() -> bool {
 }
 
 /// The mpd.exe to run: the embedded one, unpacked next to its data, or one
-/// placed beside hifi.exe (development builds).
+/// placed beside Virgil.exe (development builds).
 fn mpd_exe(base: &Path) -> anyhow::Result<PathBuf> {
     #[cfg(feature = "bundled-mpd")]
     {
@@ -259,7 +267,7 @@ fn mpd_exe(base: &Path) -> anyhow::Result<PathBuf> {
         if beside.is_file() {
             return Ok(beside);
         }
-        bail!("mpd.exe not found next to hifi (this build doesn't embed it)")
+        bail!("mpd.exe not found next to Virgil (this build doesn't embed it)")
     }
 }
 
@@ -308,7 +316,7 @@ impl Desktop {
         let _ = self.show_window.set(show);
     }
 
-    /// Brings hifi to the front: its own window, else (no window) a browser.
+    /// Brings Virgil to the front: its own window, else (no window) a browser.
     pub fn show_window(&self) {
         match self.show_window.get() {
             Some(show) => show(),
@@ -367,7 +375,7 @@ impl Desktop {
             }
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
-        bail!("MPD didn't start; its messages are in {}", self.base.join("hifi.log").display())
+        bail!("MPD didn't start; its messages are in {}", self.base.join("virgil.log").display())
     }
 
     /// What the device is being fed: the format WASAPI accepted, while MPD
@@ -377,7 +385,7 @@ impl Desktop {
         match (player.state, self.opened.lock().expect("opened lock").clone()) {
             (PlayState::Stop, _) => Hw::Closed,
             (_, Some(params)) => Hw::Open(params),
-            // Paused since hifi started: MPD hasn't opened the device yet.
+            // Paused since Virgil started: MPD hasn't opened the device yet.
             (PlayState::Pause, None) => Hw::Closed,
             (PlayState::Play, None) => Hw::Missing,
         }
@@ -419,7 +427,7 @@ impl Desktop {
         std::process::exit(0)
     }
 
-    /// Starts a fresh hifi (new devices, another music folder) and quits this one.
+    /// Starts a fresh Virgil (new devices, another music folder) and quits this one.
     pub async fn restart(&self) -> ! {
         match std::env::current_exe() {
             Ok(exe) => {
@@ -440,7 +448,7 @@ impl Desktop {
     }
 }
 
-/// Asks the hifi already running on `port` to bring its window to the front.
+/// Asks the Virgil already running on `port` to bring its window to the front.
 pub fn show_running(port: u16) -> bool {
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let Ok(mut stream) = TcpStream::connect_timeout(&addr, Duration::from_secs(1)) else { return false };
@@ -466,7 +474,7 @@ fn app_browser() -> Option<PathBuf> {
 }
 
 /// Opens the UI as an app window (Edge or Chrome), else in the default browser.
-/// Never waits: this runs before hifi starts serving.
+/// Never waits: this runs before Virgil starts serving.
 pub fn open_window(url: &str) {
     #[cfg(windows)]
     {
@@ -528,9 +536,9 @@ mod tests {
             Device { name: "Speakers (Realtek(R) Audio)".into(), default: true },
             Device { name: "Headphones \"DT 770\"".into(), default: false },
         ];
-        let conf = mpd_conf(Path::new(r"C:\Users\me\AppData\Local\hifi"), r"\\pi\sn700\Music", &devices);
+        let conf = mpd_conf(Path::new(r"C:\Users\me\AppData\Local\Virgil"), r"\\pi\sn700\Music", &devices);
         assert!(conf.contains("music_directory      \"//pi/sn700/Music\""));
-        assert!(conf.contains("db_file              \"C:/Users/me/AppData/Local/hifi/mpd/database\""));
+        assert!(conf.contains("db_file              \"C:/Users/me/AppData/Local/Virgil/mpd/database\""));
         assert!(conf.contains("port                 \"6612\""));
         assert_eq!(conf.matches("type       \"wasapi\"").count(), 2);
         assert!(conf.contains("\tname       \"Speakers (Realtek(R) Audio)\"\n"));

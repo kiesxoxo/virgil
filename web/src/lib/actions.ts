@@ -16,7 +16,7 @@ const artMessages: Record<ArtOutcome, string> = {
 	notFound: 'No matching artwork found online'
 };
 
-/** Covers bigger than this are refused by hifid. */
+/** Covers bigger than this are refused by virgild. */
 const MAX_UPLOAD = 20 << 20;
 
 /**

@@ -44,7 +44,7 @@
 	<aside class="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-line px-3 pt-6 pb-28 lg:flex">
 		<a href="/" class="mb-7 flex items-center gap-2.5 px-3">
 			<img src="/icon.svg" alt="" class="size-7 rounded-lg" />
-			<span class="text-lg font-bold tracking-tight">hifi</span>
+			<span class="text-lg font-bold tracking-tight">Virgil</span>
 		</a>
 		<nav class="flex flex-col gap-0.5">
 			{#each nav as item (item.href)}
@@ -75,7 +75,7 @@
 	<div class="pt-safe fixed inset-x-0 top-0 z-40 flex justify-center px-4">
 		<div class="mt-3 flex items-center gap-2 rounded-full bg-fg px-4 py-2 text-xs font-semibold text-bg shadow-float">
 			<WifiOff class="size-3.5" />
-			{hub.connected ? 'MPD is not reachable' : 'Reconnecting to hifi…'}
+			{hub.connected ? 'MPD is not reachable' : 'Reconnecting to Virgil…'}
 		</div>
 	</div>
 {/if}

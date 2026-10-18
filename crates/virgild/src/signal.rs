@@ -4,8 +4,8 @@
 use std::path::Path;
 use std::time::Duration;
 
-use hifi_core::{AudioFormat, HwParams, LOCAL_SOURCE, PlayerState, SampleFormat, SignalPath, SourceState, Verdict};
 use tokio::time::MissedTickBehavior;
+use virgil_core::{AudioFormat, HwParams, LOCAL_SOURCE, PlayerState, SampleFormat, SignalPath, SourceState, Verdict};
 
 use crate::app::App;
 

@@ -1,7 +1,7 @@
 //! Wire types shared by the daemon and the web UI.
 //!
 //! Every exported type is mirrored into TypeScript by ts-rs; run
-//! `cargo test -p hifi-core` to regenerate `web/src/lib/types/`.
+//! `cargo test -p virgil-core` to regenerate `web/src/lib/types/`.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -292,7 +292,7 @@ impl Default for SourceState {
     }
 }
 
-/// One of MPD's audio outputs: a sound card (or, on a desktop, a device) hifi can play to.
+/// One of MPD's audio outputs: a sound card (or, on a desktop, a device) Virgil can play to.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[ts(export)]
 pub struct Output {
@@ -317,7 +317,7 @@ pub struct Outputs {
     pub new_cards: Vec<String>,
 }
 
-/// Desktop mode (hifi.exe on a PC): settings hifi keeps itself.
+/// Desktop mode (Virgil.exe on a PC): settings Virgil keeps itself.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]

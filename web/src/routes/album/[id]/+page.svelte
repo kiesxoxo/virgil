@@ -106,7 +106,7 @@
 	);
 </script>
 
-<svelte:head><title>{album ? `${album.title} · ${album.artist}` : 'Album'} · hifi</title></svelte:head>
+<svelte:head><title>{album ? `${album.title} · ${album.artist}` : 'Album'} · Virgil</title></svelte:head>
 
 {#if missing && !album}
 	<div class="mx-auto mt-24 max-w-sm px-4 text-center">

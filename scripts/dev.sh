@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Local dev loop: MPD with a generated test library (null output, plays in real
-# time without a sound card) plus hifid on http://localhost:8080.
+# time without a sound card) plus virgild on http://localhost:8080.
 #
 #   scripts/dev.sh                 # needs `mpd`, `flac` and `python3` on PATH
 #   MPD=~/bin/mpd scripts/dev.sh   # or point at other binaries (MPD=…, FLAC=…)
 #
-# Everything lives in $HIFI_DEV (default ~/hifi-dev). MPD stops with this script.
+# Everything lives in $VIRGIL_DEV (default ~/virgil-dev). MPD stops with this script.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-DEV="${HIFI_DEV:-$HOME/hifi-dev}"
+DEV="${VIRGIL_DEV:-$HOME/virgil-dev}"
 MPD="${MPD:-mpd}"
 FLAC="${FLAC:-flac}"
 
@@ -33,7 +33,7 @@ audio_output {
 }
 EOF
 
-cat > "$DEV/hifid.toml" <<EOF
+cat > "$DEV/virgild.toml" <<EOF
 listen = "0.0.0.0:8080"
 mpd = "127.0.0.1:6600"
 data_dir = "$DEV/data"
@@ -54,9 +54,9 @@ else
 	for _ in $(seq 50); do (exec 3<>/dev/tcp/127.0.0.1/6600) 2>/dev/null && break; sleep 0.1; done
 fi
 
-# Rescan the test library (MPD's `update`; hifid picks up the result by itself).
+# Rescan the test library (MPD's `update`; virgild picks up the result by itself).
 exec 3<>/dev/tcp/127.0.0.1/6600
 printf 'update\nclose\n' >&3
 exec 3>&-
 
-cargo run -p hifid -- --config "$DEV/hifid.toml"
+cargo run -p virgild -- --config "$DEV/virgild.toml"

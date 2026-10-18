@@ -1,11 +1,11 @@
 # syntax=docker/dockerfile:1
 #
-# hifi: hifid + MPD in one image (linux/arm64 for the Pi, linux/amd64 for testing).
-# The web UI and hifid are built on the build machine's own architecture and
+# Virgil: virgild + MPD in one image (linux/arm64 for the Pi, linux/amd64 for testing).
+# The web UI and virgild are built on the build machine's own architecture and
 # cross-compiled. MPD and FFmpeg are compiled for the target, so CI builds each
 # architecture on a native runner (a local cross build works, but under QEMU).
 #
-# MPD is built from source with only what hifi uses: Debian's package pulls in
+# MPD is built from source with only what Virgil uses: Debian's package pulls in
 # a full FFmpeg with Mesa, LLVM, ICU, Samba, PipeWire and more (~800 MB).
 
 # --- web UI ------------------------------------------------------------------
@@ -16,7 +16,7 @@ RUN npm ci --no-audit --no-fund
 COPY web/ ./
 RUN npm run build
 
-# --- hifid -------------------------------------------------------------------
+# --- virgild -------------------------------------------------------------------
 FROM --platform=$BUILDPLATFORM rust:1-bookworm AS build
 ARG TARGETARCH
 WORKDIR /src
@@ -45,10 +45,10 @@ COPY --from=web /src/web/build web/build
 # The registry cache is shared by the parallel arm64/amd64 builds; lock it so
 # they don't unpack the same crates at once.
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
-	--mount=type=cache,target=/src/target,id=hifi-target-$TARGETARCH \
+	--mount=type=cache,target=/src/target,id=virgil-target-$TARGETARCH \
 	. /cross.env \
-	&& cargo build --release --locked -p hifid --target "$TRIPLE" \
-	&& install -D "target/$TRIPLE/release/hifid" /out/hifid
+	&& cargo build --release --locked -p virgild --target "$TRIPLE" \
+	&& install -D "target/$TRIPLE/release/virgild" /out/virgild
 
 # --- MPD ---------------------------------------------------------------------
 FROM debian:trixie-slim AS mpd
@@ -81,7 +81,7 @@ RUN tar -xf ffmpeg-${FFMPEG_VERSION}.tar.xz \
 	&& make install
 # Every optional feature is off unless listed. zlib reads the compressed
 # database Debian's MPD wrote; sqlite backs sticker_file; DSD (DSF/DFF, DoP)
-# is built in. No ICU or iconv: hifid doesn't use MPD's search, and the
+# is built in. No ICU or iconv: virgild doesn't use MPD's search, and the
 # filesystem charset stays UTF-8.
 RUN tar -xf mpd-${MPD_VERSION}.tar.xz \
 	&& cd mpd-${MPD_VERSION} \
@@ -122,13 +122,13 @@ RUN dpkg --purge --force-remove-essential --force-depends \
 # --- runtime -----------------------------------------------------------------
 FROM scratch
 COPY --from=rootfs / /
-COPY --from=build /out/hifid /usr/local/bin/hifid
-COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/hifi-entrypoint
+COPY --from=build /out/virgild /usr/local/bin/virgild
+COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/virgil-entrypoint
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-	HIFI_PORT=80 \
+	VIRGIL_PORT=80 \
 	ALSA_CARD=sndrpihifiberry \
 	MPD_DOP=yes \
 	AIRPLAY=on
 VOLUME ["/data"]
 EXPOSE 80
-ENTRYPOINT ["tini", "-g", "--", "hifi-entrypoint"]
+ENTRYPOINT ["tini", "-g", "--", "virgil-entrypoint"]

@@ -7,7 +7,7 @@
 	import { theme, type ThemeMode } from '#lib/theme.svelte.ts';
 	import type { DesktopSettings } from '#lib/types/DesktopSettings.ts';
 
-	// Desktop mode (hifi.exe on a PC): hifi's own settings, and a way to quit.
+	// Desktop mode (Virgil.exe on a PC): Virgil's own settings, and a way to quit.
 	let desktop = $state<DesktopSettings | null>(null);
 	let musicDir = $state('');
 	let applying = $state(false);
@@ -96,7 +96,7 @@
 	let downloading = $derived(!!download && !download.error && download.done < download.total);
 </script>
 
-<svelte:head><title>Settings · hifi</title></svelte:head>
+<svelte:head><title>Settings · Virgil</title></svelte:head>
 
 {#snippet section(title: string)}
 	<h2 class="mt-8 mb-2 px-1 text-xs font-semibold tracking-wider text-muted uppercase">{title}</h2>
@@ -153,7 +153,7 @@
 						<Usb class="size-4 shrink-0 text-info" />
 						<div class="min-w-0">
 							<div class="truncate text-sm font-medium">{newCards.join(', ')}</div>
-							<div class="text-xs text-muted">Connected since hifi started. Restart hifi to use it.</div>
+							<div class="text-xs text-muted">Connected since Virgil started. Restart Virgil to use it.</div>
 						</div>
 					</div>
 					<button
@@ -276,12 +276,12 @@
 						Apply
 					</button>
 				</div>
-				<p class="mt-1.5 text-xs text-muted">hifi restarts and scans the new folder.</p>
+				<p class="mt-1.5 text-xs text-muted">Virgil restarts and scans the new folder.</p>
 			</form>
 			<div class="flex items-center justify-between gap-4 px-4 py-3.5">
 				<div>
-					<div class="text-sm font-medium">Quit hifi</div>
-					<div class="mt-0.5 text-xs text-muted">Stops playback and closes hifi until you open it again.</div>
+					<div class="text-sm font-medium">Quit Virgil</div>
+					<div class="mt-0.5 text-xs text-muted">Stops playback and closes Virgil until you open it again.</div>
 				</div>
 				<button
 					type="button"

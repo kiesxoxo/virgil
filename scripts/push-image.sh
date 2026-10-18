@@ -3,11 +3,11 @@
 # fetches it here with crane (no Docker needed) and pipes it into `docker load`
 # over SSH. Then restart the stack on the Pi with `docker compose up -d --pull never`.
 #
-#   scripts/push-image.sh mpk@pi-audio [ghcr.io/mpkonmbk/hifi:latest]
+#   scripts/push-image.sh mpk@pi-audio [ghcr.io/kiesxoxo/virgil:latest]
 #   SSH=/mnt/c/Windows/System32/OpenSSH/ssh.exe scripts/push-image.sh …   # WSL + Windows ssh-agent
 set -euo pipefail
 host="${1:?usage: push-image.sh user@host [image]}"
-image="${2:-ghcr.io/mpkonmbk/hifi:latest}"
+image="${2:-ghcr.io/kiesxoxo/virgil:latest}"
 ssh="${SSH:-ssh}"
 crane_version=v0.22.1
 crane="${CRANE:-$HOME/.local/bin/crane}"

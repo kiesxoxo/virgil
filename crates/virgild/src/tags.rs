@@ -5,9 +5,9 @@ use std::path::{Component, Path, PathBuf};
 
 use axum::Json;
 use axum::extract::State;
-use hifi_core::{TagWriteError, TagWriteRequest, TagWriteResult, TaggedFile, TagsRequest};
 use tokio::sync::Mutex;
 use tracing::{info, warn};
+use virgil_core::{TagWriteError, TagWriteRequest, TagWriteResult, TaggedFile, TagsRequest};
 
 use crate::api::{ApiError, ApiResult};
 use crate::app::App;
@@ -34,7 +34,7 @@ fn music_dir(app: &App, uris: usize) -> ApiResult<PathBuf> {
     app.config
         .music_dir
         .clone()
-        .ok_or_else(|| ApiError::conflict("music_dir is not set in hifid's config, so tags can't be edited"))
+        .ok_or_else(|| ApiError::conflict("music_dir is not set in virgild's config, so tags can't be edited"))
 }
 
 pub async fn read(State(app): State<App>, Json(req): Json<TagsRequest>) -> ApiResult<Json<Vec<TaggedFile>>> {
@@ -43,7 +43,7 @@ pub async fn read(State(app): State<App>, Json(req): Json<TagsRequest>) -> ApiRe
         req.uris
             .into_iter()
             .map(|uri| {
-                match resolve(&dir, &uri).and_then(|path| hifi_tags::read(&path).map_err(|e| format!("{e:#}"))) {
+                match resolve(&dir, &uri).and_then(|path| virgil_tags::read(&path).map_err(|e| format!("{e:#}"))) {
                     Ok((fields, info)) => TaggedFile { uri, fields, info: Some(info), error: None },
                     Err(error) => TaggedFile { uri, fields: Vec::new(), info: None, error: Some(error) },
                 }
@@ -58,14 +58,15 @@ pub async fn read(State(app): State<App>, Json(req): Json<TagsRequest>) -> ApiRe
 pub async fn write(State(app): State<App>, Json(req): Json<TagWriteRequest>) -> ApiResult<Json<TagWriteResult>> {
     let dir = music_dir(&app, req.edits.len())?;
     for field in req.edits.iter().flat_map(|e| &e.set) {
-        hifi_tags::check_name(&field.name).map_err(|e| ApiError::bad_request(e.to_string()))?;
+        virgil_tags::check_name(&field.name).map_err(|e| ApiError::bad_request(e.to_string()))?;
     }
     let _writing = WRITING.lock().await;
     let (result, written) = tokio::task::spawn_blocking(move || {
         let mut result = TagWriteResult::default();
         let mut written = Vec::new();
         for edit in req.edits {
-            match resolve(&dir, &edit.uri).and_then(|path| hifi_tags::write(&path, &edit).map_err(|e| format!("{e:#}")))
+            match resolve(&dir, &edit.uri)
+                .and_then(|path| virgil_tags::write(&path, &edit).map_err(|e| format!("{e:#}")))
             {
                 Ok(true) => {
                     result.written += 1;

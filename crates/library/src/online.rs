@@ -8,7 +8,7 @@ use serde::Deserialize;
 use tokio::sync::Mutex;
 use tracing::debug;
 
-const USER_AGENT: &str = concat!("hifi/", env!("CARGO_PKG_VERSION"), " ( https://github.com/mpkonmbk/hifi )");
+const USER_AGENT: &str = concat!("Virgil/", env!("CARGO_PKG_VERSION"), " ( https://github.com/kiesxoxo/virgil )");
 /// MusicBrainz allows one request per second per client.
 const MUSICBRAINZ_INTERVAL: Duration = Duration::from_millis(1100);
 /// Covers larger than this are not downloaded.
@@ -235,7 +235,7 @@ mod tests {
         assert_eq!(normalize("新しい日の誕生"), "新しい日の誕生");
     }
 
-    /// Talks to the real services: `cargo test -p hifi-library -- --ignored`.
+    /// Talks to the real services: `cargo test -p virgil-library -- --ignored`.
     #[tokio::test]
     #[ignore]
     async fn finds_a_real_cover() {

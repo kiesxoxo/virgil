@@ -1,4 +1,4 @@
-//! MPD as hifi's playback engine.
+//! MPD as Virgil's playback engine.
 //!
 //! MPD owns decoding, gapless playback, DoP and the ALSA output; this crate
 //! drives it over its text protocol. It is the seam where a native engine

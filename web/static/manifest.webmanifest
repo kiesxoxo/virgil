@@ -1,6 +1,6 @@
 {
-	"name": "hifi",
-	"short_name": "hifi",
+	"name": "Virgil",
+	"short_name": "Virgil",
 	"description": "Bit-perfect music player",
 	"start_url": "/",
 	"display": "standalone",

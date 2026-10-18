@@ -1,15 +1,19 @@
 #!/bin/bash
-# Container entrypoint: runs MPD and hifid side by side. If either one exits,
+# Container entrypoint: runs MPD and virgild side by side. If either one exits,
 # the container stops and Docker's restart policy brings both back.
 #
-# Configuration comes from the environment (HIFI_PORT, ALSA_CARD, MPD_DOP,
+# Configuration comes from the environment (VIRGIL_PORT, ALSA_CARD, MPD_DOP,
 # AIRPLAY). To take full control, mount your own files at /config/mpd.conf
-# and/or /config/hifid.toml.
+# and/or /config/virgild.toml.
 set -euo pipefail
 
-mkdir -p /data/mpd/playlists /data/hifi /run/mpd /run/hifi
+# Virgil was called hifi: keep the library database and artwork it built.
+if [ -d /data/hifi ] && [ ! -e /data/virgil ]; then
+	mv /data/hifi /data/virgil
+fi
+mkdir -p /data/mpd/playlists /data/virgil /run/mpd /run/virgil
 
-# One MPD output per sound card, named by its ALSA id, so hifi can offer them
+# One MPD output per sound card, named by its ALSA id, so Virgil can offer them
 # all (e.g. a USB DAC next to the HiFiBerry). ALSA_CARD is set up for
 # bit-perfect playback and enabled; other cards are off until picked in
 # Settings, and may convert formats they can't take (the signal path says so).
@@ -46,7 +50,7 @@ alsa_outputs() {
 
 mpd_conf=/config/mpd.conf
 if [ ! -f "$mpd_conf" ]; then
-	mpd_conf=/run/hifi/mpd.conf
+	mpd_conf=/run/virgil/mpd.conf
 	cat > "$mpd_conf" <<EOF
 music_directory      "/music"
 playlist_directory   "/data/mpd/playlists"
@@ -68,13 +72,13 @@ $(alsa_outputs)
 EOF
 fi
 
-hifi_conf=/config/hifid.toml
-if [ ! -f "$hifi_conf" ]; then
-	hifi_conf=/run/hifi/hifid.toml
-	cat > "$hifi_conf" <<EOF
-listen = "0.0.0.0:${HIFI_PORT}"
+virgil_conf=/config/virgild.toml
+if [ ! -f "$virgil_conf" ]; then
+	virgil_conf=/run/virgil/virgild.toml
+	cat > "$virgil_conf" <<EOF
+listen = "0.0.0.0:${VIRGIL_PORT}"
 mpd = "/run/mpd/socket"
-data_dir = "/data/hifi"
+data_dir = "/data/virgil"
 # Downloaded covers are saved next to the music.
 music_dir = "/music"
 alsa_card = "${ALSA_CARD}"
@@ -82,7 +86,7 @@ alsa_card = "${ALSA_CARD}"
 asound_dir = "/host/asound"
 EOF
 	if [ "${AIRPLAY}" = "on" ]; then
-		cat >> "$hifi_conf" <<'EOF'
+		cat >> "$virgil_conf" <<'EOF'
 
 [sources.airplay]
 preempt = "dbus-send --system --type=method_call --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.gnome.ShairportSync.DropSession"
@@ -90,7 +94,7 @@ EOF
 	fi
 fi
 
-[ -d /music ] || echo "hifi: nothing mounted at /music; the library will be empty" >&2
+[ -d /music ] || echo "Virgil: nothing mounted at /music; the library will be empty" >&2
 
 # On any exit, stop the other process cleanly (MPD saves its state on SIGTERM).
 trap 'kill $(jobs -p) 2>/dev/null; wait' EXIT
@@ -100,10 +104,10 @@ for _ in $(seq 100); do
 	[ -S /run/mpd/socket ] && break
 	sleep 0.1
 done
-hifid --config "$hifi_conf" &
+virgild --config "$virgil_conf" &
 
 set +e
 wait -n
 status=$?
-echo "hifi: a process exited with status $status; stopping the container" >&2
+echo "Virgil: a process exited with status $status; stopping the container" >&2
 exit 1

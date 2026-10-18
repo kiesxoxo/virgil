@@ -71,7 +71,7 @@ jobs:
         with:
           images: ${{ env.IMAGE }}
           labels: |
-            org.opencontainers.image.title=hifi
+            org.opencontainers.image.title=virgil
             org.opencontainers.image.description=Bit-perfect music player with a web UI and AirPlay 2 hand-off, for Raspberry Pi
       - id: build
         uses: docker/build-push-action@v7
@@ -95,15 +95,15 @@ jobs:
             grep -q "$want" <<< "$version" || { echo "::error::mpd --version lacks $want"; exit 1; }
           done
 
-          # The entrypoint's generated mpd.conf must parse: MPD and hifid both come up.
+          # The entrypoint's generated mpd.conf must parse: MPD and virgild both come up.
           mkdir -p "$RUNNER_TEMP/music"
-          docker run -d --name hifi -e HIFI_PORT=8080 -p 8080:8080 -v "$RUNNER_TEMP/music:/music:ro" "$REF"
+          docker run -d --name virgil -e VIRGIL_PORT=8080 -p 8080:8080 -v "$RUNNER_TEMP/music:/music:ro" "$REF"
           for _ in $(seq 50); do curl -sf http://localhost:8080/api/state > /dev/null && break; sleep 0.2; done
           sleep 2
-          docker logs hifi
+          docker logs virgil
           curl -sf http://localhost:8080/api/state > /dev/null
-          [ "$(docker inspect -f '{{.State.Running}}' hifi)" = true ]
-          docker rm -f hifi > /dev/null
+          [ "$(docker inspect -f '{{.State.Running}}' virgil)" = true ]
+          docker rm -f virgil > /dev/null
 
           size=$(docker image inspect -f '{{.Size}}' "$REF")
           echo "linux/${{ matrix.arch }}: $((size / 1000000)) MB uncompressed" | tee -a "$GITHUB_STEP_SUMMARY"
@@ -156,7 +156,7 @@ jobs:
             $(printf "$IMAGE@sha256:%s " *)
           docker buildx imagetools inspect "$IMAGE:${{ steps.meta.outputs.version }}"
 
-  # hifi.exe: the desktop app for Windows, one file with the official mpd.exe
+  # Virgil.exe: the desktop app for Windows, one file with the official mpd.exe
   # inside. Built natively, which also lints the Windows-only code. Release
   # tags attach it to the GitHub release.
   windows:
@@ -191,18 +191,18 @@ jobs:
           Invoke-WebRequest $env:MPD_URL -OutFile "$env:RUNNER_TEMP\mpd.exe"
           $hash = (Get-FileHash "$env:RUNNER_TEMP\mpd.exe" -Algorithm SHA256).Hash
           if ($hash -ne $env:MPD_SHA256) { throw "mpd.exe checksum mismatch: $hash" }
-          "HIFI_MPD_EXE=$env:RUNNER_TEMP\mpd.exe" >> $env:GITHUB_ENV
-      - run: cargo clippy -p hifid --features bundled-mpd -- -D warnings
-      - run: cargo build --release --locked -p hifid --features bundled-mpd
-      - name: hifi.exe
+          "VIRGIL_MPD_EXE=$env:RUNNER_TEMP\mpd.exe" >> $env:GITHUB_ENV
+      - run: cargo clippy -p virgild --features bundled-mpd -- -D warnings
+      - run: cargo build --release --locked -p virgild --features bundled-mpd
+      - name: Virgil.exe
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
-          Copy-Item target\release\hifid.exe dist\hifi.exe
+          Copy-Item target\release\virgild.exe dist\Virgil.exe
       - uses: actions/upload-artifact@v5
         with:
-          name: hifi-windows
-          path: dist/hifi.exe
+          name: virgil-windows
+          path: dist/Virgil.exe
       - name: Attach to the release
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
@@ -210,4 +210,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --generate-notes
-          gh release upload "$GITHUB_REF_NAME" dist/hifi.exe --clobber
+          gh release upload "$GITHUB_REF_NAME" dist/Virgil.exe --clobber

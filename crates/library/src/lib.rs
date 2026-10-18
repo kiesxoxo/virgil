@@ -14,11 +14,11 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, bail};
-use hifi_core::{Album, AlbumDetail, ArtOutcome, ArtProgress, LibraryStatus, SearchResults};
-use hifi_engine_mpd::{Entry, MpdEngine, Song};
 use rusqlite::Connection;
 use tokio::sync::{Notify, watch};
 use tracing::{debug, info, warn};
+use virgil_core::{Album, AlbumDetail, ArtOutcome, ArtProgress, LibraryStatus, SearchResults};
+use virgil_engine_mpd::{Entry, MpdEngine, Song};
 
 pub use art::SIZES as ART_SIZES;
 
@@ -83,7 +83,7 @@ fn write_new(path: &Path, data: &[u8]) -> std::io::Result<()> {
     Ok(())
 }
 
-/// The file extension for a cover image hifi accepts (JPEG, PNG or WebP), None otherwise.
+/// The file extension for a cover image Virgil accepts (JPEG, PNG or WebP), None otherwise.
 pub fn cover_extension(bytes: &[u8]) -> Option<&'static str> {
     match image::guess_format(bytes).ok()? {
         image::ImageFormat::Jpeg => Some("jpg"),
@@ -99,7 +99,7 @@ pub fn cover_extension(bytes: &[u8]) -> Option<&'static str> {
 /// "Cover.JPG" and "cover.jpg" are the same file.
 fn replace_cover(dir: &Path, name: &str, data: &[u8]) -> anyhow::Result<PathBuf> {
     let path = dir.join(name);
-    let staging = dir.join(".hifi-cover-upload.tmp");
+    let staging = dir.join(".virgil-cover-upload.tmp");
     let _ = std::fs::remove_file(&staging);
     write_new(&staging, data).with_context(|| format!("saving {}", path.display()))?;
     let result = (|| {
@@ -347,7 +347,7 @@ impl Library {
             return Ok(ArtOutcome::AlreadyPresent);
         }
         let Some(music_dir) = &self.inner.music_dir else {
-            bail!("music_dir is not set in hifid's config, so covers can't be saved");
+            bail!("music_dir is not set in virgild's config, so covers can't be saved");
         };
         let dir = music_dir.join(target.cover_uri.rsplit_once('/').map_or("", |(dir, _)| dir));
         // Folder images MPD ignores (folder.jpg, front.png) still count as art.
@@ -385,7 +385,7 @@ impl Library {
         let id = album_id.clone();
         let Some(target) = self.db(move |conn| db::art_target(conn, &id)).await? else { bail!("no such album") };
         let Some(music_dir) = &self.inner.music_dir else {
-            bail!("music_dir is not set in hifid's config, so covers can't be saved");
+            bail!("music_dir is not set in virgild's config, so covers can't be saved");
         };
         let dir = music_dir.join(target.cover_uri.rsplit_once('/').map_or("", |(dir, _)| dir));
         // Thumbnails first: an image that won't decode never replaces a working cover.
@@ -473,7 +473,7 @@ mod tests {
 
     #[test]
     fn finds_folder_art_and_never_overwrites() {
-        let dir = std::env::temp_dir().join(format!("hifi-art-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("virgil-art-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("01 Track.flac"), b"x").unwrap();
         assert_eq!(folder_image(&dir).unwrap(), None);
@@ -492,7 +492,7 @@ mod tests {
 
     #[test]
     fn uploaded_cover_replaces_other_covers_only() {
-        let dir = std::env::temp_dir().join(format!("hifi-upload-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("virgil-upload-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         for name in ["cover.jpg", "Cover.PNG", "folder.jpg", "01 Track.flac"] {
             std::fs::write(dir.join(name), b"old").unwrap();

@@ -18,7 +18,7 @@
 	}
 </script>
 
-<svelte:head><title>{item ? `${item.title} · ${item.artist}` : 'Now playing'} · hifi</title></svelte:head>
+<svelte:head><title>{item ? `${item.title} · ${item.artist}` : 'Now playing'} · Virgil</title></svelte:head>
 
 <div class="fixed inset-0 -z-10 overflow-hidden bg-bg">
 	{#if backdrop}

@@ -4,7 +4,7 @@
 //!
 //! Files are edited through lofty's concrete file types rather than its
 //! generic `Tag`, which has no room for custom fields and would drop frames
-//! hifi doesn't show. Embedded pictures and everything else not listed as a
+//! Virgil doesn't show. Embedded pictures and everything else not listed as a
 //! field are left as they are.
 
 mod id3;
@@ -15,7 +15,6 @@ use std::io::{Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, bail};
-use hifi_core::{FileInfo, TagEdit, TagField};
 use lofty::aac::AacFile;
 use lofty::ape::{ApeFile, ApeItem, ApeTag};
 use lofty::config::{ParseOptions, WriteOptions};
@@ -31,6 +30,7 @@ use lofty::ogg::{OpusFile, SpeexFile, VorbisFile};
 use lofty::properties::FileProperties;
 use lofty::tag::ItemValue;
 use lofty::wavpack::WavPackFile;
+use virgil_core::{FileInfo, TagEdit, TagField};
 
 /// A format's own tag, seen as a list of named fields.
 trait Native: Default {
@@ -228,8 +228,10 @@ fn options() -> ParseOptions {
 }
 
 fn open(path: &Path, write: bool, options: ParseOptions) -> anyhow::Result<(File, Loaded)> {
-    let kind =
-        lofty::probe::Probe::open(path)?.guess_file_type()?.file_type().context("not an audio format hifi can tag")?;
+    let kind = lofty::probe::Probe::open(path)?
+        .guess_file_type()?
+        .file_type()
+        .context("not an audio format Virgil can tag")?;
     let mut file = OpenOptions::new().read(true).write(write).open(path)?;
     let loaded = Loaded::read(kind, &mut file, options)?;
     Ok((file, loaded))
@@ -291,7 +293,7 @@ pub fn write(path: &Path, edit: &TagEdit) -> anyhow::Result<bool> {
         return Ok(false);
     }
     let name = path.file_name().context("not a file")?.to_string_lossy();
-    let staging: PathBuf = path.with_file_name(format!(".{name}.hifi-tags"));
+    let staging: PathBuf = path.with_file_name(format!(".{name}.virgil-tags"));
     let result = (|| {
         std::fs::copy(path, &staging).context("copying the file")?;
         keep_owner(path, &staging);
@@ -321,7 +323,7 @@ pub fn write(path: &Path, edit: &TagEdit) -> anyhow::Result<bool> {
     Ok(true)
 }
 
-/// The rewritten copy belongs to whoever owned the original, not to hifid.
+/// The rewritten copy belongs to whoever owned the original, not to virgild.
 #[cfg(unix)]
 fn keep_owner(original: &Path, copy: &Path) {
     use std::os::unix::fs::MetadataExt;
@@ -330,7 +332,7 @@ fn keep_owner(original: &Path, copy: &Path) {
     }
 }
 
-/// Elsewhere a new file simply belongs to the user running hifi.
+/// Elsewhere a new file simply belongs to the user running Virgil.
 #[cfg(not(unix))]
 fn keep_owner(_original: &Path, _copy: &Path) {}
 

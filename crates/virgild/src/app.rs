@@ -2,13 +2,13 @@ use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
-use hifi_core::{
-    LOCAL_SOURCE, Outputs, PlayState, PlayerState, Queue, QueueItem, ServerEvent, SignalPath, SourceState,
-};
-use hifi_engine_mpd::MpdEngine;
-use hifi_library::Library;
 use tokio::sync::{Mutex, broadcast};
 use tracing::{info, warn};
+use virgil_core::{
+    LOCAL_SOURCE, Outputs, PlayState, PlayerState, Queue, QueueItem, ServerEvent, SignalPath, SourceState,
+};
+use virgil_engine_mpd::MpdEngine;
+use virgil_library::Library;
 
 use crate::api::ApiError;
 use crate::config::Config;
@@ -40,7 +40,7 @@ pub struct Inner {
     pub mpd: MpdEngine,
     pub library: Library,
     pub events: broadcast::Sender<ServerEvent>,
-    /// Set in desktop mode (hifi.exe), which runs MPD itself.
+    /// Set in desktop mode (Virgil.exe), which runs MPD itself.
     pub desktop: Option<Arc<Desktop>>,
     snapshot: RwLock<Snapshot>,
     arbiter: Mutex<Arbiter>,

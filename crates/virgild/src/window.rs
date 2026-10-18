@@ -1,5 +1,5 @@
-//! hifi.exe's own window: the web UI in WebView2 (part of Windows), so the
-//! desktop app needs no browser. Closing the window quits hifi.
+//! Virgil.exe's own window: the web UI in WebView2 (part of Windows), so the
+//! desktop app needs no browser. Closing the window quits Virgil.
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -17,7 +17,7 @@ const ICON: &[u8] = include_bytes!("../assets/icon-256.png");
 
 #[derive(Debug, Clone, Copy)]
 enum UserEvent {
-    /// Another launch of hifi.exe asked for the window.
+    /// Another launch of Virgil.exe asked for the window.
     Show,
 }
 
@@ -47,8 +47,8 @@ fn raise(window: &Window) {
     window.set_focus();
 }
 
-/// Runs the window on this (the main) thread until hifi quits; `serve` runs
-/// hifi itself on `runtime`. If WebView2 can't start, the UI opens in a
+/// Runs the window on this (the main) thread until Virgil quits; `serve` runs
+/// Virgil itself on `runtime`. If WebView2 can't start, the UI opens in a
 /// browser instead and this thread just keeps the process alive.
 pub fn run<F>(runtime: tokio::runtime::Runtime, desktop: Arc<Desktop>, serve: F, log: &Path) -> !
 where
@@ -71,7 +71,7 @@ where
     });
 
     let window = WindowBuilder::new()
-        .with_title("hifi")
+        .with_title("Virgil")
         .with_window_icon(icon())
         .with_inner_size(LogicalSize::new(1280.0, 840.0))
         .with_min_inner_size(LogicalSize::new(360.0, 560.0))
@@ -95,7 +95,7 @@ where
     let handle = runtime.handle().clone();
     let mut closing = false;
     event_loop.run(move |event, _, control_flow| {
-        // Keep the runtime (hifi itself) and the webview alive as long as the loop.
+        // Keep the runtime (Virgil itself) and the webview alive as long as the loop.
         let _ = (&runtime, &view);
         *control_flow = ControlFlow::Wait;
         match event {

@@ -1,3 +1,3 @@
 [env]
-# ts-rs writes the TypeScript mirrors of hifi-core's types here (`cargo test -p hifi-core`).
+# ts-rs writes the TypeScript mirrors of virgil-core's types here (`cargo test -p virgil-core`).
 TS_RS_EXPORT_DIR = { value = "web/src/lib/types", relative = true }

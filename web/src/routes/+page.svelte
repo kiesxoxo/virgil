@@ -136,7 +136,7 @@
 	});
 </script>
 
-<svelte:head><title>Albums · hifi</title></svelte:head>
+<svelte:head><title>Albums · Virgil</title></svelte:head>
 
 <div class="pt-safe glass sticky top-0 z-20 border-b border-line lg:border-none lg:bg-bg/80">
 	<div class="mx-auto max-w-[110rem] px-4 pt-4 pb-3 lg:px-8 lg:pt-8">

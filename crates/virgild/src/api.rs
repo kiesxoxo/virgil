@@ -4,15 +4,15 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
-use hifi_core::{
-    AddRequest, AlbumDetail, ArtOutcome, DesktopSettings, LibraryStatus, ModesRequest, MoveRequest, PlayState, Queue,
-    SearchResults, SeekRequest, ServerEvent,
-};
 use serde::Deserialize;
 use tower::ServiceBuilder;
 use tower_http::compression::CompressionLayer;
 use tower_http::services::ServeDir;
 use tower_http::set_header::SetResponseHeaderLayer;
+use virgil_core::{
+    AddRequest, AlbumDetail, ArtOutcome, DesktopSettings, LibraryStatus, ModesRequest, MoveRequest, PlayState, Queue,
+    SearchResults, SeekRequest, ServerEvent,
+};
 
 use crate::app::App;
 use crate::{tags, web, ws};
@@ -43,8 +43,8 @@ impl IntoResponse for ApiError {
     }
 }
 
-impl From<hifi_engine_mpd::Error> for ApiError {
-    fn from(e: hifi_engine_mpd::Error) -> Self {
+impl From<virgil_engine_mpd::Error> for ApiError {
+    fn from(e: virgil_engine_mpd::Error) -> Self {
         // An ACK is MPD refusing the request; anything else means MPD is unreachable.
         let status = if e.is_connection() { StatusCode::BAD_GATEWAY } else { StatusCode::CONFLICT };
         Self { status, message: e.to_string() }
@@ -249,7 +249,7 @@ const MAX_UPLOAD: usize = 20 << 20;
 
 /// Saves the uploaded image (the request body) as the album's cover, replacing any cover.* file.
 async fn upload_art(State(app): State<App>, Path(id): Path<String>, body: Bytes) -> ApiResult {
-    if hifi_library::cover_extension(&body).is_none() {
+    if virgil_library::cover_extension(&body).is_none() {
         return Err(ApiError::bad_request("choose a JPEG, PNG or WebP image"));
     }
     app.library.upload_art(id, body.to_vec()).await?;
@@ -271,8 +271,8 @@ async fn select_output(State(app): State<App>, Path(id): Path<u32>) -> ApiResult
     Ok(DONE)
 }
 
-/// Restarts hifi so MPD gets outputs for sound devices connected since it
-/// started. Desktop mode starts a fresh hifi.exe itself; otherwise hifid
+/// Restarts Virgil so MPD gets outputs for sound devices connected since it
+/// started. Desktop mode starts a fresh Virgil.exe itself; otherwise virgild
 /// exits and its supervisor (Docker, systemd) brings it back.
 async fn restart(State(app): State<App>) -> ApiResult {
     tracing::info!("restart requested from the UI");
@@ -291,7 +291,7 @@ fn desktop(app: &App) -> ApiResult<&std::sync::Arc<crate::desktop::Desktop>> {
     app.desktop.as_ref().ok_or_else(|| ApiError::not_found("not running in desktop mode"))
 }
 
-/// A second launch of hifi.exe asks for the running one's window.
+/// A second launch of Virgil.exe asks for the running one's window.
 async fn show_window(State(app): State<App>) -> ApiResult {
     desktop(&app)?.show_window();
     Ok(DONE)
@@ -301,7 +301,7 @@ async fn desktop_settings(State(app): State<App>) -> ApiResult<Json<DesktopSetti
     Ok(Json(desktop(&app)?.settings()))
 }
 
-/// Saves the settings and restarts hifi to apply them.
+/// Saves the settings and restarts Virgil to apply them.
 async fn save_desktop_settings(State(app): State<App>, Json(settings): Json<DesktopSettings>) -> ApiResult {
     desktop(&app)?.save_settings(settings).map_err(|e| ApiError::bad_request(format!("{e:#}")))?;
     restart(State(app)).await
@@ -316,7 +316,7 @@ async fn quit(State(app): State<App>) -> ApiResult {
     Ok(StatusCode::ACCEPTED)
 }
 
-/// Non-zero, so `Restart=on-failure` (systemd) and Docker's restart policy both bring hifi back.
+/// Non-zero, so `Restart=on-failure` (systemd) and Docker's restart policy both bring Virgil back.
 const RESTART_EXIT_CODE: i32 = 75;
 
 async fn acquire(State(app): State<App>, Path(name): Path<String>) -> ApiResult {

@@ -34,7 +34,7 @@
 	const actions = (item: QueueItem) => queueItems(item, items.indexOf(item), cur);
 </script>
 
-<svelte:head><title>Queue · hifi</title></svelte:head>
+<svelte:head><title>Queue · Virgil</title></svelte:head>
 
 {#snippet row(item: QueueItem, dim: boolean)}
 	<li

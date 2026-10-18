@@ -1,8 +1,8 @@
 use axum::extract::State;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::response::Response;
-use hifi_core::ServerEvent;
 use tokio::sync::broadcast::error::RecvError;
+use virgil_core::ServerEvent;
 
 use crate::app::App;
 

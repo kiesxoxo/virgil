@@ -1,4 +1,4 @@
-//! `hifid ctl acquire|release <source>`: a dependency-free HTTP client for
+//! `virgild ctl acquire|release <source>`: a dependency-free HTTP client for
 //! shairport-sync's session hooks.
 
 use std::io::{Read, Write};
@@ -25,7 +25,7 @@ pub fn run(config: &Config, action: Action, source: &str) -> anyhow::Result<()> 
         Action::Release => "release",
     };
     let mut stream = TcpStream::connect_timeout(&addr, Duration::from_secs(2))
-        .with_context(|| format!("connecting to hifid at {addr}"))?;
+        .with_context(|| format!("connecting to virgild at {addr}"))?;
     stream.set_read_timeout(Some(Duration::from_secs(10)))?;
     write!(
         stream,
@@ -37,6 +37,6 @@ pub fn run(config: &Config, action: Action, source: &str) -> anyhow::Result<()> 
     if status_line.split(' ').nth(1).is_some_and(|code| code.starts_with('2')) {
         Ok(())
     } else {
-        bail!("hifid answered {status_line:?}")
+        bail!("virgild answered {status_line:?}")
     }
 }

@@ -1288,76 +1288,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
-name = "hifi-core"
-version = "0.2.0"
-dependencies = [
- "serde",
- "ts-rs",
-]
-
-[[package]]
-name = "hifi-engine-mpd"
-version = "0.2.0"
-dependencies = [
- "hifi-core",
- "thiserror 2.0.21",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "hifi-library"
-version = "0.2.0"
-dependencies = [
- "anyhow",
- "hifi-core",
- "hifi-engine-mpd",
- "image",
- "reqwest",
- "rusqlite",
- "rustls",
- "serde",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "hifi-tags"
-version = "0.2.0"
-dependencies = [
- "anyhow",
- "hifi-core",
- "lofty",
-]
-
-[[package]]
-name = "hifid"
-version = "0.2.0"
-dependencies = [
- "anyhow",
- "axum",
- "clap",
- "hifi-core",
- "hifi-engine-mpd",
- "hifi-library",
- "hifi-tags",
- "image",
- "mime_guess",
- "rust-embed",
- "serde",
- "serde_json",
- "tao",
- "tokio",
- "toml 0.9.12+spec-1.1.0",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "wasapi",
- "wry",
-]
-
-[[package]]
 name = "html5ever"
 version = "0.39.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3786,6 +3716,76 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "virgil-core"
+version = "0.2.0"
+dependencies = [
+ "serde",
+ "ts-rs",
+]
+
+[[package]]
+name = "virgil-engine-mpd"
+version = "0.2.0"
+dependencies = [
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "virgil-core",
+]
+
+[[package]]
+name = "virgil-library"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "image",
+ "reqwest",
+ "rusqlite",
+ "rustls",
+ "serde",
+ "tokio",
+ "tracing",
+ "virgil-core",
+ "virgil-engine-mpd",
+]
+
+[[package]]
+name = "virgil-tags"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "lofty",
+ "virgil-core",
+]
+
+[[package]]
+name = "virgild"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "clap",
+ "image",
+ "mime_guess",
+ "rust-embed",
+ "serde",
+ "serde_json",
+ "tao",
+ "tokio",
+ "toml 0.9.12+spec-1.1.0",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "virgil-core",
+ "virgil-engine-mpd",
+ "virgil-library",
+ "virgil-tags",
+ "wasapi",
+ "wry",
+]
 
 [[package]]
 name = "walkdir"

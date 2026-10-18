@@ -22,7 +22,7 @@ async function call(method: string, path: string, body?: unknown, signal?: Abort
 			body: body === undefined ? undefined : raw ? body : JSON.stringify(body)
 		});
 	} catch (e) {
-		if ((e as Error).name !== 'AbortError') toasts.show('hifi is not reachable');
+		if ((e as Error).name !== 'AbortError') toasts.show('Virgil is not reachable');
 		throw e;
 	}
 	if (!res.ok) {
@@ -77,7 +77,7 @@ export const api = {
 
 	selectOutput: (id: number) => post(`/api/outputs/${id}/select`),
 	restart: () => post('/api/restart'),
-	/** Desktop mode only (hifi.exe); 404 elsewhere. */
+	/** Desktop mode only (Virgil.exe); 404 elsewhere. */
 	desktop: () => get<DesktopSettings>('/api/desktop'),
 	saveDesktop: (settings: DesktopSettings) => post('/api/desktop', settings),
 	quit: () => post('/api/quit'),

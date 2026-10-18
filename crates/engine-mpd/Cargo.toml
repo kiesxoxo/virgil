@@ -1,12 +1,12 @@
 [package]
-name = "hifi-engine-mpd"
-description = "MPD as hifi's playback engine"
+name = "virgil-engine-mpd"
+description = "MPD as Virgil's playback engine"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-hifi-core.workspace = true
+virgil-core.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true

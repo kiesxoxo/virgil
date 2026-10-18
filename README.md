@@ -1,4 +1,4 @@
-# hifi
+# Virgil
 
 A headless, bit-perfect music player for a Raspberry Pi with a HiFiBerry Digi2 Pro:
 a fast web UI for your local library, plus AirPlay 2 (multi-room, no subscription).
@@ -6,38 +6,38 @@ a fast web UI for your local library, plus AirPlay 2 (multi-room, no subscriptio
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/phones-dark.png">
-    <img src="docs/screenshots/phones-light.png" alt="hifi on a phone: the album grid, an album with its tracks and hi-res badge, and Now Playing">
+    <img src="docs/screenshots/phones-light.png" alt="Virgil on a phone: the album grid, an album with its tracks and hi-res badge, and Now Playing">
   </picture>
 </p>
 
 ```sh
-docker pull ghcr.io/mpkonmbk/hifi:0.2.0
+docker pull ghcr.io/kiesxoxo/virgil:latest
 ```
 
-**On a Windows PC**, download `hifi.exe` from the [latest release](https://github.com/mpkonmbk/hifi/releases/latest)
-and run it. It's one file: the official `mpd.exe` is inside and unpacks to `%LOCALAPPDATA%\hifi`.
-hifi plays to the device you pick in Settings (headphone amp, USB DAC, S/PDIF) in WASAPI
+**On a Windows PC**, download `Virgil.exe` from the [latest release](https://github.com/kiesxoxo/virgil/releases/latest)
+and run it. It's one file: the official `mpd.exe` is inside and unpacks to `%LOCALAPPDATA%\Virgil`.
+Virgil plays to the device you pick in Settings (headphone amp, USB DAC, S/PDIF) in WASAPI
 exclusive mode, so Windows' mixer never touches the audio, and runs in its own window (WebView2,
-built into Windows). Closing the window quits hifi. Set the music folder (a local folder or a
+built into Windows). Closing the window quits Virgil. Set the music folder (a local folder or a
 share like `\\nas\Music`) in Settings.
 
 ```
- phone / laptop ──HTTP + WebSocket──▶ hifid (Rust) ──MPD protocol──▶ MPD ──hw:──▶ Digi2 Pro ──S/PDIF──▶ DAC
+ phone / laptop ──HTTP + WebSocket──▶ virgild (Rust) ──MPD protocol──▶ MPD ──hw:──▶ Digi2 Pro ──S/PDIF──▶ DAC
                                         │    ▲
                     shairport-sync ─────┘    └── /proc/asound/…/hw_params (signal path)
                     (AirPlay 2, hooks)
 ```
 
 - **MPD** decodes and plays: gapless playback, per-track format switching, DoP, straight to `hw:`.
-- **hifid** owns everything else: the library index (SQLite + FTS5), artwork thumbnails, the
+- **virgild** owns everything else: the library index (SQLite + FTS5), artwork thumbnails, the
   queue UI, live state over WebSocket, and who gets the DAC (local playback vs AirPlay).
-- **Web UI**: SvelteKit 3 (Svelte 5) SPA, embedded in the hifid binary. Light and dark mode,
+- **Web UI**: SvelteKit 3 (Svelte 5) SPA, embedded in the virgild binary. Light and dark mode,
   built for phones first; installable to the home screen.
 
 ## Bit-perfect, verified
 
 MPD sends audio to `hw:CARD=sndrpihifiberry` with no mixer, resampler or format conversion
-([deploy/mpd.conf](deploy/mpd.conf)). hifid then *checks* it: twice a second it compares MPD's
+([deploy/mpd.conf](deploy/mpd.conf)). virgild then *checks* it: twice a second it compares MPD's
 decoder format with what ALSA reports the card is receiving and shows the verdict in the UI:
 
 | Badge | Meaning |
@@ -54,10 +54,10 @@ Volume is never touched in software: set it on your DAC or amp.
 
 `hw:` devices are exclusive, so exactly one source may hold the DAC:
 
-1. An iPhone starts AirPlay → shairport-sync runs `hifid ctl acquire airplay` → hifid stops MPD
+1. An iPhone starts AirPlay → shairport-sync runs `virgild ctl acquire airplay` → virgild stops MPD
    (remembering the position), waits until ALSA reports the device closed, and returns.
-2. The session ends → `hifid ctl release airplay`.
-3. You press play in the web UI during AirPlay → hifid calls shairport-sync's D-Bus
+2. The session ends → `virgild ctl release airplay`.
+3. You press play in the web UI during AirPlay → virgild calls shairport-sync's D-Bus
    `DropSession`, waits for the DAC, then plays (resuming where AirPlay interrupted).
 
 Each Pi is an ordinary AirPlay 2 speaker; group rooms from Control Center on the iPhone or Mac.
@@ -65,12 +65,12 @@ Each Pi is an ordinary AirPlay 2 speaker; group rooms from Control Center on the
 ## Layout
 
 ```
-crates/core        wire types; `cargo test -p hifi-core` regenerates web/src/lib/types/*.ts
+crates/core        wire types; `cargo test -p virgil-core` regenerates web/src/lib/types/*.ts
 crates/engine-mpd  MPD protocol client and typed commands (the playback-engine seam)
 crates/library     MPD database → SQLite projection, search, artwork cache
-crates/hifid       the daemon: HTTP API, WebSocket, DAC arbitration, signal path, embedded UI
+crates/virgild       the daemon: HTTP API, WebSocket, DAC arbitration, signal path, embedded UI
 web/               SvelteKit 3 app (Tailwind 4, Lucide icons)
-deploy/            native install: mpd.conf, shairport-sync.conf, hifid.toml, systemd unit, boot config
+deploy/            native install: mpd.conf, shairport-sync.conf, virgild.toml, systemd unit, boot config
 docker/            container install: compose.yaml, entrypoint, AirPlay config and D-Bus policy
 scripts/           cross-build and deploy helpers
 ```
@@ -82,24 +82,24 @@ Needs Rust (stable), Node 22.17+, and for Pi builds [zig](https://ziglang.org) +
 
 ```bash
 cargo test --workspace                  # also regenerates the TypeScript types
-scripts/dev.sh                          # MPD + a generated test library + hifid on :8080
+scripts/dev.sh                          # MPD + a generated test library + virgild on :8080
 ```
 
 `scripts/dev.sh` needs `mpd`, `flac` and `python3` (`sudo apt install mpd flac`). It builds a
-small FLAC library in `~/hifi-dev` (silent audio, real tags, 16/44.1 up to 24/192, folder and
+small FLAC library in `~/virgil-dev` (silent audio, real tags, 16/44.1 up to 24/192, folder and
 embedded artwork, a multi-disc album and an untagged compilation) and plays through MPD's null
 output. Without a DAC the signal path reads *Unverified*; everything else behaves as on the Pi.
 
-For UI work, run `npm run dev` in `web/` with hifid running (it proxies `/api` and `/art`).
-Point it at the Pi instead with `HIFI_URL=http://hifi.local npm run dev`.
+For UI work, run `npm run dev` in `web/` with virgild running (it proxies `/api` and `/art`).
+Point it at the Pi instead with `VIRGIL_URL=http://virgil.local npm run dev`.
 
 Debug builds read `web/build` from disk, so `npm run build` + refresh is enough; release builds
 embed it.
 
 ## Install on the Pi with Docker (recommended)
 
-[`ghcr.io/mpkonmbk/hifi`](https://github.com/mpkonmbk/hifi/pkgs/container/hifi) (linux/arm64 and
-linux/amd64) bundles hifid and MPD and is rebuilt by CI on every push to `main`. AirPlay 2 runs next
+[`ghcr.io/kiesxoxo/virgil`](https://github.com/kiesxoxo/virgil/pkgs/container/virgil) (linux/arm64 and
+linux/amd64) bundles virgild and MPD and is rebuilt by CI on every push to `main`. AirPlay 2 runs next
 to it in the official [`mikebrady/shairport-sync`](https://hub.docker.com/r/mikebrady/shairport-sync)
 image. [docker/compose.yaml](docker/compose.yaml) wires the two together.
 
@@ -109,12 +109,12 @@ On **Raspberry Pi OS Lite (64-bit)**:
    `cat /proc/asound/cards` lists `sndrpihifiberry`.
 2. Install Docker: `curl -fsSL https://get.docker.com | sh`, then `sudo usermod -aG docker $USER`
    and log in again.
-3. Let the AirPlay container publish its D-Bus interface on the Pi's bus (hifi uses it to end an
+3. Let the AirPlay container publish its D-Bus interface on the Pi's bus (Virgil uses it to end an
    AirPlay session when you press play):
 
    ```bash
    sudo curl -fsSL -o /etc/dbus-1/system.d/shairport-sync-dbus.conf \
-     https://raw.githubusercontent.com/mpkonmbk/hifi/main/docker/shairport-sync-dbus.conf
+     https://raw.githubusercontent.com/kiesxoxo/virgil/main/docker/shairport-sync-dbus.conf
    sudo systemctl reload dbus
    ```
 
@@ -122,9 +122,9 @@ On **Raspberry Pi OS Lite (64-bit)**:
    (`/mnt/music` by default), and start:
 
    ```bash
-   mkdir -p ~/hifi && cd ~/hifi
-   curl -fsSLO https://raw.githubusercontent.com/mpkonmbk/hifi/main/docker/compose.yaml
-   curl -fsSLO https://raw.githubusercontent.com/mpkonmbk/hifi/main/docker/shairport-sync.conf
+   mkdir -p ~/virgil && cd ~/virgil
+   curl -fsSLO https://raw.githubusercontent.com/kiesxoxo/virgil/main/docker/compose.yaml
+   curl -fsSLO https://raw.githubusercontent.com/kiesxoxo/virgil/main/docker/shairport-sync.conf
    docker compose up -d
    ```
 
@@ -149,13 +149,13 @@ Settings live in `compose.yaml`:
 
 | Variable | Default | |
 |---|---|---|
-| `HIFI_PORT` | `80` | Web UI port (also change it in `shairport-sync.conf`'s hooks) |
+| `VIRGIL_PORT` | `80` | Web UI port (also change it in `shairport-sync.conf`'s hooks) |
 | `ALSA_CARD` | `sndrpihifiberry` | DAC card id from `cat /proc/asound/cards` |
 | `MPD_DOP` | `yes` | DSD64 as DoP; `no` if your DAC does not accept DoP |
-| `AIRPLAY` | `on` | `off` if you run hifi without the shairport-sync container |
+| `AIRPLAY` | `on` | `off` if you run Virgil without the shairport-sync container |
 
-To take full control, mount your own `/config/mpd.conf` and/or `/config/hifid.toml` into the
-`hifi` container. Both containers use host networking (AirPlay 2, mDNS and NQPTP need it) and the
+To take full control, mount your own `/config/mpd.conf` and/or `/config/virgild.toml` into the
+`virgil` container. Both containers use host networking (AirPlay 2, mDNS and NQPTP need it) and the
 Pi's own avahi-daemon. Don't also run MPD or shairport-sync natively: only one program can hold
 the DAC.
 
@@ -174,7 +174,7 @@ On **Raspberry Pi OS Lite (64-bit)**:
 
    ```bash
    scripts/build-pi.sh
-   scripts/deploy.sh pi@hifi.local --configs
+   scripts/deploy.sh pi@virgil.local --configs
    ```
 
 5. Open `http://<hostname>.local/` on your phone and *Add to Home Screen*.

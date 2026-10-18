@@ -1,6 +1,6 @@
 [package]
-name = "hifid"
-description = "hifi daemon: web UI, API and DAC arbitration in front of MPD"
+name = "virgild"
+description = "Virgil daemon: web UI, API and DAC arbitration in front of MPD"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,10 +9,10 @@ rust-version.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 clap.workspace = true
-hifi-core.workspace = true
-hifi-engine-mpd.workspace = true
-hifi-library.workspace = true
-hifi-tags.workspace = true
+virgil-core.workspace = true
+virgil-engine-mpd.workspace = true
+virgil-library.workspace = true
+virgil-tags.workspace = true
 mime_guess.workspace = true
 rust-embed.workspace = true
 serde.workspace = true
@@ -32,5 +32,5 @@ wry = "0.57"
 image.workspace = true
 
 [features]
-# Embed mpd.exe into hifi.exe (desktop mode); HIFI_MPD_EXE names the file at build time.
+# Embed mpd.exe into Virgil.exe (desktop mode); VIRGIL_MPD_EXE names the file at build time.
 bundled-mpd = []

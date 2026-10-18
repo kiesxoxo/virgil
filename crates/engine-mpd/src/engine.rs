@@ -1,5 +1,5 @@
-use hifi_core::{AddMode, AudioFormat, ModesRequest, Output, PlayState, PlayerState, QueueItem};
 use tokio::sync::mpsc;
+use virgil_core::{AddMode, AudioFormat, ModesRequest, Output, PlayState, PlayerState, QueueItem};
 
 use crate::client::{self, Event, Mpd};
 use crate::proto::{Error, Result, quote};
@@ -404,7 +404,7 @@ impl MpdEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hifi_core::SampleFormat;
+    use virgil_core::SampleFormat;
 
     #[test]
     fn parses_outputs() {

@@ -2,8 +2,8 @@
 
 use std::collections::HashMap;
 
-use hifi_core::AudioFormat;
-use hifi_engine_mpd::Song;
+use virgil_core::AudioFormat;
+use virgil_engine_mpd::Song;
 
 pub struct AlbumGroup {
     pub id: String,
