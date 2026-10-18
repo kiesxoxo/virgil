@@ -11,7 +11,7 @@ a fast web UI for your local library, plus AirPlay 2 (multi-room, no subscriptio
 </p>
 
 ```sh
-docker pull ghcr.io/kiesxoxo/virgil:0.4.0
+docker pull ghcr.io/kiesxoxo/virgil:0.4.1
 ```
 
 **On a Windows PC**, download `Virgil.exe` from the [latest release](https://github.com/kiesxoxo/virgil/releases/latest)
