@@ -108,7 +108,7 @@ pub fn router(app: App) -> Router {
 }
 
 async fn state(State(app): State<App>) -> Json<ServerEvent> {
-    Json(app.hello())
+    Json(app.hello_live().await)
 }
 
 async fn play(State(app): State<App>) -> ApiResult {

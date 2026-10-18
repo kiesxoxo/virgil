@@ -14,7 +14,7 @@ pub async fn upgrade(ws: WebSocketUpgrade, State(app): State<App>) -> Response {
 /// the full state again instead of a gap.
 async fn session(mut socket: WebSocket, app: App) {
     let mut events = app.events.subscribe();
-    if send(&mut socket, &app.hello()).await.is_err() {
+    if send(&mut socket, &app.hello_live().await).await.is_err() {
         return;
     }
     loop {
@@ -22,7 +22,7 @@ async fn session(mut socket: WebSocket, app: App) {
             event = events.recv() => {
                 let event = match event {
                     Ok(event) => event,
-                    Err(RecvError::Lagged(_)) => app.hello(),
+                    Err(RecvError::Lagged(_)) => app.hello_live().await,
                     Err(RecvError::Closed) => return,
                 };
                 if send(&mut socket, &event).await.is_err() {

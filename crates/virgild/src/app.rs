@@ -67,6 +67,15 @@ impl App {
         }))
     }
 
+    /// `hello` with the player read from MPD just now. The stored state only
+    /// changes when MPD reports a change (play, pause, seek, next song), so
+    /// mid-song its position is stale; a page connecting then must get where
+    /// playback really is. If MPD can't be reached, the stored state is sent.
+    pub async fn hello_live(&self) -> ServerEvent {
+        self.refresh(false).await;
+        self.hello()
+    }
+
     pub fn hello(&self) -> ServerEvent {
         let s = self.snapshot.read().expect("snapshot lock");
         ServerEvent::Hello {
