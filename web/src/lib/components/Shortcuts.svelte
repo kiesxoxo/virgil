@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { flushSync } from 'svelte';
 	import { fade, scale } from 'svelte/transition';
 	import { goto } from '$app/navigation';
 	import { api } from '../api.ts';
@@ -48,6 +49,10 @@
 			if (e.key === 'Escape' && search.field && e.target === search.field) {
 				search.clear();
 				search.field.blur();
+			} else if (e.key === 'Escape' && search.open && (e.target as HTMLElement).closest('form[role="search"]')) {
+				// The bottom bar, with a hardware keyboard: Esc cancels it.
+				search.clear();
+				search.open = false;
 			}
 			return;
 		}
@@ -56,8 +61,13 @@
 		switch (e.key) {
 			case '/':
 				e.preventDefault();
-				if (search.field || window.matchMedia('(min-width: 1024px)').matches) search.focusField();
-				else search.open = true;
+				// Below desktop width the header field is hidden: open the bottom bar.
+				// Either way the focus happens within the key press, or iOS ignores it.
+				if (window.matchMedia('(min-width: 1024px)').matches) search.focusField();
+				else {
+					search.open = true;
+					flushSync();
+				}
 				break;
 			case ' ':
 				if (interactive(e.target) || !hub.player.online) return;

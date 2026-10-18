@@ -31,12 +31,29 @@ class Search {
 		if (!isLibraryPage(page.url.pathname)) await goto('/', { reset: !keepFocus });
 	}
 
-	/** The `/` shortcut: the header field, after going to the albums if needed. */
+	/**
+	 * The `/` shortcut: the header field, after going to the albums if needed.
+	 * iOS only focuses during the key press itself, so when the field isn't on
+	 * the page yet a stand-in takes the focus and hands it over afterwards.
+	 */
 	async focusField() {
-		await this.showResults();
-		await tick();
-		this.field?.focus();
-		this.field?.select();
+		if (this.field && isLibraryPage(page.url.pathname)) {
+			this.field.focus();
+			this.field.select();
+			return;
+		}
+		const standIn = document.createElement('input');
+		standIn.setAttribute('aria-hidden', 'true');
+		standIn.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;font-size:16px';
+		document.body.append(standIn);
+		standIn.focus();
+		try {
+			await this.showResults();
+			await tick();
+			this.field?.focus();
+		} finally {
+			standIn.remove();
+		}
 	}
 
 	clear() {

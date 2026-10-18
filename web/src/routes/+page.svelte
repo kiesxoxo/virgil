@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { ArrowDown, ArrowUp, Image, ImageOff, LayoutGrid, LibraryBig, List, Search, X } from '@lucide/svelte';
+	import { ArrowDown, ArrowUp, LibraryBig, Search, X } from '@lucide/svelte';
 	import AlbumGrid from '#lib/components/AlbumGrid.svelte';
 	import AlbumList, { LIST_COLUMNS_MIN_WIDTH, listColumns } from '#lib/components/AlbumList.svelte';
 	import Cover from '#lib/components/Cover.svelte';
 	import Equalizer from '#lib/components/Equalizer.svelte';
 	import LibraryTabs from '#lib/components/LibraryTabs.svelte';
+	import ViewToggle from '#lib/components/ViewToggle.svelte';
 	import { trackHeader, trackItems } from '#lib/actions.ts';
 	import { api, queue } from '#lib/api.ts';
 	import { clock, fold, qualityRank } from '#lib/format.ts';
@@ -149,34 +150,7 @@
 					<span class="mr-1 text-sm text-muted tabular-nums max-sm:hidden">{filtered.length.toLocaleString()}</span>
 				{/if}
 				<LibraryTabs />
-				{#if view === 'list'}
-					<button
-						type="button"
-						class="press grid size-8 place-items-center rounded-lg bg-surface {listArt ? 'text-fg' : 'text-muted'} hover:text-fg"
-						aria-pressed={listArt}
-						aria-label={listArt ? 'Hide artwork' : 'Show artwork'}
-						title={listArt ? 'Hide artwork' : 'Show artwork'}
-						onclick={() => (listArt = !listArt)}
-					>
-						{#if listArt}<Image class="size-4" />{:else}<ImageOff class="size-4" />{/if}
-					</button>
-				{/if}
-				<div class="flex rounded-lg bg-surface p-0.5" role="group" aria-label="Layout">
-					{#each [{ id: 'grid', label: 'Grid', icon: LayoutGrid }, { id: 'list', label: 'List', icon: List }] as const as option (option.id)}
-						<button
-							type="button"
-							class="grid size-7 place-items-center rounded-md transition-colors {view === option.id
-								? 'bg-bg text-fg shadow-sm ring-1 ring-line'
-								: 'text-muted hover:text-fg'}"
-							aria-pressed={view === option.id}
-							aria-label="{option.label} view"
-							title="{option.label} view"
-							onclick={() => (view = option.id)}
-						>
-							<option.icon class="size-4" />
-						</button>
-					{/each}
-				</div>
+				<ViewToggle bind:view bind:art={listArt} />
 			</div>
 		</div>
 		<label class="relative mt-3 block max-lg:hidden lg:max-w-md">
