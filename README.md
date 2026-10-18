@@ -6,7 +6,7 @@ a fast web UI for your local library, plus AirPlay 2 (multi-room, no subscriptio
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/phones-dark.png">
-    <img src="docs/screenshots/phones-light.png" alt="Virgil on a phone: the album grid, an album with its tracks and hi-res badge, and Now Playing">
+    <img src="docs/screenshots/phones-light.png" alt="Virgil on a phone: the album grid, artists, genres with cover mosaics, and Now Playing">
   </picture>
 </p>
 
@@ -31,8 +31,9 @@ share like `\\nas\Music`) in Settings.
 - **MPD** decodes and plays: gapless playback, per-track format switching, DoP, straight to `hw:`.
 - **virgild** owns everything else: the library index (SQLite + FTS5), artwork thumbnails, the
   queue UI, live state over WebSocket, and who gets the DAC (local playback vs AirPlay).
-- **Web UI**: SvelteKit 3 (Svelte 5) SPA, embedded in the virgild binary. Light and dark mode,
-  built for phones first; installable to the home screen.
+- **Web UI**: SvelteKit 3 (Svelte 5) SPA, embedded in the virgild binary. Browse by album,
+  artist or genre, search songs, edit tags foobar2000-style. Light and dark mode, built for
+  phones first; installable to the home screen.
 
 ## Bit-perfect, verified
 
