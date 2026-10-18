@@ -11,6 +11,7 @@
 	import { hub } from '#lib/hub.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
 	import { contextMenu } from '#lib/menu.svelte.ts';
+	import { search } from '#lib/search.svelte.ts';
 	import type { Album } from '#lib/types/Album.ts';
 	import type { TrackHit } from '#lib/types/TrackHit.ts';
 
@@ -60,7 +61,6 @@
 	const isSort = (v: unknown): v is Sort =>
 		typeof v === 'object' && v !== null && (v as Sort).key in startsDesc && typeof (v as Sort).desc === 'boolean';
 
-	let query = $state('');
 	let sort = $state<Sort>(stored('albumSort', isSort, { key: 'artist', desc: false }));
 	let view = $state<'grid' | 'list'>(stored('albumView', (v): v is 'grid' | 'list' => v === 'grid' || v === 'list', 'grid'));
 	let listArt = $state(stored('albumListArt', (v): v is boolean => typeof v === 'boolean', true));
@@ -99,7 +99,7 @@
 	);
 
 	let filtered = $derived.by(() => {
-		const terms = fold(query).split(/\s+/).filter(Boolean);
+		const terms = fold(search.query).split(/\s+/).filter(Boolean);
 		let list: Album[] = terms.length
 			? library.entries.filter((_, i) => terms.every((t) => haystack[i].includes(t)))
 			: library.entries;
@@ -121,7 +121,7 @@
 
 	// Song matches come from the server's full-text index, debounced.
 	$effect(() => {
-		const q = query.trim();
+		const q = search.query.trim();
 		if (q.length < 2) {
 			songs = [];
 			return;
@@ -141,13 +141,14 @@
 
 <div class="pt-safe glass sticky top-0 z-20 border-b border-line lg:border-none lg:bg-bg/80">
 	<div class="mx-auto max-w-[110rem] px-4 pt-4 pb-3 lg:px-8 lg:pt-8">
-		<LibraryTabs />
 		<div class="flex items-center justify-between gap-3">
 			<h1 class="text-[28px] font-bold tracking-tight lg:text-[32px]">Albums</h1>
 			<div class="flex items-center gap-2">
 				{#if library.loaded}
-					<span class="mr-1 text-sm text-muted tabular-nums">{filtered.length.toLocaleString()}</span>
+					<!-- On phones the row is full with the view controls. -->
+					<span class="mr-1 text-sm text-muted tabular-nums max-sm:hidden">{filtered.length.toLocaleString()}</span>
 				{/if}
+				<LibraryTabs />
 				{#if view === 'list'}
 					<button
 						type="button"
@@ -178,22 +179,23 @@
 				</div>
 			</div>
 		</div>
-		<label class="relative mt-3 block lg:max-w-md">
+		<label class="relative mt-3 block max-lg:hidden lg:max-w-md">
 			<Search class="pointer-events-none absolute top-1/2 left-3.5 size-[18px] -translate-y-1/2 text-faint" />
 			<input
 				type="search"
-				bind:value={query}
+				bind:value={search.query}
+				{@attach search.register}
 				placeholder="Albums, artists, songs"
 				autocomplete="off"
 				spellcheck="false"
 				class="h-11 w-full rounded-xl bg-surface pr-10 pl-10 text-base placeholder:text-faint focus:ring-2 focus:ring-accent/40 focus:outline-none [&::-webkit-search-cancel-button]:hidden"
 			/>
-			{#if query}
+			{#if search.query}
 				<button
 					type="button"
 					class="absolute top-1/2 right-2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-muted hover:text-fg"
 					aria-label="Clear search"
-					onclick={() => (query = '')}
+					onclick={() => search.clear()}
 				>
 					<X class="size-4" />
 				</button>
@@ -300,7 +302,7 @@
 			</p>
 		</div>
 	{:else if filtered.length === 0}
-		<p class="mt-12 text-center text-sm text-muted">No albums match “{query}”.</p>
+		<p class="mt-12 text-center text-sm text-muted">No albums match “{search.query}”.</p>
 	{:else if view === 'list'}
 		<AlbumList albums={filtered} art={listArt} {wide} />
 	{:else}

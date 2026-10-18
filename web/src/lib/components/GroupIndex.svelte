@@ -5,6 +5,7 @@
 	import { fold } from '../format.ts';
 	import { library } from '../library.svelte.ts';
 	import { contextMenu, type MenuItem } from '../menu.svelte.ts';
+	import { search } from '../search.svelte.ts';
 	import GroupArt from './GroupArt.svelte';
 	import LibraryTabs from './LibraryTabs.svelte';
 
@@ -24,7 +25,6 @@
 		return { key: 'name', desc: false };
 	}
 
-	let query = $state('');
 	let sort = $state(load());
 
 	$effect(() => {
@@ -40,7 +40,7 @@
 	}
 
 	let shown = $derived.by(() => {
-		const terms = fold(query).split(/\s+/).filter(Boolean);
+		const terms = fold(search.query).split(/\s+/).filter(Boolean);
 		let list = terms.length ? groups.filter((g) => terms.every((t) => g.key.includes(t))) : groups;
 		// Groups arrive A–Z; "No genre" stays last whatever the order.
 		const last = list.filter((g) => g.key === NO_GENRE);
@@ -63,29 +63,32 @@
 
 <div class="pt-safe glass sticky top-0 z-20 border-b border-line lg:border-none lg:bg-bg/80">
 	<div class="mx-auto max-w-[110rem] px-4 pt-4 pb-3 lg:px-8 lg:pt-8">
-		<LibraryTabs />
 		<div class="flex items-center justify-between gap-3">
 			<h1 class="text-[28px] font-bold tracking-tight lg:text-[32px]">{title}</h1>
-			{#if library.loaded}
-				<span class="text-sm text-muted tabular-nums">{shown.length.toLocaleString()}</span>
-			{/if}
+			<div class="flex items-center gap-2">
+				{#if library.loaded}
+					<span class="mr-1 text-sm text-muted tabular-nums">{shown.length.toLocaleString()}</span>
+				{/if}
+				<LibraryTabs />
+			</div>
 		</div>
-		<label class="relative mt-3 block lg:max-w-md">
+		<label class="relative mt-3 block max-lg:hidden lg:max-w-md">
 			<Search class="pointer-events-none absolute top-1/2 left-3.5 size-[18px] -translate-y-1/2 text-faint" />
 			<input
 				type="search"
-				bind:value={query}
+				bind:value={search.query}
+				{@attach search.register}
 				placeholder="Search {title.toLowerCase()}"
 				autocomplete="off"
 				spellcheck="false"
 				class="h-11 w-full rounded-xl bg-surface pr-10 pl-10 text-base placeholder:text-faint focus:ring-2 focus:ring-accent/40 focus:outline-none [&::-webkit-search-cancel-button]:hidden"
 			/>
-			{#if query}
+			{#if search.query}
 				<button
 					type="button"
 					class="absolute top-1/2 right-2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-muted hover:text-fg"
 					aria-label="Clear search"
-					onclick={() => (query = '')}
+					onclick={() => search.clear()}
 				>
 					<X class="size-4" />
 				</button>
@@ -124,7 +127,7 @@
 		</div>
 	{:else if shown.length === 0}
 		<p class="mt-12 text-center text-sm text-muted">
-			{query ? `No ${title.toLowerCase()} match “${query}”.` : `No ${title.toLowerCase()} yet.`}
+			{search.query ? `No ${title.toLowerCase()} match “${search.query}”.` : `No ${title.toLowerCase()} yet.`}
 		</p>
 	{:else if kind === 'artist'}
 		<ul class="grid grid-cols-3 gap-x-4 gap-y-6 sm:grid-cols-4 lg:grid-cols-6 2xl:grid-cols-8">

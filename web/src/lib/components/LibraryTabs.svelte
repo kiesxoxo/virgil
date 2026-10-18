@@ -1,25 +1,29 @@
 <script lang="ts">
+	import { LibraryBig, MicVocal, Shapes } from '@lucide/svelte';
 	import { page } from '$app/state';
 
-	// Phones: switch between the library's views. Desktop has them in the sidebar.
-	const tabs = [
-		{ href: '/', label: 'Albums' },
-		{ href: '/artists', label: 'Artists' },
-		{ href: '/genres', label: 'Genres' }
+	// Phones: a compact switch between the library's views, beside the other
+	// view controls. Desktop has them in the sidebar.
+	const views = [
+		{ href: '/', label: 'Albums', icon: LibraryBig },
+		{ href: '/artists', label: 'Artists', icon: MicVocal },
+		{ href: '/genres', label: 'Genres', icon: Shapes }
 	];
 </script>
 
-<nav class="mb-3 grid grid-cols-3 gap-1 rounded-xl bg-surface p-1 lg:hidden" aria-label="Library">
-	{#each tabs as tab (tab.href)}
-		{@const active = page.url.pathname === tab.href}
+<nav class="flex rounded-lg bg-surface p-0.5 lg:hidden" aria-label="Library">
+	{#each views as view (view.href)}
+		{@const active = page.url.pathname === view.href}
 		<a
-			href={tab.href}
-			class="grid h-8 place-items-center rounded-lg text-[13px] font-semibold transition-colors {active
+			href={view.href}
+			class="grid size-7 place-items-center rounded-md transition-colors {active
 				? 'bg-bg text-fg shadow-sm ring-1 ring-line'
-				: 'text-muted'}"
+				: 'text-muted hover:text-fg'}"
 			aria-current={active ? 'page' : undefined}
+			aria-label={view.label}
+			title={view.label}
 		>
-			{tab.label}
+			<view.icon class="size-4" />
 		</a>
 	{/each}
 </nav>

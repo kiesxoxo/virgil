@@ -5,6 +5,7 @@
 	import { page } from '$app/state';
 	import ContextMenu from '#lib/components/ContextMenu.svelte';
 	import PlayerBar from '#lib/components/PlayerBar.svelte';
+	import Shortcuts from '#lib/components/Shortcuts.svelte';
 	import TagEditor from '#lib/components/TagEditor.svelte';
 	import Toaster from '#lib/components/Toaster.svelte';
 	import { hub } from '#lib/hub.svelte.ts';
@@ -120,5 +121,6 @@
 {/if}
 
 <TagEditor />
+<Shortcuts />
 <ContextMenu />
 <Toaster />
