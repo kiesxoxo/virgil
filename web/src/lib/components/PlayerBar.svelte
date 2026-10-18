@@ -3,6 +3,7 @@
 	import { api } from '../api.ts';
 	import { clock } from '../format.ts';
 	import { hub } from '../hub.svelte.ts';
+	import { keyboard } from '../keyboard.svelte.ts';
 	import { search } from '../search.svelte.ts';
 	import Cover from './Cover.svelte';
 	import MobileSearch from './MobileSearch.svelte';
@@ -12,22 +13,6 @@
 
 	let item = $derived(hub.current);
 	let progress = $derived(hub.player.duration > 0 ? (hub.elapsed / hub.player.duration) * 100 : 0);
-
-	// How much of the screen the on-screen keyboard covers. iOS doesn't move
-	// fixed elements out of its way, so the search row is lifted by hand.
-	let keyboard = $state(0);
-	$effect(() => {
-		const viewport = window.visualViewport;
-		if (!viewport) return;
-		const update = () => (keyboard = Math.max(0, Math.round(window.innerHeight - viewport.height - viewport.offsetTop)));
-		update();
-		viewport.addEventListener('resize', update);
-		viewport.addEventListener('scroll', update);
-		return () => {
-			viewport.removeEventListener('resize', update);
-			viewport.removeEventListener('scroll', update);
-		};
-	});
 </script>
 
 {#snippet airplayTile(cls: string)}
@@ -38,7 +23,7 @@
      beside it. While the keyboard is up, the row sits on top of it. -->
 <div
 	class="fixed inset-x-2 z-30 flex gap-2 lg:hidden"
-	style:bottom={keyboard > 0 ? `${keyboard + 8}px` : 'calc(4rem + env(safe-area-inset-bottom))'}
+	style:bottom={keyboard.height > 0 ? `${keyboard.height + 8}px` : 'calc(4rem + env(safe-area-inset-bottom))'}
 >
 	<div
 		class="glass relative flex h-16 min-w-0 flex-1 items-center gap-3 overflow-hidden rounded-2xl pr-2 pl-2.5 shadow-float ring-1 ring-line"

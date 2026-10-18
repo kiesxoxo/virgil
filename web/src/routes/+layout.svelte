@@ -9,6 +9,7 @@
 	import TagEditor from '#lib/components/TagEditor.svelte';
 	import Toaster from '#lib/components/Toaster.svelte';
 	import { hub } from '#lib/hub.svelte.ts';
+	import { keyboard } from '#lib/keyboard.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
 	import '#lib/theme.svelte.ts';
 
@@ -45,9 +46,11 @@
 		const wake = () => document.visibilityState === 'visible' && hub.wake();
 		document.addEventListener('visibilitychange', wake);
 		const timer = setTimeout(() => (patient = false), 1500);
+		const unwatch = keyboard.watch();
 		return () => {
 			document.removeEventListener('visibilitychange', wake);
 			clearTimeout(timer);
+			unwatch();
 		};
 	});
 
@@ -103,7 +106,8 @@
 {#if !fullscreen}
 	<PlayerBar />
 
-	<nav class="glass pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line lg:hidden">
+	<!-- Stays beneath the on-screen keyboard rather than riding up with it. -->
+	<nav class="glass pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line lg:hidden" class:hidden={keyboard.height > 0}>
 		<div class="grid h-14 grid-cols-3">
 			{#each tabs as item (item.href)}
 				{@const active = item.active(routeId)}

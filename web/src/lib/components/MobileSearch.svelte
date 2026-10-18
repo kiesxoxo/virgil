@@ -5,7 +5,9 @@
 	import { search } from '../search.svelte.ts';
 
 	// Phones: a search button beside the now-playing bar. Tapping it opens a
-	// field in its place, focused at once so the keyboard comes up.
+	// field in its place, focused at once so the keyboard comes up. The bar
+	// lifts itself above the keyboard (PlayerBar), so the focus mustn't also
+	// scroll: iOS would pan the whole page up until the next re-render.
 	let input = $state<HTMLInputElement>();
 
 	const placeholders: Record<string, string> = { '/artists': 'Search artists', '/genres': 'Search genres' };
@@ -46,7 +48,7 @@
 			spellcheck="false"
 			class="h-full min-w-0 flex-1 bg-transparent pl-1.5 text-base outline-none placeholder:text-faint [&::-webkit-search-cancel-button]:hidden"
 			oninput={() => search.showResults(true)}
-			{@attach (node) => node.focus()}
+			{@attach (node) => node.focus({ preventScroll: true })}
 		/>
 		{#if search.query}
 			<button
@@ -55,7 +57,7 @@
 				aria-label="Clear search"
 				onclick={() => {
 					search.clear();
-					input?.focus();
+					input?.focus({ preventScroll: true });
 				}}
 			>
 				<X class="size-4" />
