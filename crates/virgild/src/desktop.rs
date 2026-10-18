@@ -3,15 +3,15 @@
 //! per playback device, and opens the UI as an app window. Everything lives in
 //! `%LOCALAPPDATA%\Virgil`.
 
-use std::io::{BufRead, BufReader, Write};
-use std::net::{SocketAddr, TcpStream};
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 use std::time::Duration;
 
 use anyhow::{Context, bail};
-use tokio::io::AsyncBufReadExt;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::net::TcpStream;
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 use tracing::{info, warn};
@@ -233,20 +233,24 @@ pub fn devices() -> Vec<Device> {
     Vec::new()
 }
 
-/// Sends one command to the MPD on `MPD_PORT`, if one is there.
-fn mpd_command(command: &str) -> bool {
-    let addr = SocketAddr::from(([127, 0, 0, 1], MPD_PORT));
-    let Ok(mut stream) = TcpStream::connect_timeout(&addr, Duration::from_millis(500)) else { return false };
-    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
-    let mut greeting = String::new();
-    if BufReader::new(&stream).read_line(&mut greeting).is_err() || !greeting.starts_with("OK MPD") {
-        return false;
-    }
-    stream.write_all(format!("{command}\n").as_bytes()).is_ok()
+async fn connect_mpd(timeout: Duration) -> Option<TcpStream> {
+    tokio::time::timeout(timeout, TcpStream::connect(SocketAddr::from(([127, 0, 0, 1], MPD_PORT)))).await.ok()?.ok()
 }
 
-fn mpd_listening() -> bool {
-    TcpStream::connect_timeout(&SocketAddr::from(([127, 0, 0, 1], MPD_PORT)), Duration::from_millis(200)).is_ok()
+/// Sends one command to the MPD on `MPD_PORT`, if one is there.
+async fn mpd_command(command: &str) -> bool {
+    let Some(stream) = connect_mpd(Duration::from_millis(500)).await else { return false };
+    let (read, mut write) = stream.into_split();
+    let mut greeting = String::new();
+    let greeted = tokio::time::timeout(Duration::from_secs(2), BufReader::new(read).read_line(&mut greeting)).await;
+    if !matches!(greeted, Ok(Ok(_))) || !greeting.starts_with("OK MPD") {
+        return false;
+    }
+    write.write_all(format!("{command}\n").as_bytes()).await.is_ok()
+}
+
+async fn mpd_listening() -> bool {
+    connect_mpd(Duration::from_millis(200)).await.is_some()
 }
 
 /// The mpd.exe to run: the embedded one, unpacked next to its data, or one
@@ -340,12 +344,12 @@ impl Desktop {
         let devices = tokio::task::spawn_blocking(devices).await?;
         info!("playback devices: {:?}", devices.iter().map(|d| &d.name).collect::<Vec<_>>());
         let conf_path = self.base.join("mpd").join("mpd.conf");
-        std::fs::write(&conf_path, mpd_conf(&self.base, &self.settings().music_dir, &devices))?;
+        tokio::fs::write(&conf_path, mpd_conf(&self.base, &self.settings().music_dir, &devices)).await?;
 
-        if mpd_command("kill") {
+        if mpd_command("kill").await {
             info!("stopping an MPD left over from an earlier run");
             for _ in 0..50 {
-                if !mpd_listening() {
+                if !mpd_listening().await {
                     break;
                 }
                 tokio::time::sleep(Duration::from_millis(100)).await;
@@ -368,9 +372,9 @@ impl Desktop {
         }
         *self.child.lock().await = Some(child);
         for _ in 0..100 {
-            if mpd_listening() {
+            if mpd_listening().await {
                 // No auto_update on Windows: rescan for changes on every start.
-                mpd_command("update");
+                mpd_command("update").await;
                 return Ok(());
             }
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -418,7 +422,7 @@ impl Desktop {
     pub async fn quit(&self) -> ! {
         self.quitting.store(true, Ordering::SeqCst);
         info!("quitting");
-        tokio::task::spawn_blocking(|| mpd_command("kill")).await.ok();
+        mpd_command("kill").await;
         if let Some(mut child) = self.child.lock().await.take() {
             if tokio::time::timeout(Duration::from_secs(5), child.wait()).await.is_err() {
                 let _ = child.kill().await;
@@ -449,9 +453,11 @@ impl Desktop {
 }
 
 /// Asks the Virgil already running on `port` to bring its window to the front.
+/// Blocking: it runs at launch, before the async runtime starts.
 pub fn show_running(port: u16) -> bool {
+    use std::io::{BufRead, BufReader, Write};
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
-    let Ok(mut stream) = TcpStream::connect_timeout(&addr, Duration::from_secs(1)) else { return false };
+    let Ok(mut stream) = std::net::TcpStream::connect_timeout(&addr, Duration::from_secs(1)) else { return false };
     let _ = stream.set_read_timeout(Some(Duration::from_secs(3)));
     let request =
         "POST /api/desktop/show HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";

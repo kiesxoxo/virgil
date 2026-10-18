@@ -6,6 +6,7 @@
 	import { library } from '../library.svelte.ts';
 	import { contextMenu, type MenuItem } from '../menu.svelte.ts';
 	import { search } from '../search.svelte.ts';
+	import { isBoolean, isView, store, stored } from '../stored.ts';
 	import GroupArt from './GroupArt.svelte';
 	import LibraryTabs from './LibraryTabs.svelte';
 	import Menu from './Menu.svelte';
@@ -26,16 +27,6 @@
 	const COLUMNS_MIN_WIDTH = 560;
 	const listColumns = (art: boolean) => `${art ? '2.5rem ' : ''}minmax(0,1fr) 4.5rem 4.5rem 6.5rem`;
 
-	function stored<T>(key: string, valid: (v: unknown) => v is T, fallback: T): T {
-		try {
-			const v = JSON.parse(localStorage.getItem(key) ?? 'null');
-			if (valid(v)) return v;
-		} catch {
-			/* storage blocked or old format */
-		}
-		return fallback;
-	}
-
 	// The component is made afresh for each page, so reading `kind` once is fine.
 	// svelte-ignore state_referenced_locally
 	const prefix = kind;
@@ -47,20 +38,12 @@
 			{ key: 'name', desc: false }
 		)
 	);
-	let view = $state<'grid' | 'list'>(stored(`${prefix}View`, (v): v is 'grid' | 'list' => v === 'grid' || v === 'list', 'grid'));
-	let listArt = $state(stored(`${prefix}ListArt`, (v): v is boolean => typeof v === 'boolean', true));
+	let view = $state(stored(`${prefix}View`, isView, 'grid'));
+	let listArt = $state(stored(`${prefix}ListArt`, isBoolean, true));
 	let contentWidth = $state(0);
 	let wide = $derived(contentWidth >= COLUMNS_MIN_WIDTH);
 
-	$effect(() => {
-		try {
-			localStorage.setItem(`${prefix}Sort`, JSON.stringify(sort));
-			localStorage.setItem(`${prefix}View`, JSON.stringify(view));
-			localStorage.setItem(`${prefix}ListArt`, JSON.stringify(listArt));
-		} catch {
-			/* storage blocked */
-		}
-	});
+	$effect(() => store({ [`${prefix}Sort`]: sort, [`${prefix}View`]: view, [`${prefix}ListArt`]: listArt }));
 
 	function sortBy(key: SortKey) {
 		sort = sort.key === key ? { key, desc: !sort.desc } : { key, desc: key !== 'name' };

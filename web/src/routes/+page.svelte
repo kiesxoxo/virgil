@@ -13,6 +13,7 @@
 	import { library } from '#lib/library.svelte.ts';
 	import { contextMenu } from '#lib/menu.svelte.ts';
 	import { search } from '#lib/search.svelte.ts';
+	import { isBoolean, isView, store, stored } from '#lib/stored.ts';
 	import type { Album } from '#lib/types/Album.ts';
 	import type { TrackHit } from '#lib/types/TrackHit.ts';
 
@@ -49,22 +50,12 @@
 		quality: true
 	};
 
-	function stored<T>(key: string, valid: (v: unknown) => v is T, fallback: T): T {
-		try {
-			const v = JSON.parse(localStorage.getItem(key) ?? 'null');
-			if (valid(v)) return v;
-		} catch {
-			/* storage blocked or old format */
-		}
-		return fallback;
-	}
-
 	const isSort = (v: unknown): v is Sort =>
 		typeof v === 'object' && v !== null && (v as Sort).key in startsDesc && typeof (v as Sort).desc === 'boolean';
 
 	let sort = $state<Sort>(stored('albumSort', isSort, { key: 'artist', desc: false }));
-	let view = $state<'grid' | 'list'>(stored('albumView', (v): v is 'grid' | 'list' => v === 'grid' || v === 'list', 'grid'));
-	let listArt = $state(stored('albumListArt', (v): v is boolean => typeof v === 'boolean', true));
+	let view = $state(stored('albumView', isView, 'grid'));
+	let listArt = $state(stored('albumListArt', isBoolean, true));
 	let songs = $state<TrackHit[]>([]);
 	let contentWidth = $state(0);
 	let wide = $derived(contentWidth >= LIST_COLUMNS_MIN_WIDTH);
@@ -110,15 +101,7 @@
 		return list;
 	});
 
-	$effect(() => {
-		try {
-			localStorage.setItem('albumSort', JSON.stringify(sort));
-			localStorage.setItem('albumView', JSON.stringify(view));
-			localStorage.setItem('albumListArt', JSON.stringify(listArt));
-		} catch {
-			/* storage blocked */
-		}
-	});
+	$effect(() => store({ albumSort: sort, albumView: view, albumListArt: listArt }));
 
 	// Song matches come from the server's full-text index, debounced.
 	$effect(() => {

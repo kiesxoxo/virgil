@@ -73,3 +73,15 @@ export function artUrl(art: string | null | undefined, size: 300 | 600 = 300): s
 export function fold(s: string): string {
 	return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 }
+
+/**
+ * Words only, for telling titles and names apart: folded, with punctuation
+ * and bracketed tags such as "[WEB]", "(2014)" or "(Remastered)" dropped.
+ * "The Wall (Remastered)" and "the wall" both give "the wall".
+ */
+export function bare(s: string): string {
+	return fold(s)
+		.replace(/[([{][^)\]}]*[)\]}]/g, ' ')
+		.replace(/[^\p{L}\p{N}]+/gu, ' ')
+		.trim();
+}

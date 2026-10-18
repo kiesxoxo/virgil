@@ -218,14 +218,14 @@ fn fts_query(q: &str) -> Option<String> {
 
 pub fn search(conn: &Connection, q: &str) -> rusqlite::Result<SearchResults> {
     let Some(query) = fts_query(q) else { return Ok(SearchResults::default()) };
-    let album_ids: Vec<String> = conn
-        .prepare_cached("SELECT ref FROM fts WHERE fts MATCH ?1 AND kind = 'album' ORDER BY rank LIMIT 24")?
-        .query_map([&query], |row| row.get(0))?
+    let albums = conn
+        .prepare_cached(&format!(
+            "SELECT {ALBUM_COLUMNS}
+             FROM fts JOIN albums a ON a.id = fts.ref LEFT JOIN art ON art.album_id = a.id
+             WHERE fts MATCH ?1 AND fts.kind = 'album' ORDER BY fts.rank LIMIT 24"
+        ))?
+        .query_map([&query], album_from_row)?
         .collect::<rusqlite::Result<_>>()?;
-    let mut albums = Vec::with_capacity(album_ids.len());
-    for id in &album_ids {
-        albums.extend(album_by_id(conn, id)?);
-    }
     let mut stmt = conn.prepare_cached(&format!(
         "SELECT {TRACK_COLUMNS}, a.id, a.title, art.art
          FROM fts JOIN tracks t ON t.uri = fts.ref JOIN albums a ON a.id = t.album_id

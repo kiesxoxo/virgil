@@ -68,20 +68,22 @@ fn hidden(uri: &str) -> bool {
     uri.rsplit('/').next().is_some_and(|name| name.starts_with("._") || JUNK.contains(&name))
 }
 
+/// A file's stem and extension in lowercase, when both are there and valid UTF-8.
+fn lower_name(path: &Path) -> Option<(String, String)> {
+    let lower = |s: Option<&std::ffi::OsStr>| s.and_then(|s| s.to_str()).map(str::to_lowercase);
+    Some((lower(path.file_stem())?, lower(path.extension())?))
+}
+
+/// An image file named `<stem>.<jpg|jpeg|png|webp>` for one of `stems`, in any case.
+fn is_image_named(path: &Path, stems: &[&str]) -> bool {
+    lower_name(path)
+        .is_some_and(|(stem, ext)| stems.contains(&stem.as_str()) && IMAGE_EXTENSIONS.contains(&ext.as_str()))
+}
+
 /// A cover/folder/front/album image already in `dir`, if any.
 fn folder_image(dir: &Path) -> anyhow::Result<Option<PathBuf>> {
     let entries = std::fs::read_dir(dir).with_context(|| format!("reading album folder {}", dir.display()))?;
-    for entry in entries.flatten() {
-        let path = entry.path();
-        let lower = |s: Option<&std::ffi::OsStr>| s.and_then(|s| s.to_str()).map(str::to_lowercase);
-        if let (Some(stem), Some(ext)) = (lower(path.file_stem()), lower(path.extension()))
-            && FOLDER_ART.contains(&stem.as_str())
-            && IMAGE_EXTENSIONS.contains(&ext.as_str())
-        {
-            return Ok(Some(path));
-        }
-    }
-    Ok(None)
+    Ok(entries.flatten().map(|entry| entry.path()).find(|path| is_image_named(path, &FOLDER_ART)))
 }
 
 /// Writes a new file; fails with AlreadyExists rather than overwrite one.
@@ -115,12 +117,8 @@ fn replace_cover(dir: &Path, name: &str, data: &[u8]) -> anyhow::Result<PathBuf>
     let _ = std::fs::remove_file(&staging);
     write_new(&staging, data).with_context(|| format!("saving {}", path.display()))?;
     let result = (|| {
-        for entry in std::fs::read_dir(dir)?.flatten() {
-            let old = entry.path();
-            let lower = |s: Option<&std::ffi::OsStr>| s.and_then(|s| s.to_str()).map(str::to_lowercase);
-            if lower(old.file_stem()).as_deref() == Some("cover")
-                && lower(old.extension()).is_some_and(|ext| IMAGE_EXTENSIONS.contains(&ext.as_str()))
-            {
+        for old in std::fs::read_dir(dir)?.flatten().map(|entry| entry.path()) {
+            if is_image_named(&old, &["cover"]) {
                 std::fs::remove_file(&old).with_context(|| format!("removing old cover {}", old.display()))?;
             }
         }
@@ -358,10 +356,7 @@ impl Library {
             self.record_art(album_id.to_string(), Some(key)).await?;
             return Ok(ArtOutcome::AlreadyPresent);
         }
-        let Some(music_dir) = &self.inner.music_dir else {
-            bail!("music_dir is not set in virgild's config, so covers can't be saved");
-        };
-        let dir = music_dir.join(target.cover_uri.rsplit_once('/').map_or("", |(dir, _)| dir));
+        let dir = self.album_dir(&target.cover_uri)?;
         // Folder images MPD ignores (folder.jpg, front.png) still count as art.
         let scan = dir.clone();
         if let Some(existing) = tokio::task::spawn_blocking(move || folder_image(&scan)).await?? {
@@ -390,16 +385,21 @@ impl Library {
         Ok(ArtOutcome::Saved)
     }
 
+    /// The folder holding the song `uri` (an album's `cover_uri`), where its cover goes.
+    fn album_dir(&self, uri: &str) -> anyhow::Result<PathBuf> {
+        let Some(music_dir) = &self.inner.music_dir else {
+            bail!("music_dir is not set in virgild's config, so covers can't be saved");
+        };
+        Ok(music_dir.join(uri.rsplit_once('/').map_or("", |(dir, _)| dir)))
+    }
+
     /// Saves an image the user picked as the album's cover.<ext>, replacing
     /// any cover.* already in its folder. Check it with [`cover_extension`] first.
     pub async fn upload_art(&self, album_id: String, bytes: Vec<u8>) -> anyhow::Result<()> {
         let Some(extension) = cover_extension(&bytes) else { bail!("not a JPEG, PNG or WebP image") };
         let id = album_id.clone();
         let Some(target) = self.db(move |conn| db::art_target(conn, &id)).await? else { bail!("no such album") };
-        let Some(music_dir) = &self.inner.music_dir else {
-            bail!("music_dir is not set in virgild's config, so covers can't be saved");
-        };
-        let dir = music_dir.join(target.cover_uri.rsplit_once('/').map_or("", |(dir, _)| dir));
+        let dir = self.album_dir(&target.cover_uri)?;
         // Thumbnails first: an image that won't decode never replaces a working cover.
         let key = self.thumbs(bytes.clone()).await.context("unreadable image")?;
         let name = format!("cover.{extension}");

@@ -1,7 +1,7 @@
 // Artists and genres, worked out from the album list. Kept free of Svelte so
 // it can be tested on its own (browse.test.ts).
 
-import { fold } from './format.ts';
+import { bare, fold } from './format.ts';
 import type { Album } from './types/Album.ts';
 
 export interface Group {
@@ -90,11 +90,8 @@ export function artists(albums: Album[]): Group[] {
 		.sort((a, b) => collator.compare(a.name, b.name));
 }
 
-/** A title without case, accents, punctuation or bracketed tags like "[WEB]". */
-const titleKey = (title: string) =>
-	fold(title)
-		.replace(/[([{][^)\]}]*[)\]}]/g, ' ')
-		.replace(/[^\p{L}\p{N}]+/gu, '');
+/** A title without case, accents, punctuation, spaces or bracketed tags like "[WEB]". */
+const titleKey = (title: string) => bare(title).replaceAll(' ', '');
 
 /**
  * Albums an artist is part of under another name: "Daniel Avery & Alessandro

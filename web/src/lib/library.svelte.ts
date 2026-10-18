@@ -1,6 +1,6 @@
 import { api } from './api.ts';
 import { artists, genres, type Group } from './browse.ts';
-import { fold, qualityRank } from './format.ts';
+import { bare, fold, qualityRank } from './format.ts';
 import type { Album } from './types/Album.ts';
 
 /**
@@ -9,15 +9,8 @@ import type { Album } from './types/Album.ts';
  * "(2014)" or "(Remastered)" are ignored.
  */
 export function versionKey(album: Album): string {
-	const clean = (s: string) => {
-		const folded = fold(s);
-		const stripped = folded
-			.replace(/[([{][^)\]}]*[)\]}]/g, ' ')
-			.replace(/[^\p{L}\p{N}]+/gu, ' ')
-			.trim();
-		// A title that is all brackets ("[Untitled]") keeps its text.
-		return stripped || folded.trim();
-	};
+	// A title that is all brackets ("[Untitled]") keeps its text.
+	const clean = (s: string) => bare(s) || fold(s).trim();
 	return `${clean(album.artist)}\u001f${clean(album.title)}`;
 }
 
