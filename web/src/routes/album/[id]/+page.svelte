@@ -262,7 +262,8 @@
 							<span class="flex justify-center text-sm text-muted tabular-nums">
 								{#if selecting}
 									{#if picked}<CircleCheck class="size-5 text-accent" />{:else}<Circle class="size-5 text-faint" />{/if}
-								{:else if current}<Equalizer playing={hub.playing} />{:else}{track.track ?? i + 1}{/if}
+								{:else if current}<Equalizer playing={hub.playing} />{:else if track.track !== null}{track.track}{/if}
+								<!-- No track number tag: blank rather than a position, so the gap shows. -->
 							</span>
 							<span class="min-w-0">
 								<span class="block truncate text-[15px] font-medium {current ? 'text-accent' : ''}">{track.title}</span>
