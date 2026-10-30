@@ -154,8 +154,9 @@ async fn desktop_main(desktop: Arc<Desktop>, config: Config, listener: std::net:
 async fn serve(config: Config, listener: TcpListener, desktop: Option<Arc<Desktop>>) -> anyhow::Result<()> {
     std::fs::create_dir_all(&config.data_dir).with_context(|| format!("creating {}", config.data_dir.display()))?;
     let library = Library::open(&config.data_dir, &config.mpd, config.music_dir.clone())?;
+    let radio = virgil_radio::Nts::new()?;
     let listen = config.listen;
-    let app = App::new(config, library, desktop);
+    let app = App::new(config, library, radio, desktop);
 
     tokio::spawn(sync::run_mpd(app.clone()));
     tokio::spawn(sync::run_library(app.clone()));

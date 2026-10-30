@@ -5,10 +5,11 @@ use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, broadcast};
 use tracing::{info, warn};
 use virgil_core::{
-    LOCAL_SOURCE, Outputs, PlayState, PlayerState, Queue, QueueItem, ServerEvent, SignalPath, SourceState,
+    AddMode, LOCAL_SOURCE, Outputs, PlayState, PlayerState, Queue, QueueItem, ServerEvent, SignalPath, SourceState,
 };
 use virgil_engine_mpd::MpdEngine;
 use virgil_library::Library;
+use virgil_radio::Nts;
 
 use crate::api::ApiError;
 use crate::config::Config;
@@ -39,6 +40,7 @@ pub struct Inner {
     pub config: Config,
     pub mpd: MpdEngine,
     pub library: Library,
+    pub radio: Nts,
     pub events: broadcast::Sender<ServerEvent>,
     /// Set in desktop mode (Virgil.exe), which runs MPD itself.
     pub desktop: Option<Arc<Desktop>>,
@@ -54,11 +56,12 @@ impl Deref for App {
 }
 
 impl App {
-    pub fn new(config: Config, library: Library, desktop: Option<Arc<Desktop>>) -> Self {
+    pub fn new(config: Config, library: Library, radio: Nts, desktop: Option<Arc<Desktop>>) -> Self {
         let source = SourceState { active: LOCAL_SOURCE.into(), available: config.sources.keys().cloned().collect() };
         App(Arc::new(Inner {
             mpd: MpdEngine::new(&config.mpd),
             library,
+            radio,
             events: broadcast::channel(256).0,
             desktop,
             snapshot: RwLock::new(Snapshot { source, ..Snapshot::default() }),
@@ -246,6 +249,31 @@ impl App {
         Ok(())
     }
 
+    /// The current queue item is an internet radio stream.
+    pub fn playing_stream(&self) -> bool {
+        let s = self.snapshot.read().expect("snapshot lock");
+        s.queue.items.iter().any(|item| Some(item.id) == s.player.song_id && is_stream(&item.uri))
+    }
+
+    /// Plays a radio stream now, right after the current song, so the queue
+    /// carries on with the next song after it. A station that was playing
+    /// makes way for this one instead of piling up in the queue.
+    pub async fn play_stream(&self, uri: &str) -> Result<(), ApiError> {
+        self.claim_local().await;
+        let status = self.mpd.status().await?;
+        let current = self.queue().items.into_iter().find(|item| Some(item.id) == status.song_id);
+        if let Some(current) = current.as_ref().filter(|item| item.uri == uri) {
+            // Already the current item: (re)start it, live.
+            return Ok(self.mpd.play_id(current.id).await?);
+        }
+        let first = self.mpd.add(&[uri.to_string()], AddMode::Next).await?;
+        self.mpd.play_pos(first).await?;
+        if let Some(previous) = current.filter(|item| is_stream(&item.uri)) {
+            self.mpd.delete_id(previous.id).await?;
+        }
+        Ok(())
+    }
+
     /// An external source is about to open the DAC (called from its hook, e.g.
     /// shairport-sync's `run_this_before_play_begins`). Stops local playback
     /// and returns once ALSA reports the device closed.
@@ -308,6 +336,11 @@ impl App {
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
     }
+}
+
+/// An internet stream rather than a file from the library.
+pub fn is_stream(uri: &str) -> bool {
+    uri.starts_with("http://") || uri.starts_with("https://")
 }
 
 async fn run_shell(command: &str) {

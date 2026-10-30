@@ -40,8 +40,8 @@
 			<div class="mx-auto mt-2.5 h-1 w-10 rounded-full bg-fg/15"></div>
 			{#if menu.header}
 				<div class="flex items-center gap-3 border-b border-line px-5 pt-3 pb-3.5">
-					{#if menu.header.art !== undefined}
-						<Cover art={menu.header.art} class="size-11 shrink-0 rounded-md" />
+					{#if menu.header.art !== undefined || menu.header.src}
+						<Cover art={menu.header.art} src={menu.header.src} class="size-11 shrink-0 rounded-md" />
 					{/if}
 					<div class="min-w-0">
 						<div class="truncate font-semibold">{menu.header.title}</div>

@@ -3,6 +3,7 @@
 import { ArrowUpToLine, ImageDown, ImageUp, ListEnd, ListPlus, ListX, Play, Tags } from '@lucide/svelte';
 import { api, queue } from './api.ts';
 import type { MenuHeader, MenuItem } from './menu.svelte.ts';
+import { isStream, radio } from './radio.svelte.ts';
 import { tagEditor } from './tageditor.svelte.ts';
 import { toasts } from './toast.svelte.ts';
 import type { Album } from './types/Album.ts';
@@ -103,9 +104,13 @@ export function queueItems(item: QueueItem, index: number, current: number): Men
 			run: () => api.move(item.id, index > current ? current + 1 : current)
 		});
 	}
-	items.push({ label: 'Edit tags…', icon: Tags, run: () => tagEditor.show([item.uri], item.title) });
+	// A radio stream has no file to tag.
+	if (!isStream(item.uri)) items.push({ label: 'Edit tags…', icon: Tags, run: () => tagEditor.show([item.uri], item.title) });
 	items.push({ label: 'Remove from queue', icon: ListX, run: () => api.remove(item.id), danger: true });
 	return items;
 }
 
-export const queueHeader = (item: QueueItem): MenuHeader => ({ title: item.title, subtitle: item.artist, art: item.art });
+export function queueHeader(item: QueueItem): MenuHeader {
+	const shown = radio.show(item);
+	return { title: shown.title, subtitle: shown.subtitle, art: shown.art, src: shown.src };
+}

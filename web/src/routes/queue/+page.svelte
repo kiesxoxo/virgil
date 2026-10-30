@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ListMusic, Trash } from '@lucide/svelte';
+	import { ListMusic, Radio as RadioIcon, Trash } from '@lucide/svelte';
 	import Cover from '#lib/components/Cover.svelte';
 	import Equalizer from '#lib/components/Equalizer.svelte';
 	import Menu from '#lib/components/Menu.svelte';
@@ -8,6 +8,7 @@
 	import { clock, span } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { contextMenu } from '#lib/menu.svelte.ts';
+	import { isStream, radio } from '#lib/radio.svelte.ts';
 	import { toasts } from '#lib/toast.svelte.ts';
 	import type { QueueItem } from '#lib/types/QueueItem.ts';
 
@@ -32,11 +33,14 @@
 	}
 
 	const actions = (item: QueueItem) => queueItems(item, items.indexOf(item), cur);
+	/** A song's artist and album; a station's show and channel. */
+	const subtitle = (item: QueueItem) => (isStream(item.uri) ? radio.show(item).subtitle : [item.artist, item.album].filter(Boolean).join(' · '));
 </script>
 
 <svelte:head><title>Queue · Virgil</title></svelte:head>
 
 {#snippet row(item: QueueItem, dim: boolean)}
+	{@const shown = radio.show(item)}
 	<li
 		class="group flex items-center rounded-xl hover:bg-fg/4 [contain-intrinsic-size:auto_60px] [content-visibility:auto] {dim
 			? 'opacity-55 hover:opacity-100'
@@ -47,12 +51,16 @@
 		)}
 	>
 		<button type="button" class="flex min-w-0 flex-1 items-center gap-3 py-2 pl-2 text-left" onclick={() => api.playItem(item.id)}>
-			<Cover art={item.art} class="size-11 shrink-0 rounded-md" />
+			<Cover art={shown.art} src={shown.src} class="size-11 shrink-0 rounded-md" />
 			<span class="min-w-0 flex-1">
-				<span class="block truncate text-[15px] font-medium">{item.title}</span>
-				<span class="block truncate text-[13px] text-muted">{[item.artist, item.album].filter(Boolean).join(' · ')}</span>
+				<span class="block truncate text-[15px] font-medium">{shown.title}</span>
+				<span class="block truncate text-[13px] text-muted">{subtitle(item)}</span>
 			</span>
-			<span class="text-xs text-faint tabular-nums">{clock(item.duration)}</span>
+			{#if isStream(item.uri)}
+				<RadioIcon class="size-4 text-faint" aria-label="Radio" />
+			{:else}
+				<span class="text-xs text-faint tabular-nums">{clock(item.duration)}</span>
+			{/if}
 		</button>
 		<Menu class="mx-1" items={() => actions(item)} header={queueHeader(item)} />
 	</li>
@@ -106,12 +114,13 @@
 	{:else}
 		{#if hub.current}
 			{@const item = hub.current}
+			{@const shown = radio.show(item)}
 			<h2 class="mt-7 mb-2 text-xs font-semibold tracking-wider text-muted uppercase">Now playing</h2>
 			<a href="/now" class="flex items-center gap-4 rounded-2xl bg-surface p-3">
-				<Cover art={item.art} class="size-16 shrink-0 rounded-lg shadow-cover" />
+				<Cover art={shown.art} src={shown.src} class="size-16 shrink-0 rounded-lg shadow-cover" />
 				<span class="min-w-0 flex-1">
-					<span class="block truncate font-semibold">{item.title}</span>
-					<span class="block truncate text-sm text-muted">{[item.artist, item.album].filter(Boolean).join(' · ')}</span>
+					<span class="block truncate font-semibold">{shown.title}</span>
+					<span class="block truncate text-sm text-muted">{subtitle(item)}</span>
 				</span>
 				<Equalizer playing={hub.playing} class="mr-2" />
 			</a>

@@ -13,6 +13,8 @@ export interface MenuHeader {
 	title: string;
 	subtitle?: string;
 	art?: string | null;
+	/** A full image URL (radio artwork), shown instead of `art`. */
+	src?: string | null;
 }
 
 /**

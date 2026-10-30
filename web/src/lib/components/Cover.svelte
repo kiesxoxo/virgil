@@ -4,13 +4,21 @@
 
 	let {
 		art,
+		src: image = null,
 		size = 300,
 		class: className = '',
 		eager = false
-	}: { art: string | null | undefined; size?: 300 | 600; class?: string; eager?: boolean } = $props();
+	}: {
+		art: string | null | undefined;
+		/** A full image URL (radio artwork), used instead of `art`. */
+		src?: string | null;
+		size?: 300 | 600;
+		class?: string;
+		eager?: boolean;
+	} = $props();
 
 	let loaded = $state(false);
-	let src = $derived(artUrl(art, size));
+	let src = $derived(image ?? artUrl(art, size));
 </script>
 
 <div class="relative aspect-square overflow-hidden bg-surface-2 {className}">

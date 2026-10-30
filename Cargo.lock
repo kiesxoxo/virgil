@@ -3752,6 +3752,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "virgil-radio"
+version = "0.4.3"
+dependencies = [
+ "anyhow",
+ "reqwest",
+ "rustls",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "virgil-core",
+]
+
+[[package]]
 name = "virgil-tags"
 version = "0.4.3"
 dependencies = [
@@ -3782,6 +3796,7 @@ dependencies = [
  "virgil-core",
  "virgil-engine-mpd",
  "virgil-library",
+ "virgil-radio",
  "virgil-tags",
  "wasapi",
  "wry",

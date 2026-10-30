@@ -12,6 +12,7 @@ clap.workspace = true
 virgil-core.workspace = true
 virgil-engine-mpd.workspace = true
 virgil-library.workspace = true
+virgil-radio.workspace = true
 virgil-tags.workspace = true
 mime_guess.workspace = true
 rust-embed.workspace = true

@@ -75,6 +75,9 @@ export const api = {
 	downloadMissingArt: () => post('/api/library/art/download-missing'),
 	uploadArt: (id: string, image: Blob) => call('POST', `/api/library/albums/${encodeURIComponent(id)}/art/upload`, image),
 
+	/** Plays an NTS station right after the current song (the queue carries on after it). */
+	playStation: (id: string) => post(`/api/radio/${encodeURIComponent(id)}/play`),
+
 	selectOutput: (id: number) => post(`/api/outputs/${id}/select`),
 	restart: () => post('/api/restart'),
 	/** Desktop mode only (Virgil.exe); 404 elsewhere. */

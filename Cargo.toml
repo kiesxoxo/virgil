@@ -11,6 +11,7 @@ rust-version = "1.85"
 virgil-core = { path = "crates/core" }
 virgil-engine-mpd = { path = "crates/engine-mpd" }
 virgil-library = { path = "crates/library" }
+virgil-radio = { path = "crates/radio" }
 virgil-tags = { path = "crates/tags" }
 
 anyhow = "1"

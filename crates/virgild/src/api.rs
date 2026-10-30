@@ -11,7 +11,7 @@ use tower_http::services::ServeDir;
 use tower_http::set_header::SetResponseHeaderLayer;
 use virgil_core::{
     AddRequest, AlbumDetail, ArtOutcome, DesktopSettings, LibraryStatus, ModesRequest, MoveRequest, PlayState, Queue,
-    SearchResults, SeekRequest, ServerEvent,
+    Radio, SearchResults, SeekRequest, ServerEvent,
 };
 
 use crate::app::App;
@@ -34,6 +34,11 @@ impl ApiError {
 
     pub fn conflict(message: impl Into<String>) -> Self {
         Self { status: StatusCode::CONFLICT, message: message.into() }
+    }
+
+    /// A service Virgil relies on (NTS) didn't answer.
+    pub fn bad_gateway(message: impl Into<String>) -> Self {
+        Self { status: StatusCode::BAD_GATEWAY, message: message.into() }
     }
 }
 
@@ -92,6 +97,8 @@ pub fn router(app: App) -> Router {
         .route("/api/library/albums/{id}/art", post(download_art))
         .route("/api/library/albums/{id}/art/upload", post(upload_art).layer(DefaultBodyLimit::max(MAX_UPLOAD)))
         .route("/api/library/art/download-missing", post(download_missing_art))
+        .route("/api/radio", get(radio))
+        .route("/api/radio/{id}/play", post(play_station))
         .route("/api/outputs/{id}/select", post(select_output))
         .route("/api/restart", post(restart))
         .route("/api/desktop", get(desktop_settings).post(save_desktop_settings))
@@ -123,7 +130,13 @@ async fn pause(State(app): State<App>) -> ApiResult {
 
 async fn toggle(State(app): State<App>) -> ApiResult {
     if app.player().state == PlayState::Play {
-        app.mpd.pause(true).await?;
+        // Radio stops rather than pauses: resuming then picks it up live
+        // instead of minutes behind, or not at all once the server hangs up.
+        if app.playing_stream() {
+            app.mpd.stop().await?;
+        } else {
+            app.mpd.pause(true).await?;
+        }
     } else {
         app.play().await?;
     }
@@ -264,6 +277,18 @@ async fn download_missing_art(State(app): State<App>) -> ApiResult {
     } else {
         Err(ApiError::conflict("artwork is already being downloaded"))
     }
+}
+
+/// NTS's live channels, with the shows on air, and its Infinite Mixtapes.
+async fn radio(State(app): State<App>) -> ApiResult<Json<Radio>> {
+    app.radio.radio().await.map(Json).map_err(|e| ApiError::bad_gateway(format!("{e:#}")))
+}
+
+async fn play_station(State(app): State<App>, Path(id): Path<String>) -> ApiResult {
+    let station = app.radio.station(&id).await.map_err(|e| ApiError::bad_gateway(format!("{e:#}")))?;
+    let station = station.ok_or_else(|| ApiError::not_found("no such station"))?;
+    app.play_stream(&station.stream).await?;
+    Ok(DONE)
 }
 
 async fn select_output(State(app): State<App>, Path(id): Path<u32>) -> ApiResult {

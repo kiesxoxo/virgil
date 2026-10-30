@@ -3,16 +3,24 @@
 	import { api } from '../api.ts';
 	import { clock } from '../format.ts';
 	import { hub } from '../hub.svelte.ts';
+	import { isStream, radio } from '../radio.svelte.ts';
 	import { keyboard } from '../keyboard.svelte.ts';
 	import { search } from '../search.svelte.ts';
 	import Cover from './Cover.svelte';
+	import OnAir from './OnAir.svelte';
 	import MobileSearch from './MobileSearch.svelte';
 	import Scrubber from './Scrubber.svelte';
 	import SignalBadge from './SignalBadge.svelte';
 	import Transport from './Transport.svelte';
 
 	let item = $derived(hub.current);
-	let progress = $derived(hub.player.duration > 0 ? (hub.elapsed / hub.player.duration) * 100 : 0);
+	let shown = $derived(item ? radio.show(item) : null);
+	let stream = $derived(item ? isStream(item.uri) : false);
+	// Radio: how far through the show on air.
+	let showProgress = $derived(shown?.station ? radio.progress(shown.station) : null);
+	let progress = $derived(
+		showProgress !== null ? showProgress * 100 : hub.player.duration > 0 ? (hub.elapsed / hub.player.duration) * 100 : 0
+	);
 </script>
 
 {#snippet airplayTile(cls: string)}
@@ -40,10 +48,10 @@
 			</button>
 		{:else}
 			<a href="/now" class="flex min-w-0 flex-1 items-center gap-3">
-				<Cover art={item?.art} class="size-11 shrink-0 rounded-lg" />
+				<Cover art={shown?.art} src={shown?.src} class="size-11 shrink-0 rounded-lg" />
 				<div class="min-w-0">
-					<div class="truncate text-sm font-semibold">{item?.title ?? 'Not playing'}</div>
-					<div class="truncate text-xs text-muted">{item ? item.artist : 'Pick an album to start'}</div>
+					<div class="truncate text-sm font-semibold">{shown?.title ?? 'Not playing'}</div>
+					<div class="truncate text-xs text-muted">{shown ? shown.subtitle : 'Pick an album or a station'}</div>
 				</div>
 			</a>
 			<button
@@ -85,14 +93,16 @@
 				<div class="truncate text-sm font-semibold">AirPlay</div>
 				<div class="truncate text-[13px] text-muted">Another device is playing here</div>
 			</div>
-		{:else if item}
-			<a href="/now" class="shrink-0"><Cover art={item.art} class="size-14 rounded-lg shadow-cover" /></a>
+		{:else if item && shown}
+			<a href="/now" class="shrink-0"><Cover art={shown.art} src={shown.src} class="size-14 rounded-lg shadow-cover" /></a>
 			<div class="min-w-0">
-				<a href="/now" class="block truncate text-sm font-semibold hover:underline">{item.title}</a>
+				<a href="/now" class="block truncate text-sm font-semibold hover:underline">{shown.title}</a>
 				{#if item.albumId}
 					<a href="/album/{item.albumId}" class="block truncate text-[13px] text-muted hover:text-fg">{item.artist} — {item.album}</a>
+				{:else if shown.station}
+					<a href="/radio" class="block truncate text-[13px] text-muted hover:text-fg">{shown.subtitle}</a>
 				{:else}
-					<div class="truncate text-[13px] text-muted">{item.artist}</div>
+					<div class="truncate text-[13px] text-muted">{shown.subtitle}</div>
 				{/if}
 			</div>
 		{:else}
@@ -109,6 +119,9 @@
 			</div>
 		{:else}
 			<Transport />
+			{#if stream}
+				<OnAir station={shown?.station ?? null} compact />
+			{:else}
 			<div class="flex items-center gap-3 text-[11px] font-medium text-muted tabular-nums">
 				<span class="w-10 text-right">{clock(hub.elapsed)}</span>
 				<div class="flex-1">
@@ -116,6 +129,7 @@
 				</div>
 				<span class="w-10">{clock(hub.player.duration)}</span>
 			</div>
+			{/if}
 		{/if}
 	</div>
 

@@ -57,6 +57,7 @@ RUN apt-get update \
 		build-essential pkgconf meson ninja-build nasm xz-utils \
 		libasound2-dev libflac-dev libmpg123-dev libvorbis-dev libopus-dev libogg-dev \
 		libwavpack-dev libsoxr-dev libid3tag0-dev libsqlite3-dev zlib1g-dev libpcre2-dev libfmt-dev \
+		libcurl4-openssl-dev \
 	&& rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 # Bump a version together with its checksum below.
@@ -81,15 +82,15 @@ RUN tar -xf ffmpeg-${FFMPEG_VERSION}.tar.xz \
 	&& make install
 # Every optional feature is off unless listed. zlib reads the compressed
 # database Debian's MPD wrote; sqlite backs sticker_file; DSD (DSF/DFF, DoP)
-# is built in. No ICU or iconv: virgild doesn't use MPD's search, and the
-# filesystem charset stays UTF-8.
+# is built in; curl plays internet radio (NTS). No ICU or iconv: virgild
+# doesn't use MPD's search, and the filesystem charset stays UTF-8.
 RUN tar -xf mpd-${MPD_VERSION}.tar.xz \
 	&& cd mpd-${MPD_VERSION} \
 	&& meson setup build --prefix=/usr/local --buildtype=release -Db_ndebug=true \
 		-Dauto_features=disabled \
 		-Dalsa=enabled -Dflac=enabled -Dmpg123=enabled -Dvorbis=enabled -Dopus=enabled \
 		-Dwavpack=enabled -Dffmpeg=enabled -Did3tag=enabled -Dsoxr=enabled \
-		-Dsqlite=enabled -Dzlib=enabled -Dpcre=enabled -Dipv6=enabled \
+		-Dsqlite=enabled -Dzlib=enabled -Dpcre=enabled -Dipv6=enabled -Dcurl=enabled \
 		-Ddsd=true -Ddatabase=true -Dinotify=true -Dcue=true \
 		-Dhttpd=false -Dsnapcast=false -Drecorder=false -Dfifo=false -Dpipe=false \
 		-Dwave_encoder=false -Dneighbor=false -Dupnp=disabled -Dzeroconf=disabled \
@@ -106,7 +107,7 @@ RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
 		tini dbus-bin ca-certificates \
 		libasound2t64 libflac14 libmpg123-0t64 libvorbis0a libopus0 libogg0 libwavpack1 \
-		libsoxr0 libid3tag0 libsqlite3-0 libpcre2-8-0 libfmt10 zlib1g \
+		libsoxr0 libid3tag0 libsqlite3-0 libpcre2-8-0 libfmt10 zlib1g libcurl4t64 \
 	&& ldconfig \
 	&& mpd --version \
 	&& rm -rf /var/lib/apt/lists/*

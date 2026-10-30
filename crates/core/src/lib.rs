@@ -328,6 +328,60 @@ pub struct DesktopSettings {
     pub port: u16,
 }
 
+/// An internet radio station: one of NTS's live channels or an Infinite Mixtape.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Station {
+    /// `nts1`, `nts2`, or a mixtape's alias (`poolside`).
+    pub id: String,
+    /// "NTS 1", "Poolside".
+    pub name: String,
+    /// A mixtape's one-liner ("Balearic, boogie, and sophisti-pop…"); empty for live channels.
+    pub tagline: String,
+    /// A mixtape's longer blurb.
+    pub description: Option<String>,
+    /// The stream MPD plays.
+    pub stream: String,
+    /// Square artwork, about 800 px, and a 200 px version. A live channel's
+    /// are the show on air's.
+    pub art: Option<String>,
+    pub thumb: Option<String>,
+    /// A mixtape's icon (128 px PNG), drawn in black and in white.
+    pub icon_black: Option<String>,
+    pub icon_white: Option<String>,
+    /// Live channels: the show on air and the one after it.
+    pub now: Option<Broadcast>,
+    pub next: Option<Broadcast>,
+}
+
+/// A show on one of the live channels.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Broadcast {
+    pub title: String,
+    /// Unix time, seconds.
+    pub start: u32,
+    pub end: u32,
+    /// "London".
+    pub location: Option<String>,
+    pub description: Option<String>,
+    pub genres: Vec<String>,
+    pub art: Option<String>,
+    pub thumb: Option<String>,
+    /// The episode's page on nts.live.
+    pub url: Option<String>,
+}
+
+/// Everything the Radio tab shows.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct Radio {
+    pub live: Vec<Station>,
+    pub mixtapes: Vec<Station>,
+}
+
 /// Pushed over `/api/ws`. `hello` carries the full state; the rest replace one slice of it.
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(tag = "type", rename_all = "camelCase")]

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import '../app.css';
-	import { ListMusic, LibraryBig, LoaderCircle, MicVocal, Settings2, Shapes, WifiOff } from '@lucide/svelte';
+	import { ListMusic, LibraryBig, LoaderCircle, MicVocal, Radio as RadioIcon, Settings2, Shapes, WifiOff } from '@lucide/svelte';
 	import { onMount, type Snippet } from 'svelte';
 	import { page } from '$app/state';
 	import ContextMenu from '#lib/components/ContextMenu.svelte';
@@ -11,6 +11,7 @@
 	import { hub } from '#lib/hub.svelte.ts';
 	import { keyboard } from '#lib/keyboard.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
+	import { isStream, radio } from '#lib/radio.svelte.ts';
 	import '#lib/theme.svelte.ts';
 
 	let { children }: { children: Snippet } = $props();
@@ -18,6 +19,7 @@
 	const albums = (id: string) => id === '/' || id.startsWith('/album/');
 	const artists = (id: string) => id === '/artists' || id.startsWith('/artist/');
 	const genres = (id: string) => id === '/genres' || id.startsWith('/genre/');
+	const radioPage = { href: '/radio', label: 'Radio', icon: RadioIcon, active: (id: string) => id === '/radio' };
 	const queuePage = { href: '/queue', label: 'Queue', icon: ListMusic, active: (id: string) => id === '/queue' };
 	const settings = { href: '/settings', label: 'Settings', icon: Settings2, active: (id: string) => id === '/settings' };
 
@@ -26,12 +28,14 @@
 		{ href: '/', label: 'Albums', icon: LibraryBig, active: albums },
 		{ href: '/artists', label: 'Artists', icon: MicVocal, active: artists },
 		{ href: '/genres', label: 'Genres', icon: Shapes, active: genres },
+		radioPage,
 		queuePage,
 		settings
 	];
 	// Phones: one Library tab; its pages switch between albums, artists and genres.
 	const tabs = [
 		{ href: '/', label: 'Library', icon: LibraryBig, active: (id: string) => albums(id) || artists(id) || genres(id) },
+		radioPage,
 		queuePage,
 		settings
 	];
@@ -56,6 +60,11 @@
 
 	$effect(() => {
 		if (hub.ready) library.sync(hub.library.revision);
+	});
+
+	// A station in the queue is shown as what's on it, so fetch the stations then.
+	$effect(() => {
+		if (hub.queue.items.some((item) => isStream(item.uri))) radio.load();
 	});
 </script>
 
@@ -108,7 +117,7 @@
 
 	<!-- Stays beneath the on-screen keyboard rather than riding up with it. -->
 	<nav class="glass pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line lg:hidden" class:hidden={keyboard.height > 0}>
-		<div class="grid h-14 grid-cols-3">
+		<div class="grid h-14 grid-cols-4">
 			{#each tabs as item (item.href)}
 				{@const active = item.active(routeId)}
 				<a

@@ -65,6 +65,11 @@ export function isHiRes(f: AudioFormat | null | undefined): boolean {
 	return f.format === 'dsd' || f.format === 'f32' || f.format === 's24' || f.format === 's32' || f.rate > 48_000;
 }
 
+/** A Unix time (seconds) as a local clock time: "13:00", or "1:00 PM" where that's the custom. */
+export function hhmm(unix: number): string {
+	return new Date(unix * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
 export function artUrl(art: string | null | undefined, size: 300 | 600 = 300): string | null {
 	return art ? `/art/${art}-${size}.jpg` : null;
 }

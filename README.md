@@ -1,7 +1,8 @@
 # Virgil
 
 A headless, bit-perfect music player for a Raspberry Pi with a HiFiBerry Digi2 Pro:
-a fast web UI for your local library, plus AirPlay 2 (multi-room, no subscription).
+a fast web UI for your local library, NTS Radio's live channels and Infinite Mixtapes, plus
+AirPlay 2 (multi-room, no subscription).
 
 <p align="center">
   <picture>
@@ -30,7 +31,7 @@ share like `\\nas\Music`) in Settings.
 
 - **MPD** decodes and plays: gapless playback, per-track format switching, DoP, straight to `hw:`.
 - **virgild** owns everything else: the library index (SQLite + FTS5), artwork thumbnails, the
-  queue UI, live state over WebSocket, and who gets the DAC (local playback vs AirPlay).
+  queue UI, live state over WebSocket, what's on NTS, and who gets the DAC (local playback vs AirPlay).
 - **Web UI**: SvelteKit 3 (Svelte 5) SPA, embedded in the virgild binary. Browse by album,
   artist or genre, search songs, edit tags foobar2000-style. Light and dark mode, built for
   phones first; installable to the home screen.
@@ -50,6 +51,18 @@ decoder format with what ALSA reports the card is receiving and shows the verdic
 | **AirPlay** | AirPlay owns the DAC: synchronized across rooms, by design not bit-perfect. |
 
 Volume is never touched in software: set it on your DAC or amp.
+
+## NTS Radio
+
+The Radio tab is laid out like Atonemo's NTS Radio Player: NTS 1 and
+NTS 2 with the show on air (artwork, host location, times, what's next), and the sixteen Infinite
+Mixtapes as a grid of their icons. A station plays right after the current song, so skipping
+forward carries on with your queue; picking another station replaces it rather than piling up.
+Play/pause stops a stream and starts it again live.
+
+The schedule comes from NTS's public API through virgild, which caches it until the show on air
+ends. The streams are 256 kbps MP3: the signal path checks the last step to the DAC as always,
+but the source itself is lossy. Radio needs the Pi to reach the internet (as cover downloads do).
 
 ## AirPlay and the DAC
 
