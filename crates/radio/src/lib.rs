@@ -1,12 +1,15 @@
 //! Internet radio from NTS (nts.live): the two live channels, with what's on
 //! air from NTS's schedule, and the Infinite Mixtapes. MPD plays the streams;
-//! this crate only knows the stations and what's on.
+//! this crate knows the stations and what's on, and relays the mixtapes' AAC
+//! streams (HLS) as plain streams MPD can play.
+
+mod hls;
 
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::Context;
 use serde::Deserialize;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, mpsc};
 use tracing::warn;
 use virgil_core::{Broadcast, Radio, Station};
 
@@ -90,6 +93,7 @@ struct Mixtape {
     subtitle: String,
     description: Option<String>,
     audio_stream_endpoint: String,
+    audio_stream_endpoint_hls_aac: Option<String>,
     #[serde(default)]
     media: Media,
 }
@@ -172,6 +176,8 @@ fn parse_live(json: &str) -> anyhow::Result<Vec<Station>> {
                 tagline: String::new(),
                 description: None,
                 stream: stream.to_string(),
+                // NTS's schedule lists no AAC streams for the live channels.
+                stream_aac: None,
                 art: now.as_ref().and_then(|b| b.art.clone()),
                 thumb: now.as_ref().and_then(|b| b.thumb.clone()),
                 icon_black: None,
@@ -195,6 +201,7 @@ fn parse_mixtapes(json: &str) -> anyhow::Result<Vec<Station>> {
             tagline: m.subtitle.trim().to_string(),
             description: text(m.description),
             stream: m.audio_stream_endpoint,
+            stream_aac: text(m.audio_stream_endpoint_hls_aac),
             art: text(m.media.picture_medium_large),
             thumb: text(m.media.picture_small),
             icon_black: text(m.media.icon_black),
@@ -258,6 +265,12 @@ impl Nts {
     pub async fn station(&self, id: &str) -> anyhow::Result<Option<Station>> {
         let radio = self.radio().await?;
         Ok(radio.live.into_iter().chain(radio.mixtapes).find(|s| s.id == id))
+    }
+
+    /// The HLS stream at `playlist` (a station's `stream_aac`) as one ADTS
+    /// stream, chunk by chunk, until the receiver is dropped.
+    pub fn relay_aac(&self, playlist: &str) -> mpsc::Receiver<Vec<u8>> {
+        hls::relay(self.http.clone(), playlist.to_string())
     }
 
     async fn cached(
@@ -332,6 +345,7 @@ mod tests {
 
         let nts1 = &live[0];
         assert_eq!((nts1.name.as_str(), nts1.stream.as_str()), ("NTS 1", CHANNELS[0].2));
+        assert_eq!(nts1.stream_aac, None);
         let now = nts1.now.as_ref().unwrap();
         assert_eq!(now.title, "Soup To Nuts w/ Manara");
         assert_eq!((now.start, now.end), (1_793_358_000, 1_793_365_200));
@@ -363,6 +377,7 @@ mod tests {
             r#"{"metadata": {}, "results": [
                 {"mixtape_alias": "poolside", "title": "Poolside", "subtitle": "Balearic, boogie, and sophisti-pop.",
                  "description": "Whisk yourself away.", "audio_stream_endpoint": "https://stream-mixtape-geo.ntslive.net/mixtape4",
+                 "audio_stream_endpoint_hls_aac": "https://streams.radiomast.io/e7bc1d1a/hls.m3u8",
                  "credits": [], "now_playing_topic": "",
                  "media": {"icon_black": "https://media/poolside-black.png", "icon_white": "https://media/poolside-white.png",
                            "picture_medium_large": "https://media/poolside-800.jpeg"}},
@@ -375,6 +390,8 @@ mod tests {
         assert_eq!((poolside.id.as_str(), poolside.name.as_str()), ("poolside", "Poolside"));
         assert_eq!(poolside.stream, "https://stream-mixtape-geo.ntslive.net/mixtape4");
         assert_eq!(poolside.icon_white.as_deref(), Some("https://media/poolside-white.png"));
+        assert_eq!(poolside.stream_aac.as_deref(), Some("https://streams.radiomast.io/e7bc1d1a/hls.m3u8"));
+        assert_eq!(mixtapes[1].stream_aac, None);
         assert_eq!(mixtapes[1].tagline, "");
         assert_eq!(mixtapes[1].art, None);
     }

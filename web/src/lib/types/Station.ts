@@ -22,9 +22,14 @@ tagline: string,
  */
 description: string | null, 
 /**
- * The stream MPD plays.
+ * The MP3 stream (256 kbps).
  */
 stream: string, 
+/**
+ * The same as AAC (256 kbps): NTS's HLS playlist. MPD can't play HLS,
+ * so virgild relays it as one stream and MPD plays that instead.
+ */
+streamAac: string | null, 
 /**
  * Square artwork, about 800 px, and a 200 px version. A live channel's
  * are the show on air's.

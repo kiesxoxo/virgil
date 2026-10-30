@@ -341,8 +341,11 @@ pub struct Station {
     pub tagline: String,
     /// A mixtape's longer blurb.
     pub description: Option<String>,
-    /// The stream MPD plays.
+    /// The MP3 stream (256 kbps).
     pub stream: String,
+    /// The same as AAC (256 kbps): NTS's HLS playlist. MPD can't play HLS,
+    /// so virgild relays it as one stream and MPD plays that instead.
+    pub stream_aac: Option<String>,
     /// Square artwork, about 800 px, and a 200 px version. A live channel's
     /// are the show on air's.
     pub art: Option<String>,

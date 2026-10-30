@@ -9,6 +9,9 @@ import type { Station } from './types/Station.ts';
 /** An internet stream rather than a file from the library. */
 export const isStream = (uri: string) => /^https?:\/\//.test(uri);
 
+/** virgild's relay of a mixtape's AAC stream, as MPD plays it: `http://127.0.0.1/api/radio/poolside/aac`. */
+const RELAY = /\/api\/radio\/([^/]+)\/aac$/;
+
 /** A queue item as lists, the player bar and Now Playing show it. */
 export interface Shown {
 	title: string;
@@ -32,13 +35,16 @@ class RadioStore {
 	/** Unix seconds, ticking every few seconds so show progress moves. */
 	now = $state(Math.floor(Date.now() / 1000));
 
-	#byStream = $derived(new Map(this.data ? [...this.data.live, ...this.data.mixtapes].map((s) => [s.stream, s]) : []));
+	#stations = $derived(this.data ? [...this.data.live, ...this.data.mixtapes] : []);
+	#byStream = $derived(new Map(this.#stations.map((s) => [s.stream, s])));
 	#loading: Promise<void> | null = null;
 	#refresh: ReturnType<typeof setTimeout> | undefined;
 	#ticker: ReturnType<typeof setInterval> | undefined;
 
+	/** The station playing at `uri`: its MP3 stream, or virgild's relay of its AAC one. */
 	station(uri: string): Station | undefined {
-		return this.#byStream.get(uri);
+		const relayed = RELAY.exec(uri)?.[1];
+		return relayed ? this.#stations.find((s) => s.id === decodeURIComponent(relayed)) : this.#byStream.get(uri);
 	}
 
 	/** Fetches the stations once (later calls reuse them, or retry after a failure). */

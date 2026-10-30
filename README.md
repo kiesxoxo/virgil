@@ -61,8 +61,11 @@ forward carries on with your queue; picking another station replaces it rather t
 Play/pause stops a stream and starts it again live.
 
 The schedule comes from NTS's public API through virgild, which caches it until the show on air
-ends. The streams are 256 kbps MP3: the signal path checks the last step to the DAC as always,
-but the source itself is lossy. Radio needs the Pi to reach the internet (as cover downloads do).
+ends. NTS 1 and NTS 2 play NTS's 256 kbps MP3 streams. The mixtapes play as 256 kbps AAC: NTS
+serves those as HLS, which MPD can't play, so virgild fetches the chunks (over HTTPS, certificates
+checked) and hands MPD one continuous AAC stream on `127.0.0.1`. Either way the source is lossy; the
+signal path still checks the last step to the DAC. Radio needs the Pi to reach the internet (as
+cover downloads do).
 
 ## AirPlay and the DAC
 

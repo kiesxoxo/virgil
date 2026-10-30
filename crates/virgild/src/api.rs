@@ -1,4 +1,4 @@
-use axum::body::Bytes;
+use axum::body::{Body, Bytes};
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
@@ -99,6 +99,7 @@ pub fn router(app: App) -> Router {
         .route("/api/library/art/download-missing", post(download_missing_art))
         .route("/api/radio", get(radio))
         .route("/api/radio/{id}/play", post(play_station))
+        .route("/api/radio/{id}/aac", get(aac_stream))
         .route("/api/outputs/{id}/select", post(select_output))
         .route("/api/restart", post(restart))
         .route("/api/desktop", get(desktop_settings).post(save_desktop_settings))
@@ -287,8 +288,28 @@ async fn radio(State(app): State<App>) -> ApiResult<Json<Radio>> {
 async fn play_station(State(app): State<App>, Path(id): Path<String>) -> ApiResult {
     let station = app.radio.station(&id).await.map_err(|e| ApiError::bad_gateway(format!("{e:#}")))?;
     let station = station.ok_or_else(|| ApiError::not_found("no such station"))?;
-    app.play_stream(&station.stream).await?;
+    // AAC when there is any (the mixtapes), through this server's relay; else MP3.
+    let uri = match station.stream_aac {
+        Some(_) => format!("http://127.0.0.1:{}/api/radio/{}/aac", app.config.listen.port(), station.id),
+        None => station.stream,
+    };
+    app.play_stream(&uri).await?;
     Ok(DONE)
+}
+
+/// A station's AAC stream for MPD: NTS serves it as HLS, which MPD can't
+/// play, so its chunks are joined into one ADTS stream here.
+async fn aac_stream(State(app): State<App>, Path(id): Path<String>) -> ApiResult<Response> {
+    let station = app.radio.station(&id).await.map_err(|e| ApiError::bad_gateway(format!("{e:#}")))?;
+    let Some(playlist) = station.and_then(|s| s.stream_aac) else {
+        return Err(ApiError::not_found("no AAC stream for this station"));
+    };
+    let chunks = app.radio.relay_aac(&playlist);
+    let body = Body::from_stream(futures_util::stream::unfold(chunks, |mut chunks| async move {
+        let chunk = chunks.recv().await?;
+        Some((Ok::<_, std::convert::Infallible>(Bytes::from(chunk)), chunks))
+    }));
+    Ok(([(header::CONTENT_TYPE, "audio/aac"), (header::CACHE_CONTROL, "no-store")], body).into_response())
 }
 
 async fn select_output(State(app): State<App>, Path(id): Path<u32>) -> ApiResult {
