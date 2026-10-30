@@ -91,7 +91,7 @@ jobs:
           version=$(docker run --rm --entrypoint mpd "$REF" --version)
           echo "$version"
           for want in '\[flac\]' '\[mpg123\]' '\[vorbis\]' '\[opus\]' '\[wavpack\]' '\[dsf\]' '\[dsdiff\]' \
-            '\[ffmpeg\].* m4a ' '\[ffmpeg\].* wav' '^ soxr$' ' alsa$' ' curl' 'https://'; do
+            '\[ffmpeg\].* m4a ' '\[ffmpeg\].* mp3 ' '\[ffmpeg\].* wav' '^ soxr$' ' alsa$' ' curl' 'https://'; do
             grep -q "$want" <<< "$version" || { echo "::error::mpd --version lacks $want"; exit 1; }
           done
 

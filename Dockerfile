@@ -68,16 +68,17 @@ ADD --checksum=sha256:7138d28c96d9d3e3af4ee3d8cad72741f8ffb40da90c1112235dea3ecd
 ADD --checksum=sha256:524c70bce3fcd268016156bdc97abcf5be1904f0c6fd622688999123e3c4c457 \
 	https://www.musicpd.org/download/mpd/0.24/mpd-${MPD_VERSION}.tar.xz ./
 # FFmpeg only for the formats MPD has no native decoder for: AAC and ALAC
-# (.m4a), WAV/AIFF, APE and TTA. No filters, no resampler, no network.
+# (.m4a), WAV/AIFF, APE and TTA, and MP3 streams (radio: MPD's mpg123
+# plugin reads files only). No filters, no resampler, no network.
 RUN tar -xf ffmpeg-${FFMPEG_VERSION}.tar.xz \
 	&& cd ffmpeg-${FFMPEG_VERSION} \
 	&& ./configure --prefix=/usr/local \
 		--enable-shared --disable-static \
 		--disable-everything --disable-autodetect --disable-programs --disable-doc \
 		--disable-network --disable-avdevice --disable-avfilter --disable-swscale --disable-swresample \
-		--enable-demuxer=mov,aac,wav,w64,aiff,ape,tta \
-		--enable-decoder=aac,alac,ape,tta,pcm_s16le,pcm_s16be,pcm_s24le,pcm_s24be,pcm_s32le,pcm_s32be,pcm_f32le,pcm_f32be,pcm_f64le,pcm_f64be,pcm_u8,pcm_s8 \
-		--enable-parser=aac \
+		--enable-demuxer=mov,aac,wav,w64,aiff,ape,tta,mp3 \
+		--enable-decoder=aac,alac,ape,tta,mp3float,pcm_s16le,pcm_s16be,pcm_s24le,pcm_s24be,pcm_s32le,pcm_s32be,pcm_f32le,pcm_f32be,pcm_f64le,pcm_f64be,pcm_u8,pcm_s8 \
+		--enable-parser=aac,mpegaudio \
 	&& make -j"$(nproc)" \
 	&& make install
 # Every optional feature is off unless listed. zlib reads the compressed
