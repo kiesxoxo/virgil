@@ -6,6 +6,7 @@ mod app;
 mod config;
 mod ctl;
 mod desktop;
+mod online;
 mod signal;
 mod sync;
 mod tags;

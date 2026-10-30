@@ -3,9 +3,13 @@
 		CaseLower,
 		CaseSensitive,
 		CaseUpper,
+		Check,
 		Eraser,
+		ExternalLink,
 		FileText,
+		Globe,
 		Hash,
+		Search,
 		LoaderCircle,
 		Pencil,
 		Plus,
@@ -66,6 +70,7 @@
 	function tools(button: HTMLElement) {
 		menu.show(
 			[
+				{ label: 'Look up online…', icon: Globe, run: () => editor.openLookup() },
 				{ label: 'Auto track number', icon: Hash, run: () => editor.autoNumber() },
 				{ label: 'Fill from file names…', icon: FileText, run: () => (pattern ??= '%tracknumber% - %title%') }
 			],
@@ -214,6 +219,117 @@
 				{/if}
 
 				{#if tab === 'metadata' && count}
+					{#if editor.lookup}
+						{@const lookup = editor.lookup}
+						<section class="mb-3 rounded-2xl bg-surface p-3" transition:fly={{ y: -8, duration: 150 }}>
+							<div class="flex items-center justify-between">
+								<h3 class="text-sm font-semibold">Look up online</h3>
+								<button type="button" class="grid size-8 place-items-center rounded-full text-muted hover:bg-fg/6" aria-label="Close" onclick={() => (editor.lookup = null)}>
+									<X class="size-4" />
+								</button>
+							</div>
+							<form
+								class="mt-2 flex gap-2 max-sm:flex-col"
+								onsubmit={(e) => {
+									e.preventDefault();
+									editor.search();
+								}}
+							>
+								<input
+									class="h-10 min-w-0 flex-1 rounded-xl bg-bg px-3 text-base ring-1 ring-line outline-none focus:ring-2 focus:ring-accent sm:text-sm"
+									placeholder="Artist"
+									aria-label="Artist"
+									bind:value={lookup.artist}
+									spellcheck="false"
+									autocomplete="off"
+								/>
+								<input
+									class="h-10 min-w-0 flex-1 rounded-xl bg-bg px-3 text-base ring-1 ring-line outline-none focus:ring-2 focus:ring-accent sm:text-sm"
+									placeholder="Album"
+									aria-label="Album"
+									bind:value={lookup.album}
+									spellcheck="false"
+									autocomplete="off"
+								/>
+								<button
+									type="submit"
+									class="press inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-fg px-4 text-[13px] font-semibold text-bg disabled:opacity-40"
+									disabled={lookup.searching || !lookup.album.trim()}
+								>
+									{#if lookup.searching}<LoaderCircle class="size-4 animate-spin" />{:else}<Search class="size-4" />{/if}
+									Search
+								</button>
+							</form>
+							{#if lookup.results}
+								{#each lookup.results.errors as error (error)}
+									<p class="mt-2 text-xs text-warn">{error}</p>
+								{/each}
+								{#if lookup.results.candidates.length}
+									<ul class="mt-2.5 max-h-80 space-y-1 overflow-y-auto">
+										{#each lookup.results.candidates as candidate (candidate.source + candidate.id)}
+											{@const fits = candidate.tracks === count}
+											<li class="flex items-center gap-1 rounded-xl bg-bg">
+												<button
+													type="button"
+													class="press flex min-w-0 flex-1 items-center gap-3 px-3 py-2 text-left disabled:opacity-60"
+													disabled={lookup.applying !== null}
+													onclick={() => editor.apply(candidate)}
+												>
+													<span
+														class="w-12 shrink-0 rounded-md py-0.5 text-center text-[10px] font-bold tracking-wide uppercase {candidate.source === 'discogs'
+															? 'bg-fg/8 text-fg'
+															: 'bg-accent/12 text-accent'}"
+													>
+														{candidate.source === 'discogs' ? 'Discogs' : 'MB'}
+													</span>
+													<span class="min-w-0 flex-1">
+														<span class="block truncate text-sm font-medium">{candidate.title}</span>
+														<span class="block truncate text-xs text-muted">
+															{[candidate.artist, candidate.year, candidate.country, [candidate.label, candidate.catno].filter(Boolean).join(' '), candidate.format]
+																.filter(Boolean)
+																.join(' · ')}
+														</span>
+													</span>
+													{#if lookup.applying === candidate.id}
+														<LoaderCircle class="size-4 shrink-0 animate-spin text-muted" />
+													{:else if candidate.tracks !== null}
+														<span class="inline-flex shrink-0 items-center gap-1 text-xs tabular-nums {fits ? 'font-semibold text-good' : 'text-muted'}" title="{candidate.tracks} tracks">
+															{#if fits}<Check class="size-3.5" />{/if}{candidate.tracks}
+														</span>
+													{/if}
+												</button>
+												<a
+													href={candidate.url}
+													target="_blank"
+													rel="noopener"
+													class="grid size-9 shrink-0 place-items-center rounded-full text-muted hover:bg-fg/6 hover:text-fg"
+													aria-label="Open on {candidate.source === 'discogs' ? 'Discogs' : 'MusicBrainz'}"
+												>
+													<ExternalLink class="size-3.5" />
+												</a>
+											</li>
+										{/each}
+									</ul>
+									<p class="mt-2 text-xs text-muted">Pick the release: the fields fill in for you to check. Nothing is saved until you press Save.</p>
+								{:else}
+									<p class="mt-2.5 text-sm text-muted">Nothing found. Try fewer words, or check the spelling.</p>
+								{/if}
+							{/if}
+						</section>
+					{/if}
+
+					{#if editor.warnings.length}
+						<div class="mb-3 flex gap-2.5 rounded-2xl bg-warn-bg px-4 py-3 text-[13px] text-warn">
+							<TriangleAlert class="mt-0.5 size-4 shrink-0" />
+							<div class="min-w-0 flex-1">
+								{#each editor.warnings as warning (warning)}<p>{warning}</p>{/each}
+							</div>
+							<button type="button" class="-my-1 -mr-2 grid size-7 shrink-0 place-items-center rounded-full hover:bg-fg/6" aria-label="Dismiss" onclick={() => (editor.warnings = [])}>
+								<X class="size-3.5" />
+							</button>
+						</div>
+					{/if}
+
 					{#if pattern !== null}
 						<section class="mb-3 rounded-2xl bg-surface p-3" transition:fly={{ y: -8, duration: 150 }}>
 							<div class="flex items-center justify-between">

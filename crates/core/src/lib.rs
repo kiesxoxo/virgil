@@ -385,6 +385,102 @@ pub struct Radio {
     pub mixtapes: Vec<Station>,
 }
 
+/// An online database the tag editor can fill tags from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum LookupSource {
+    Musicbrainz,
+    Discogs,
+}
+
+/// What to look for: the album as the editor has it.
+#[derive(Debug, Clone, Deserialize, TS)]
+#[ts(export)]
+pub struct LookupQuery {
+    pub artist: String,
+    pub album: String,
+}
+
+/// A release that might be the album, as the search lists it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct LookupCandidate {
+    pub source: LookupSource,
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+    pub year: Option<String>,
+    pub country: Option<String>,
+    pub label: Option<String>,
+    pub catno: Option<String>,
+    /// "CD", "2×Vinyl", "Digital Media"…
+    pub format: Option<String>,
+    /// Number of tracks, when the search says (MusicBrainz does, Discogs doesn't).
+    pub tracks: Option<u32>,
+    /// The release's page on musicbrainz.org or discogs.com.
+    pub url: String,
+}
+
+/// Candidates from every source; a source that failed is named in `errors`
+/// rather than hiding the others' results.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct LookupResults {
+    pub candidates: Vec<LookupCandidate>,
+    pub errors: Vec<String>,
+}
+
+/// A release's tags, ready to fill the editor with.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct LookupRelease {
+    pub source: LookupSource,
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+    /// As precise as the source has it: "2007", "2007-11", "2007-11-05".
+    pub date: Option<String>,
+    /// When the music first came out, if this release is a later edition.
+    pub original_date: Option<String>,
+    /// Most fitting first.
+    pub genres: Vec<String>,
+    pub tracks: Vec<LookupTrack>,
+    pub url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct LookupTrack {
+    /// 1-based.
+    pub disc: u32,
+    /// 1-based, within the disc.
+    pub number: u32,
+    pub title: String,
+    pub artist: String,
+    /// Seconds.
+    pub duration: Option<f64>,
+}
+
+/// Online services as Settings shows them. The Discogs token itself never
+/// leaves the server.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct OnlineSettings {
+    /// A personal Discogs token is set (searches are allowed more often).
+    pub discogs_token: bool,
+}
+
+/// Sets the Discogs token; an empty one removes it.
+#[derive(Debug, Clone, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct OnlineSettingsUpdate {
+    pub discogs_token: String,
+}
+
 /// Pushed over `/api/ws`. `hello` carries the full state; the rest replace one slice of it.
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(tag = "type", rename_all = "camelCase")]

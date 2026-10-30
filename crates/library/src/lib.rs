@@ -5,6 +5,7 @@
 mod art;
 mod db;
 mod group;
+mod lookup;
 mod online;
 
 use std::io::Write;

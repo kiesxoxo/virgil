@@ -8,14 +8,27 @@ import {
 	changed,
 	edits,
 	fillFromName,
+	fromRelease,
 	newRow,
 	recase,
+	shared,
 	validName,
 	type Case,
 	type Row
 } from './tagedit.ts';
 import { toasts } from './toast.svelte.ts';
+import type { LookupCandidate } from './types/LookupCandidate.ts';
+import type { LookupResults } from './types/LookupResults.ts';
 import type { TaggedFile } from './types/TaggedFile.ts';
+
+interface Lookup {
+	artist: string;
+	album: string;
+	results: LookupResults | null;
+	searching: boolean;
+	/** The candidate whose release is being fetched. */
+	applying: string | null;
+}
 
 class TagEditor {
 	open = $state(false);
@@ -28,6 +41,10 @@ class TagEditor {
 	/** Files that can't be read, with why. */
 	unreadable = $state.raw<TaggedFile[]>([]);
 	rows = $state<Row[]>([]);
+	/** The online lookup panel, while open. */
+	lookup = $state<Lookup | null>(null);
+	/** What to check after filling from a release. */
+	warnings = $state<string[]>([]);
 
 	dirty = $derived(this.rows.some(changed));
 	/** Why saving isn't possible right now, if it isn't. */
@@ -51,6 +68,8 @@ class TagEditor {
 		this.files = [];
 		this.unreadable = [];
 		this.rows = [];
+		this.lookup = null;
+		this.warnings = [];
 		try {
 			const all = await api.readTags(await uris);
 			if (request !== this.#request) return;
@@ -115,6 +134,61 @@ class TagEditor {
 			for (const [name, value] of Object.entries(values)) this.field(name).text[i] = value;
 		});
 		return matched;
+	}
+
+	/** Opens the lookup panel, searching for the album as the editor has it. */
+	openLookup() {
+		const value = (name: string) => {
+			const row = this.rows.find((r) => r.name.toUpperCase() === name && !r.removed);
+			return row ? (shared(row) ?? '') : '';
+		};
+		this.lookup = {
+			artist: value('ALBUM ARTIST') || value('ARTIST'),
+			album: value('ALBUM') || this.title,
+			results: null,
+			searching: false,
+			applying: null
+		};
+		void this.search();
+	}
+
+	async search() {
+		const lookup = this.lookup;
+		if (!lookup || !lookup.album.trim()) return;
+		lookup.searching = true;
+		try {
+			const results = await api.lookupSearch({ artist: lookup.artist, album: lookup.album });
+			// Releases with as many tracks as there are files first; the rest keep their order.
+			const fits = (c: LookupCandidate) => (c.tracks === this.files.length ? 0 : 1);
+			results.candidates = results.candidates.toSorted((a, b) => fits(a) - fits(b));
+			if (this.lookup === lookup) lookup.results = results;
+		} catch {
+			// Shown as a toast.
+		} finally {
+			lookup.searching = false;
+		}
+	}
+
+	/** Fills the fields from a release; nothing is written until Save. */
+	async apply(candidate: LookupCandidate) {
+		const lookup = this.lookup;
+		if (!lookup) return;
+		lookup.applying = candidate.id;
+		try {
+			const release = await api.lookupRelease(candidate.source, candidate.id);
+			const { fields, warnings } = fromRelease(this.files, release);
+			for (const [name, values] of fields) {
+				const row = this.field(name);
+				values.forEach((text, i) => {
+					if (text !== null) row.text[i] = text;
+				});
+			}
+			this.warnings = warnings;
+			this.lookup = null;
+			toasts.done(`Filled from ${candidate.source === 'discogs' ? 'Discogs' : 'MusicBrainz'}: review, then Save`);
+		} catch {
+			lookup.applying = null;
+		}
 	}
 
 	async save() {

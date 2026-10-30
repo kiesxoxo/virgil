@@ -5,7 +5,9 @@
 	import { api } from '#lib/api.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { theme, type ThemeMode } from '#lib/theme.svelte.ts';
+	import { toasts } from '#lib/toast.svelte.ts';
 	import type { DesktopSettings } from '#lib/types/DesktopSettings.ts';
+	import type { OnlineSettings } from '#lib/types/OnlineSettings.ts';
 
 	// Desktop mode (Virgil.exe on a PC): Virgil's own settings, and a way to quit.
 	let desktop = $state<DesktopSettings | null>(null);
@@ -92,6 +94,31 @@
 	});
 
 	let airplay = $derived(hub.source.available.includes('airplay'));
+	let online = $state<OnlineSettings | null>(null);
+	let discogsToken = $state('');
+	let savingToken = $state(false);
+
+	onMount(() => {
+		api.onlineSettings().then(
+			(settings) => (online = settings),
+			() => {}
+		);
+	});
+
+	/** Saves the Discogs token; an empty one removes it. The token never comes back from the server. */
+	async function saveDiscogs(token: string) {
+		savingToken = true;
+		try {
+			online = await api.saveOnlineSettings({ discogsToken: token });
+			discogsToken = '';
+			toasts.done(token ? 'Discogs token saved' : 'Discogs token removed');
+		} catch {
+			// Shown as a toast.
+		} finally {
+			savingToken = false;
+		}
+	}
+
 	let download = $derived(hub.library.artDownload);
 	let downloading = $derived(!!download && !download.error && download.done < download.total);
 </script>
@@ -246,6 +273,53 @@
 		</button>
 	</div>
 	</div>
+
+	{@render section('Online services')}
+	<form
+		class="rounded-2xl bg-surface px-4 py-3.5"
+		onsubmit={(e) => {
+			e.preventDefault();
+			saveDiscogs(discogsToken);
+		}}
+	>
+		<label for="discogs-token" class="text-sm font-medium">Discogs token</label>
+		<p class="mt-0.5 text-xs text-muted">
+			Optional. The tag editor's "Look up online" searches MusicBrainz and Discogs; a personal token lets it search Discogs more
+			often. Create one at
+			<a href="https://www.discogs.com/settings/developers" target="_blank" rel="noopener" class="underline hover:text-fg">discogs.com/settings/developers</a>.
+		</p>
+		<div class="mt-2 flex gap-2">
+			<input
+				id="discogs-token"
+				type="password"
+				class="h-9 min-w-0 flex-1 rounded-xl bg-bg px-3 text-base ring-1 ring-line outline-none focus:ring-2 focus:ring-accent sm:text-sm"
+				placeholder={online?.discogsToken ? 'Saved; enter a new one to replace it' : 'Paste your token'}
+				bind:value={discogsToken}
+				autocomplete="off"
+				spellcheck="false"
+			/>
+			<button
+				type="submit"
+				class="press h-9 shrink-0 rounded-full bg-fg px-4 text-[13px] font-semibold text-bg disabled:opacity-40"
+				disabled={savingToken || !discogsToken.trim()}
+			>
+				Save
+			</button>
+			{#if online?.discogsToken}
+				<button
+					type="button"
+					class="press h-9 shrink-0 rounded-full bg-bg px-4 text-[13px] font-semibold ring-1 ring-line disabled:opacity-40"
+					disabled={savingToken}
+					onclick={() => saveDiscogs('')}
+				>
+					Remove
+				</button>
+			{/if}
+		</div>
+		{#if online?.discogsToken}
+			<p class="mt-2 flex items-center gap-1.5 text-xs text-good"><Check class="size-3.5" /> A token is set</p>
+		{/if}
+	</form>
 
 	{#if desktop}
 		{@render section('This computer')}

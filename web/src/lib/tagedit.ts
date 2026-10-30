@@ -1,6 +1,8 @@
 // The tag editor's logic, modelled on foobar2000's Properties dialog. Kept
 // free of Svelte so it can be tested on its own (tagedit.test.ts).
 
+import type { LookupRelease } from './types/LookupRelease.ts';
+import type { LookupTrack } from './types/LookupTrack.ts';
 import type { TagEdit } from './types/TagEdit.ts';
 import type { TaggedFile } from './types/TaggedFile.ts';
 
@@ -225,4 +227,70 @@ export function fillFromName(pattern: string, uri: string): Record<string, strin
 		if (!name.startsWith('_')) out[name] = match[i + 1].trim();
 	});
 	return out;
+}
+
+// --- Online lookup -------------------------------------------------------
+
+/** What a looked-up release fills in: per field, the text for each file, or null to leave that file's value. */
+export interface ReleaseFill {
+	fields: [string, (string | null)[]][];
+	/** Reasons to check the release is the right one before saving. */
+	warnings: string[];
+}
+
+/** Seconds two lengths may differ by and still be the same recording. */
+const SAME_LENGTH = 3;
+
+/** A file's number field ("3", "03", "3/12"), or null. */
+function numberOf(file: TaggedFile, names: string[]): number | null {
+	const value = file.fields.find((f) => names.includes(upper(f.name)))?.values[0] ?? '';
+	const n = parseInt(value, 10);
+	return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
+ * The fields a release sets. Tracks go to files by disc and track number
+ * when every file has a number the release lists, else in album order.
+ * Album-wide fields go to every file; track fields only to matched files.
+ */
+export function fromRelease(files: TaggedFile[], release: LookupRelease): ReleaseFill {
+	const tracks = release.tracks;
+	const numbered = files.map((file) => {
+		const number = numberOf(file, ['TRACKNUMBER', 'TRACK']);
+		const disc = numberOf(file, ['DISCNUMBER', 'DISC']) ?? 1;
+		return number === null ? undefined : tracks.find((t) => t.disc === disc && t.number === number);
+	});
+	const byNumber = numbered.every(Boolean) && new Set(numbered).size === files.length;
+	const matched: (LookupTrack | undefined)[] = byNumber ? numbered : files.map((_, i) => tracks[i]);
+
+	const discs = new Set(tracks.map((t) => t.disc)).size;
+	const onDisc = (disc: number) => tracks.filter((t) => t.disc === disc).length;
+	const all = (text: string) => files.map(() => text);
+	const each = (text: (t: LookupTrack) => string) => matched.map((t) => (t ? text(t) : null));
+
+	const fields: [string, (string | null)[]][] = [];
+	if (release.title) fields.push(['ALBUM', all(release.title)]);
+	if (release.artist) fields.push(['ALBUM ARTIST', all(release.artist)]);
+	fields.push(['ARTIST', each((t) => t.artist)], ['TITLE', each((t) => t.title)]);
+	if (release.date) fields.push(['DATE', all(release.date)]);
+	if (release.originalDate && release.originalDate !== release.date) fields.push(['ORIGINALDATE', all(release.originalDate)]);
+	if (release.genres.length) fields.push(['GENRE', all(release.genres.join(SEPARATOR))]);
+	fields.push(
+		['TRACKNUMBER', each((t) => String(t.number).padStart(onDisc(t.disc) >= 10 ? 2 : 1, '0'))],
+		['TOTALTRACKS', each((t) => String(onDisc(t.disc)))]
+	);
+	if (discs > 1) fields.push(['DISCNUMBER', each((t) => String(t.disc))], ['TOTALDISCS', all(String(discs))]);
+
+	const warnings: string[] = [];
+	if (tracks.length !== files.length) {
+		warnings.push(`The release has ${tracks.length} tracks for ${files.length} ${files.length === 1 ? 'file' : 'files'}: check they line up.`);
+	}
+	const off = matched.filter((t, i) => {
+		const length = files[i].info?.duration;
+		return t?.duration != null && length != null && Math.abs(t.duration - length) > SAME_LENGTH;
+	}).length;
+	if (off) {
+		warnings.push(`${off} ${off === 1 ? 'track differs' : 'tracks differ'} in length by more than ${SAME_LENGTH} seconds: is this the right release?`);
+	}
+	return { fields, warnings };
 }

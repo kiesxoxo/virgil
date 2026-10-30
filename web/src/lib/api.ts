@@ -4,7 +4,13 @@ import type { Album } from './types/Album.ts';
 import type { ArtOutcome } from './types/ArtOutcome.ts';
 import type { AlbumDetail } from './types/AlbumDetail.ts';
 import type { DesktopSettings } from './types/DesktopSettings.ts';
+import type { LookupQuery } from './types/LookupQuery.ts';
+import type { LookupRelease } from './types/LookupRelease.ts';
+import type { LookupResults } from './types/LookupResults.ts';
+import type { LookupSource } from './types/LookupSource.ts';
 import type { ModesRequest } from './types/ModesRequest.ts';
+import type { OnlineSettings } from './types/OnlineSettings.ts';
+import type { OnlineSettingsUpdate } from './types/OnlineSettingsUpdate.ts';
 import type { SearchResults } from './types/SearchResults.ts';
 import type { TagEdit } from './types/TagEdit.ts';
 import type { TaggedFile } from './types/TaggedFile.ts';
@@ -74,6 +80,14 @@ export const api = {
 		call('POST', `/api/library/albums/${encodeURIComponent(id)}/art`).then((r) => r.json() as Promise<ArtOutcome>),
 	downloadMissingArt: () => post('/api/library/art/download-missing'),
 	uploadArt: (id: string, image: Blob) => call('POST', `/api/library/albums/${encodeURIComponent(id)}/art/upload`, image),
+
+	/** Releases that might be the album, from MusicBrainz and Discogs. */
+	lookupSearch: (query: LookupQuery) => call('POST', '/api/lookup/search', query).then((r) => r.json() as Promise<LookupResults>),
+	lookupRelease: (source: LookupSource, id: string) =>
+		get<LookupRelease>(`/api/lookup/${source}/${encodeURIComponent(id)}`),
+	onlineSettings: () => get<OnlineSettings>('/api/settings/online'),
+	saveOnlineSettings: (update: OnlineSettingsUpdate) =>
+		call('POST', '/api/settings/online', update).then((r) => r.json() as Promise<OnlineSettings>),
 
 	/** Plays an NTS station right after the current song (the queue carries on after it). */
 	playStation: (id: string) => post(`/api/radio/${encodeURIComponent(id)}/play`),

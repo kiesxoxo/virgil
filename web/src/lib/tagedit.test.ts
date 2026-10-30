@@ -2,7 +2,8 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { autoNumber, buildRows, edits, fillFromName, newRow, recase, shared, type Row } from './tagedit.ts';
+import { autoNumber, buildRows, edits, fillFromName, fromRelease, newRow, recase, shared, type Row } from './tagedit.ts';
+import type { LookupRelease } from './types/LookupRelease.ts';
 import type { TaggedFile } from './types/TaggedFile.ts';
 
 const file = (uri: string, fields: Record<string, string[]>): TaggedFile => ({
@@ -101,4 +102,73 @@ test('fillFromName', () => {
 	});
 	assert.deepEqual(fillFromName('%_% - %title%', 'x/Artist - Song.mp3'), { TITLE: 'Song' });
 	assert.equal(fillFromName('%tracknumber% - %title%', 'x/NoDash.flac'), null);
+});
+
+const release = (tracks: [number, number, string, number | null][], extra: Partial<LookupRelease> = {}): LookupRelease => ({
+	source: 'musicbrainz',
+	id: 'x',
+	title: 'Untrue',
+	artist: 'Burial',
+	date: '2007-11-05',
+	originalDate: null,
+	genres: ['Dubstep', 'Future Garage'],
+	url: 'https://musicbrainz.org/release/x',
+	tracks: tracks.map(([disc, number, title, duration]) => ({ disc, number, title, artist: 'Burial', duration })),
+	...extra
+});
+const timed = (uri: string, fields: Record<string, string[]>, duration: number): TaggedFile => ({
+	...file(uri, fields),
+	info: { codec: 'FLAC', tagType: 'Vorbis comments', sampleRate: 44100, bits: 16, channels: 2, duration, bitrate: null, size: 1 }
+});
+const fill = (f: ReturnType<typeof fromRelease>, name: string) => f.fields.find(([n]) => n === name)?.[1];
+
+test('release: by track number when every file has one, album fields everywhere', () => {
+	const album = [timed('u/b.flac', { TRACKNUMBER: ['2'] }, 238), timed('u/a.flac', { TRACKNUMBER: ['01/13'] }, 50)];
+	const f = fromRelease(album, release([[1, 1, '[untitled]', 50], [1, 2, 'Archangel', 238.2]]));
+	assert.deepEqual(fill(f, 'TITLE'), ['Archangel', '[untitled]']);
+	assert.deepEqual(fill(f, 'ALBUM ARTIST'), ['Burial', 'Burial']);
+	assert.deepEqual(fill(f, 'GENRE'), ['Dubstep; Future Garage', 'Dubstep; Future Garage']);
+	assert.deepEqual(fill(f, 'TOTALTRACKS'), ['2', '2']);
+	assert.equal(fill(f, 'DISCNUMBER'), undefined, 'single disc: no disc fields');
+	assert.equal(fill(f, 'ORIGINALDATE'), undefined, 'same as the date');
+	assert.deepEqual(f.warnings, []);
+});
+
+test('release: in album order without numbers; counts and lengths warned about', () => {
+	const album = [timed('u/1.flac', {}, 50), timed('u/2.flac', {}, 300), timed('u/3.flac', {}, 10)];
+	const f = fromRelease(album, release([[1, 1, 'One', 50], [1, 2, 'Two', 238]], { originalDate: '2007' }));
+	assert.deepEqual(fill(f, 'TITLE'), ['One', 'Two', null], 'the third file has no track');
+	assert.deepEqual(fill(f, 'ALBUM'), ['Untrue', 'Untrue', 'Untrue']);
+	assert.deepEqual(fill(f, 'ORIGINALDATE'), ['2007', '2007', '2007']);
+	assert.equal(f.warnings.length, 2);
+	assert.match(f.warnings[0], /2 tracks for 3 files/);
+	assert.match(f.warnings[1], /1 track differs/);
+});
+
+test('release: several discs, numbers padded per disc', () => {
+	const tracks: [number, number, string, number | null][] = [
+		...Array.from({ length: 10 }, (_, i): [number, number, string, number | null] => [1, i + 1, `A${i + 1}`, null]),
+		[2, 1, 'B1', null]
+	];
+	const album = tracks.map((_, i) => file(`u/${i}.flac`, {}));
+	const f = fromRelease(album, release(tracks));
+	assert.deepEqual(fill(f, 'TRACKNUMBER')?.slice(0, 2), ['01', '02']);
+	assert.deepEqual(fill(f, 'TRACKNUMBER')?.at(-1), '1');
+	assert.deepEqual(fill(f, 'TOTALTRACKS')?.at(-1), '1');
+	assert.deepEqual(fill(f, 'DISCNUMBER')?.at(-1), '2');
+	assert.deepEqual(fill(f, 'TOTALDISCS')?.[0], '2');
+});
+
+test('release: filled rows keep the file’s own field names when saved', () => {
+	const album = [file('u/1.flac', { ALBUMARTIST: ['old'], TRACKTOTAL: ['9'] })];
+	const rows = buildRows(album);
+	const f = fromRelease(album, release([[1, 1, 'One', null]]));
+	for (const [name, values] of f.fields) {
+		const target = row(rows, name) ?? rows[rows.push(newRow(name, 1)) - 1];
+		values.forEach((v, i) => v !== null && (target.text[i] = v));
+	}
+	const set = edits(album, rows)[0].set;
+	assert.deepEqual(set.find((s) => s.name === 'ALBUMARTIST')?.values, ['Burial']);
+	assert.deepEqual(set.find((s) => s.name === 'TRACKTOTAL')?.values, ['1']);
+	assert.deepEqual(set.find((s) => s.name === 'GENRE')?.values, ['Dubstep', 'Future Garage']);
 });

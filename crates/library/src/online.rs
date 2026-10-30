@@ -1,10 +1,12 @@
 //! Finding cover art online: MusicBrainz + the Cover Art Archive first, then
 //! the iTunes Search API. A cover is only taken when artist and title match.
+//! The same client (and MusicBrainz' rate limit) serves tag lookups (lookup.rs).
 
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 use tokio::sync::Mutex;
 use tracing::debug;
 
@@ -26,8 +28,18 @@ fn edge(bytes: &[u8]) -> u32 {
 }
 
 pub struct Finder {
-    http: reqwest::Client,
+    pub(crate) http: reqwest::Client,
     last_musicbrainz: Mutex<Option<Instant>>,
+    pub(crate) last_discogs: Mutex<Option<Instant>>,
+}
+
+/// Waits until `interval` has passed since the last request through `last`, then claims the slot.
+pub(crate) async fn space(last: &Mutex<Option<Instant>>, interval: Duration) {
+    let mut last = last.lock().await;
+    if let Some(at) = *last {
+        tokio::time::sleep(interval.saturating_sub(at.elapsed())).await;
+    }
+    *last = Some(Instant::now());
 }
 
 #[derive(Deserialize)]
@@ -94,7 +106,7 @@ pub(crate) fn matches(want_artist: &str, want_title: &str, artist: &str, title: 
 }
 
 /// A Lucene phrase for MusicBrainz' search.
-fn phrase(s: &str) -> String {
+pub(crate) fn phrase(s: &str) -> String {
     format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
@@ -107,7 +119,7 @@ impl Finder {
             .connect_timeout(Duration::from_secs(8))
             .timeout(Duration::from_secs(30))
             .build()?;
-        Ok(Self { http, last_musicbrainz: Mutex::new(None) })
+        Ok(Self { http, last_musicbrainz: Mutex::new(None), last_discogs: Mutex::new(None) })
     }
 
     /// The cover's bytes (JPEG or PNG as published), or None when nothing matches.
@@ -133,32 +145,40 @@ impl Finder {
         self.itunes(artist, title).await
     }
 
-    /// One MusicBrainz search, spaced to its rate limit and retried while it says it is busy (503).
-    async fn musicbrainz_search(&self, query: &str) -> anyhow::Result<ReleaseGroups> {
+    /// One MusicBrainz request (`path` under /ws/2/, JSON), spaced to its rate
+    /// limit and retried while it says it is busy (503).
+    pub(crate) async fn musicbrainz_get<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        query: &[(&str, &str)],
+    ) -> anyhow::Result<T> {
         let mut backoff = Duration::from_secs(2);
         for attempt in 0..3 {
-            {
-                let mut last = self.last_musicbrainz.lock().await;
-                if let Some(at) = *last {
-                    tokio::time::sleep(MUSICBRAINZ_INTERVAL.saturating_sub(at.elapsed())).await;
-                }
-                *last = Some(Instant::now());
-            }
+            space(&self.last_musicbrainz, MUSICBRAINZ_INTERVAL).await;
             let response = self
                 .http
-                .get("https://musicbrainz.org/ws/2/release-group/")
-                .query(&[("query", query), ("fmt", "json"), ("limit", "8")])
+                .get(format!("https://musicbrainz.org/ws/2/{path}"))
+                .query(query)
+                .query(&[("fmt", "json")])
                 .send()
                 .await
                 .context("cannot reach MusicBrainz (does the Pi have internet access?)")?;
-            if response.status() == reqwest::StatusCode::SERVICE_UNAVAILABLE && attempt < 2 {
-                tokio::time::sleep(backoff).await;
-                backoff *= 2;
-                continue;
+            if response.status() == reqwest::StatusCode::SERVICE_UNAVAILABLE {
+                if attempt < 2 {
+                    tokio::time::sleep(backoff).await;
+                    backoff *= 2;
+                    continue;
+                }
+                anyhow::bail!("MusicBrainz is busy right now; try again in a moment");
             }
-            return Ok(response.error_for_status()?.json().await?);
+            // The URL would only clutter the message people see.
+            return Ok(response.error_for_status().map_err(reqwest::Error::without_url)?.json().await?);
         }
         unreachable!("the last attempt returns")
+    }
+
+    async fn musicbrainz_search(&self, query: &str) -> anyhow::Result<ReleaseGroups> {
+        self.musicbrainz_get("release-group/", &[("query", query), ("limit", "8")]).await
     }
 
     async fn musicbrainz(&self, artist: &str, title: &str) -> anyhow::Result<Option<Vec<u8>>> {

@@ -33,7 +33,7 @@ share like `\\nas\Music`) in Settings.
 - **virgild** owns everything else: the library index (SQLite + FTS5), artwork thumbnails, the
   queue UI, live state over WebSocket, what's on NTS, and who gets the DAC (local playback vs AirPlay).
 - **Web UI**: SvelteKit 3 (Svelte 5) SPA, embedded in the virgild binary. Browse by album,
-  artist or genre, search songs, edit tags foobar2000-style. Light and dark mode, built for
+  artist or genre, search songs, edit tags foobar2000-style (or fill them from MusicBrainz or Discogs and review before saving). Light and dark mode, built for
   phones first; installable to the home screen.
 
 ## Bit-perfect, verified
