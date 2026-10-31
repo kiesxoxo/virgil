@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use rusqlite::{Connection, OptionalExtension, Row, Transaction, params};
-use virgil_core::{Album, AlbumDetail, AudioFormat, LibraryStatus, SearchResults, Track, TrackHit};
+use virgil_core::{Album, AlbumDetail, AudioFormat, Disc, LibraryStatus, SearchResults, Track, TrackHit};
 use virgil_engine_mpd::Song;
 
 use crate::group::{self, fnv1a64, sort_key};
@@ -37,6 +37,12 @@ CREATE TABLE IF NOT EXISTS tracks (
     format TEXT
 );
 CREATE INDEX IF NOT EXISTS tracks_by_album ON tracks (album_id);
+CREATE TABLE IF NOT EXISTS discs (
+    album_id TEXT NOT NULL,
+    disc INTEGER NOT NULL,
+    title TEXT,
+    PRIMARY KEY (album_id, disc)
+);
 -- Survives rebuilds: `checked` is when the album's art was last looked up.
 CREATE TABLE IF NOT EXISTS art (album_id TEXT PRIMARY KEY, art TEXT, checked INTEGER NOT NULL);
 CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5 (
@@ -45,7 +51,8 @@ CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5 (
 ";
 
 const ALBUM_COLUMNS: &str =
-    "a.id, a.title, a.artist, a.year, a.genre, a.tracks, a.duration, art.art, a.format, a.added";
+    "a.id, a.title, a.artist, a.year, a.genre, a.tracks, a.duration, art.art, a.format, a.added,
+     (SELECT COUNT(*) FROM discs d WHERE d.album_id = a.id)";
 const TRACK_COLUMNS: &str = "t.uri, t.title, t.artist, t.disc, t.track, t.duration, t.format";
 const TRACK_ORDER: &str = "COALESCE(t.disc, 1), COALESCE(t.track, 4294967295), t.uri";
 
@@ -88,7 +95,7 @@ pub fn project(conn: &mut Connection, songs: Vec<Song>) -> rusqlite::Result<bool
     }
     let albums = group::group(songs);
     let tx = conn.transaction()?;
-    tx.execute_batch("DELETE FROM tracks; DELETE FROM albums; DELETE FROM fts;")?;
+    tx.execute_batch("DELETE FROM tracks; DELETE FROM discs; DELETE FROM albums; DELETE FROM fts;")?;
     insert_albums(&tx, &albums)?;
     tx.execute("DELETE FROM art WHERE album_id NOT IN (SELECT id FROM albums)", [])?;
     tx.execute("UPDATE meta SET value = ?1 WHERE key = 'fingerprint'", [fingerprint])?;
@@ -106,6 +113,7 @@ fn insert_albums(tx: &Transaction, albums: &[group::AlbumGroup]) -> rusqlite::Re
         "INSERT OR IGNORE INTO tracks (uri, album_id, title, artist, disc, track, duration, format)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
     )?;
+    let mut disc_stmt = tx.prepare("INSERT INTO discs (album_id, disc, title) VALUES (?1, ?2, ?3)")?;
     let mut fts_stmt = tx.prepare("INSERT INTO fts (kind, ref, body) VALUES (?1, ?2, ?3)")?;
     for album in albums {
         album_stmt.execute(params![
@@ -123,7 +131,16 @@ fn insert_albums(tx: &Transaction, albums: &[group::AlbumGroup]) -> rusqlite::Re
             sort_key(&album.title),
         ])?;
         let year = album.year.map(|y| y.to_string()).unwrap_or_default();
-        fts_stmt.execute(params!["album", album.id, format!("{} {} {year}", album.title, album.artist)])?;
+        let disc_titles: String =
+            album.discs.iter().filter_map(|d| d.title.as_deref()).map(|t| format!(" {t}")).collect();
+        fts_stmt.execute(params![
+            "album",
+            album.id,
+            format!("{} {} {year}{disc_titles}", album.title, album.artist)
+        ])?;
+        for disc in &album.discs {
+            disc_stmt.execute(params![album.id, disc.number, disc.title])?;
+        }
         for song in &album.tracks {
             let title = song.display_title();
             let artist = song.artist.clone().or_else(|| song.album_artist.clone()).unwrap_or_default();
@@ -159,6 +176,7 @@ fn album_from_row(row: &Row) -> rusqlite::Result<Album> {
         art: row.get(7)?,
         format: format_column(row, 8)?,
         added: row.get(9)?,
+        discs: row.get(10)?,
     })
 }
 
@@ -197,7 +215,11 @@ pub fn album(conn: &Connection, id: &str) -> rusqlite::Result<Option<AlbumDetail
         "SELECT {TRACK_COLUMNS} FROM tracks t WHERE t.album_id = ?1 ORDER BY {TRACK_ORDER}"
     ))?;
     let tracks = stmt.query_map([id], |row| track_from_row(row, 0))?.collect::<rusqlite::Result<_>>()?;
-    Ok(Some(AlbumDetail { album, tracks }))
+    let mut stmt = conn.prepare_cached("SELECT disc, title FROM discs WHERE album_id = ?1 ORDER BY disc")?;
+    let discs = stmt
+        .query_map([id], |row| Ok(Disc { number: row.get(0)?, title: row.get(1)? }))?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(Some(AlbumDetail { album, tracks, discs }))
 }
 
 pub fn album_uris(conn: &Connection, id: &str) -> rusqlite::Result<Vec<String>> {
@@ -361,6 +383,8 @@ mod tests {
 
         let detail = album(&conn, &dsotm.id).unwrap().unwrap();
         assert_eq!(detail.tracks[0].title, "Speak to Me");
+        assert_eq!(dsotm.discs, 1);
+        assert_eq!(detail.discs, [Disc { number: 1, title: None }]);
         assert_eq!(album_uris(&conn, &dsotm.id).unwrap(), ["PF/DSOTM/01.flac", "PF/DSOTM/02.flac"]);
     }
 

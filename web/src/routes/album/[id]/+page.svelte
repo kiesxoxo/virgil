@@ -4,6 +4,7 @@
 	import Cover from '#lib/components/Cover.svelte';
 	import Equalizer from '#lib/components/Equalizer.svelte';
 	import Menu from '#lib/components/Menu.svelte';
+	import Record from '#lib/components/Record.svelte';
 	import { trackHeader, trackItems } from '#lib/actions.ts';
 	import { api, queue } from '#lib/api.ts';
 	import { contextMenu } from '#lib/menu.svelte.ts';
@@ -12,6 +13,7 @@
 	import { library } from '#lib/library.svelte.ts';
 	import { tagEditor } from '#lib/tageditor.svelte.ts';
 	import type { AlbumDetail } from '#lib/types/AlbumDetail.ts';
+	import type { Track } from '#lib/types/Track.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -52,7 +54,24 @@
 	let album = $derived(detail?.album ?? library.get(data.id));
 	let versions = $derived(library.versions(data.id));
 	let tracks = $derived(detail?.tracks ?? []);
-	let multiDisc = $derived(new Set(tracks.map((t) => t.disc ?? 1)).size > 1);
+	/** The tracks by disc; `start` is the index of the disc's first track in `tracks`. */
+	type Side = { number: number; title: string | null; start: number; tracks: Track[]; duration: number };
+	let discs = $derived.by(() => {
+		const titles = new Map(detail?.discs.map((d) => [d.number, d.title]));
+		const sides: Side[] = [];
+		tracks.forEach((track, i) => {
+			const number = track.disc ?? 1;
+			let side = sides.at(-1);
+			if (side?.number !== number) {
+				side = { number, title: titles.get(number) ?? null, start: i, tracks: [], duration: 0 };
+				sides.push(side);
+			}
+			side.tracks.push(track);
+			side.duration += track.duration;
+		});
+		return sides;
+	});
+	let multiDisc = $derived(discs.length > 1);
 	let backdrop = $derived(artUrl(album?.art, 300));
 	// Picking tracks to edit, like a selection in foobar2000's playlist.
 	let selecting = $state(false);
@@ -89,6 +108,16 @@
 		}
 	}
 
+	/** Selects the whole disc, or clears it when it is all selected already. */
+	function pickDisc(side: Side) {
+		const all = side.tracks.every((t) => selected.has(t.uri));
+		for (const t of side.tracks) {
+			if (all) selected.delete(t.uri);
+			else selected.add(t.uri);
+		}
+		anchor = side.start;
+	}
+
 	function stopSelecting() {
 		selecting = false;
 		selected.clear();
@@ -101,7 +130,13 @@
 
 	let meta = $derived(
 		album
-			? [album.genre, album.year, `${album.tracks} ${album.tracks === 1 ? 'song' : 'songs'}`, span(album.duration)].filter(Boolean)
+			? [
+					album.genre,
+					album.year,
+					album.discs > 1 && `${album.discs} discs`,
+					`${album.tracks} ${album.tracks === 1 ? 'song' : 'songs'}`,
+					span(album.duration)
+				].filter(Boolean)
 			: []
 	);
 </script>
@@ -240,48 +275,93 @@
 						</li>
 					{/each}
 				{/if}
-				{#each tracks as track, i (track.uri)}
-					{@const current = hub.current?.uri === track.uri}
-					{@const picked = selecting && selected.has(track.uri)}
-					{#if multiDisc && (i === 0 || tracks[i - 1].disc !== track.disc)}
-						<li class="px-3 pt-5 pb-1.5 text-xs font-semibold tracking-wider text-muted uppercase">Disc {track.disc ?? 1}</li>
+				{#each discs as side (side.number)}
+					{#if multiDisc}
+						{@render discHeader(side)}
 					{/if}
-					<li
-						class="group flex items-center rounded-xl hover:bg-fg/4 {picked ? 'bg-accent/10' : current ? 'bg-accent/6' : ''}"
-						{@attach contextMenu(
-							() => trackItems(track, data.id),
-							() => trackHeader(track, album?.art)
-						)}
-					>
-						<button
-							type="button"
-							class="grid min-w-0 flex-1 grid-cols-[2rem_1fr_auto] items-center gap-3 py-2.5 pl-3 text-left select-none"
-							aria-pressed={selecting ? picked : undefined}
-							onclick={(e) => trackClick(e, i)}
-						>
-							<span class="flex justify-center text-sm text-muted tabular-nums">
-								{#if selecting}
-									{#if picked}<CircleCheck class="size-5 text-accent" />{:else}<Circle class="size-5 text-faint" />{/if}
-								{:else if current}<Equalizer playing={hub.playing} />{:else if track.track !== null}{track.track}{/if}
-								<!-- No track number tag: blank rather than a position, so the gap shows. -->
-							</span>
-							<span class="min-w-0">
-								<span class="block truncate text-[15px] font-medium {current ? 'text-accent' : ''}">{track.title}</span>
-								{#if album && track.artist && track.artist !== album.artist}
-									<span class="block truncate text-[13px] text-muted">{track.artist}</span>
-								{/if}
-							</span>
-							<span class="flex items-center gap-3 text-sm text-muted tabular-nums">
-								{#if track.format && !album?.format}
-									<span class="text-[11px] max-sm:hidden">{formatShort(track.format)}</span>
-								{/if}
-								{clock(track.duration)}
-							</span>
-						</button>
-						<Menu class="mr-1 ml-1" items={() => trackItems(track, data.id)} header={trackHeader(track, album?.art)} />
-					</li>
+					{#each side.tracks as track, j (track.uri)}
+						{@render trackRow(track, side.start + j)}
+					{/each}
 				{/each}
 			</ol>
 		</div>
 	</div>
 {/if}
+
+{#snippet discHeader(side: Side)}
+	{@const onDisc = side.tracks.some((t) => t.uri === hub.current?.uri)}
+	{@const label = `Disc ${side.number}`}
+	{@const allPicked = side.tracks.every((t) => selected.has(t.uri))}
+	<li class="flex items-center gap-3.5 px-3 pb-2 {side.start === 0 ? 'pt-1' : 'mt-5 border-t border-line pt-6'}">
+		<Record spinning={onDisc} paused={!hub.playing} class="size-9 shrink-0 drop-shadow-sm" />
+		<div class="min-w-0 flex-1">
+			<h2 class="truncate text-[15px] font-semibold {onDisc ? 'text-accent' : ''}" title={side.title ?? undefined}>{side.title ?? label}</h2>
+			<p class="truncate text-[13px] text-muted tabular-nums">
+				{[side.title && label, `${side.tracks.length} ${side.tracks.length === 1 ? 'track' : 'tracks'}`, span(side.duration)]
+					.filter(Boolean)
+					.join(' · ')}
+			</p>
+		</div>
+		{#if selecting}
+			<button
+				type="button"
+				class="press inline-flex size-9 shrink-0 items-center justify-center rounded-full hover:bg-fg/6"
+				aria-pressed={allPicked}
+				title="Select {label}"
+				onclick={() => pickDisc(side)}
+			>
+				{#if allPicked}<CircleCheck class="size-5 text-accent" />{:else}<Circle class="size-5 text-faint" />{/if}
+			</button>
+		{:else}
+			<button
+				type="button"
+				class="press inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-surface hover:bg-surface-2"
+				disabled={!album}
+				title="Play {label}"
+				aria-label="Play {label}"
+				onclick={() => album && queue.playAlbum(album.id, side.tracks[0].uri)}
+			>
+				<Play class="ml-px size-4" fill="currentColor" strokeWidth={0} />
+			</button>
+		{/if}
+	</li>
+{/snippet}
+
+{#snippet trackRow(track: Track, i: number)}
+	{@const current = hub.current?.uri === track.uri}
+	{@const picked = selecting && selected.has(track.uri)}
+	<li
+		class="group flex items-center rounded-xl hover:bg-fg/4 {picked ? 'bg-accent/10' : current ? 'bg-accent/6' : ''}"
+		{@attach contextMenu(
+			() => trackItems(track, data.id),
+			() => trackHeader(track, album?.art)
+		)}
+	>
+		<button
+			type="button"
+			class="grid min-w-0 flex-1 grid-cols-[2rem_1fr_auto] items-center gap-3 py-2.5 pl-3 text-left select-none"
+			aria-pressed={selecting ? picked : undefined}
+			onclick={(e) => trackClick(e, i)}
+		>
+			<span class="flex justify-center text-sm text-muted tabular-nums">
+				{#if selecting}
+					{#if picked}<CircleCheck class="size-5 text-accent" />{:else}<Circle class="size-5 text-faint" />{/if}
+				{:else if current}<Equalizer playing={hub.playing} />{:else if track.track !== null}{track.track}{/if}
+				<!-- No track number tag: blank rather than a position, so the gap shows. -->
+			</span>
+			<span class="min-w-0">
+				<span class="block truncate text-[15px] font-medium {current ? 'text-accent' : ''}">{track.title}</span>
+				{#if album && track.artist && track.artist !== album.artist}
+					<span class="block truncate text-[13px] text-muted">{track.artist}</span>
+				{/if}
+			</span>
+			<span class="flex items-center gap-3 text-sm text-muted tabular-nums">
+				{#if track.format && !album?.format}
+					<span class="text-[11px] max-sm:hidden">{formatShort(track.format)}</span>
+				{/if}
+				{clock(track.duration)}
+			</span>
+		</button>
+		<Menu class="mr-1 ml-1" items={() => trackItems(track, data.id)} header={trackHeader(track, album?.art)} />
+	</li>
+{/snippet}

@@ -16,7 +16,8 @@ const album = (artist: string, genre: string | null, year: number | null = null,
 	duration: 60,
 	art: null,
 	format: null,
-	added: 0
+	added: 0,
+	discs: 1
 });
 
 test('splitGenres', () => {

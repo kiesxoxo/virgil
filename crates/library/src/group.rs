@@ -1,8 +1,8 @@
 //! Turning MPD's flat song list into albums.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use virgil_core::AudioFormat;
+use virgil_core::{AudioFormat, Disc};
 use virgil_engine_mpd::Song;
 
 pub struct AlbumGroup {
@@ -16,6 +16,7 @@ pub struct AlbumGroup {
     pub added: u32,
     /// In play order: disc, track number, then path.
     pub tracks: Vec<Song>,
+    pub discs: Vec<Disc>,
 }
 
 pub fn fnv1a64(bytes: &[u8]) -> u64 {
@@ -31,27 +32,64 @@ fn parent_dir(uri: &str) -> &str {
     uri.rsplit_once('/').map_or("", |(dir, _)| dir)
 }
 
-/// Bumped whenever [`album_key`] changes, so existing libraries are regrouped.
-pub const GROUPING_VERSION: u32 = 2;
+/// Bumped whenever [`album_key`] or the disc handling changes, so existing libraries are regrouped.
+pub const GROUPING_VERSION: u32 = 3;
 
-/// `CD1`, `Disc 2`, `disk_03`: a folder holding one disc of a multi-disc album.
-fn is_disc_folder(name: &str) -> bool {
-    let lower = name.to_lowercase();
-    ["cd", "disc", "disk"]
-        .iter()
-        .filter_map(|prefix| lower.strip_prefix(prefix))
-        .map(|rest| rest.trim_start_matches([' ', '_', '-', '.']))
-        .any(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
+/// Words that, followed by a number, name one disc of a release.
+const DISC_WORDS: [&str; 5] = ["cd", "disc", "disk", "lp", "vinyl"];
+
+/// `CD1`, `Disc 2`, `disk_03`, `LP 2 of 2`: a name that is just a disc, and its number.
+fn disc_number(name: &str) -> Option<u32> {
+    let lower = name.trim().to_lowercase();
+    let rest = DISC_WORDS.iter().find_map(|word| lower.strip_prefix(word))?;
+    let rest = rest.trim_start_matches([' ', '_', '-', '.', '#']);
+    let (n, total) = rest.split_once(" of ").unwrap_or((rest, "1"));
+    let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+    if digits(n) && digits(total) { n.parse().ok().filter(|&n| n > 0) } else { None }
 }
 
-/// The folder an album lives in; a disc subfolder counts as its parent.
+/// "Box (Disc 2)", "Box [CD2]", "Box - LP 2": the name before a trailing disc
+/// marker, and the disc's number.
+fn split_disc(name: &str) -> Option<(&str, u32)> {
+    let name = name.trim_end();
+    let (base, marker) = match name.strip_suffix([')', ']']) {
+        Some(inner) => inner.rfind(['(', '[']).map(|open| (&inner[..open], &inner[open + 1..]))?,
+        None => name
+            .match_indices([' ', '_', '-', ','])
+            .map(|(i, sep)| (&name[..i], &name[i + sep.len()..]))
+            .find(|(_, marker)| disc_number(marker).is_some())?,
+    };
+    let disc = disc_number(marker)?;
+    let base = base.trim_end_matches([' ', '_', '-', ',', ':', '–', '—']);
+    (!base.is_empty()).then_some((base, disc))
+}
+
+/// An album title without a trailing disc marker.
+fn release_title(album: &str) -> &str {
+    split_disc(album).map_or(album, |(base, _)| base)
+}
+
+/// The folder an album lives in. A disc folder ("CD2") counts as its parent,
+/// and a folder named for one disc ("Box (Disc 2)") as the release's ("Box").
 fn album_dir(uri: &str) -> &str {
     let dir = parent_dir(uri);
-    match dir.rsplit_once('/') {
-        Some((parent, last)) if is_disc_folder(last) => parent,
-        None if is_disc_folder(dir) => "",
-        _ => dir,
+    let (parent, last) = dir.rsplit_once('/').unwrap_or(("", dir));
+    if disc_number(last).is_some() {
+        parent
+    } else if let Some((base, _)) = split_disc(last) {
+        &dir[..dir.len() - last.len() + base.len()]
+    } else {
+        dir
     }
+}
+
+/// The disc a song is on: its disc tag, else a number in its folder's name or album title.
+fn disc_of(song: &Song) -> Option<u32> {
+    let folder = parent_dir(&song.uri).rsplit('/').next().unwrap_or("");
+    song.disc
+        .or_else(|| disc_number(folder))
+        .or_else(|| split_disc(folder).map(|(_, n)| n))
+        .or_else(|| split_disc(song.album.as_deref()?).map(|(_, n)| n))
 }
 
 /// Which album a song belongs to: its folder plus the album title. Tags such as
@@ -59,9 +97,65 @@ fn album_dir(uri: &str) -> &str {
 fn album_key(song: &Song) -> String {
     let dir = album_dir(&song.uri);
     match &song.album {
-        Some(album) => format!("{dir}\u{1f}{}", album.to_lowercase()),
+        Some(album) => format!("{dir}\u{1f}{}", release_title(album).to_lowercase()),
         None => dir.to_string(),
     }
+}
+
+fn folder_of(tracks: &[Song]) -> Option<String> {
+    Some(album_dir(&tracks[0].uri).to_string())
+}
+
+fn release_of(tracks: &[Song]) -> Option<String> {
+    let id = tracks[0].mb_album_id.as_ref()?;
+    tracks.iter().all(|t| t.mb_album_id.as_ref() == Some(id)).then(|| id.clone())
+}
+
+/// Joins the discs of a release that are tagged as different albums, like a
+/// 2×LP whose second record has a title of its own: groups in one folder, or
+/// from one MusicBrainz release, that all have disc numbers and share none.
+fn join_discs(groups: HashMap<String, Vec<Song>>) -> Vec<(String, Vec<Song>)> {
+    let mut groups: Vec<Option<(String, Vec<Song>)>> = groups.into_iter().map(Some).collect();
+    let discs = |tracks: &[Song]| tracks.iter().filter_map(|t| t.disc).collect::<HashSet<_>>();
+    for cluster_of in [folder_of as fn(&[Song]) -> Option<String>, release_of] {
+        let mut clusters: HashMap<String, Vec<usize>> = HashMap::new();
+        for (i, group) in groups.iter().enumerate() {
+            let Some((_, tracks)) = group else { continue };
+            if tracks.iter().all(|t| t.disc.is_some())
+                && let Some(cluster) = cluster_of(tracks)
+            {
+                clusters.entry(cluster).or_default().push(i);
+            }
+        }
+        for mut members in clusters.into_values().filter(|m| m.len() > 1) {
+            let sets: Vec<_> = members.iter().map(|&i| discs(&groups[i].as_ref().expect("member").1)).collect();
+            let all: HashSet<_> = sets.iter().flatten().collect();
+            if all.len() != sets.iter().map(HashSet::len).sum::<usize>() {
+                continue;
+            }
+            // The album keeps the key (so the id and artwork) of its first disc.
+            members.sort_by_key(|&i| groups[i].as_ref().expect("member").1.iter().filter_map(|t| t.disc).min());
+            let rest: Vec<Song> = members[1..].iter().flat_map(|&i| groups[i].take().expect("member").1).collect();
+            groups[members[0]].as_mut().expect("member").1.extend(rest);
+        }
+    }
+    groups.into_iter().flatten().collect()
+}
+
+/// The discs of an album's (sorted) tracks, each titled by its own album tag
+/// where that isn't the album's `title`.
+fn discs(tracks: &[Song], title: &str) -> Vec<Disc> {
+    let title = title.to_lowercase();
+    let mut discs: Vec<Disc> = Vec::new();
+    for track in tracks {
+        let number = track.disc.unwrap_or(1);
+        if discs.last().is_some_and(|d| d.number == number) {
+            continue;
+        }
+        let own = track.album.as_deref().map(release_title).filter(|t| t.to_lowercase() != title);
+        discs.push(Disc { number, title: own.map(str::to_string) });
+    }
+    discs
 }
 
 fn year(song: &Song) -> Option<u32> {
@@ -71,10 +165,11 @@ fn year(song: &Song) -> Option<u32> {
 
 pub fn group(songs: Vec<Song>) -> Vec<AlbumGroup> {
     let mut groups: HashMap<String, Vec<Song>> = HashMap::new();
-    for song in songs {
+    for mut song in songs {
+        song.disc = disc_of(&song);
         groups.entry(album_key(&song)).or_default().push(song);
     }
-    groups
+    join_discs(groups)
         .into_iter()
         .map(|(key, mut tracks)| {
             tracks.sort_by(|a, b| {
@@ -85,10 +180,18 @@ pub fn group(songs: Vec<Song>) -> Vec<AlbumGroup> {
                 ))
             });
             let first = &tracks[0];
-            let title = first.album.clone().unwrap_or_else(|| {
-                let dir = parent_dir(&first.uri);
-                dir.rsplit('/').next().filter(|s| !s.is_empty()).unwrap_or("Unknown Album").to_string()
-            });
+            let several_discs = first.disc != tracks[tracks.len() - 1].disc;
+            let title = match &first.album {
+                Some(album) if several_discs => release_title(album).to_string(),
+                Some(album) => album.clone(),
+                None => album_dir(&first.uri)
+                    .rsplit('/')
+                    .next()
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or("Unknown Album")
+                    .to_string(),
+            };
+            let discs = discs(&tracks, &title);
             let artist = tracks
                 .iter()
                 .find_map(|t| t.album_artist.clone())
@@ -114,6 +217,7 @@ pub fn group(songs: Vec<Song>) -> Vec<AlbumGroup> {
                     .filter_map(|t| t.last_modified.as_deref().and_then(parse_rfc3339))
                     .max()
                     .unwrap_or(0),
+                discs,
                 tracks,
             }
         })
@@ -195,14 +299,116 @@ mod tests {
 
     #[test]
     fn recognises_disc_folders() {
-        for name in ["CD1", "cd 2", "Disc 3", "disk_04", "DISC-1"] {
-            assert!(is_disc_folder(name), "{name}");
+        for (name, n) in
+            [("CD1", 1), ("cd 2", 2), ("Disc 3", 3), ("disk_04", 4), ("DISC-1", 1), ("LP2", 2), ("Vinyl 1", 1)]
+        {
+            assert_eq!(disc_number(name), Some(n), "{name}");
         }
-        for name in ["CD", "Discography", "Disco Inferno", "2014", "CDs"] {
-            assert!(!is_disc_folder(name), "{name}");
+        assert_eq!(disc_number("Disc 2 of 2"), Some(2));
+        for name in ["CD", "Discography", "Disco Inferno", "2014", "CDs", "LPs", "CD0"] {
+            assert_eq!(disc_number(name), None, "{name}");
         }
         assert_eq!(album_dir("A/B/CD2/01.flac"), "A/B");
         assert_eq!(album_dir("A/B/01.flac"), "A/B");
+        assert_eq!(album_dir("A/Box (Disc 2)/01.flac"), "A/Box");
+    }
+
+    #[test]
+    fn splits_disc_markers_off_titles() {
+        assert_eq!(split_disc("Box (Disc 2)"), Some(("Box", 2)));
+        assert_eq!(split_disc("Box [CD1]"), Some(("Box", 1)));
+        assert_eq!(split_disc("Box - LP 2"), Some(("Box", 2)));
+        assert_eq!(split_disc("Box CD2"), Some(("Box", 2)));
+        assert_eq!(split_disc("Box, Disc 1 of 2"), Some(("Box", 1)));
+        for name in ["LP1", "Disc 2", "In Rainbows", "Box (Remastered)", "Discovery", "Box (2014)"] {
+            assert_eq!(split_disc(name), None, "{name}");
+        }
+    }
+
+    fn on_disc(mut song: Song, disc: u32) -> Song {
+        song.disc = Some(disc);
+        song
+    }
+
+    #[test]
+    fn joins_discs_titled_as_separate_albums() {
+        let dir = "RSE/2022 - Flying Fish Ambience + Saga of Capsizing Dolphins";
+        let songs = vec![
+            on_disc(song(&format!("{dir}/06.flac"), Some("Saga of Capsizing Dolphins"), None, "RSE", 1), 2),
+            on_disc(song(&format!("{dir}/01.flac"), Some("Flying Fish Ambience"), None, "RSE", 1), 1),
+            on_disc(song(&format!("{dir}/07.flac"), Some("Saga of Capsizing Dolphins"), None, "RSE", 2), 2),
+            on_disc(song(&format!("{dir}/02.flac"), Some("Flying Fish Ambience"), None, "RSE", 2), 1),
+            on_disc(song(&format!("{dir}/03.flac"), Some("Flying Fish Ambience"), None, "RSE", 3), 1),
+        ];
+        let groups = group(songs);
+        assert_eq!(groups.len(), 1);
+        let album = &groups[0];
+        assert_eq!(album.title, "Flying Fish Ambience");
+        let uris: Vec<_> = album.tracks.iter().map(|t| &t.uri[dir.len() + 1..]).collect();
+        assert_eq!(uris, ["01.flac", "02.flac", "03.flac", "06.flac", "07.flac"]);
+        assert_eq!(
+            album.discs,
+            [Disc { number: 1, title: None }, Disc { number: 2, title: Some("Saga of Capsizing Dolphins".into()) }]
+        );
+        // Disc 1's id, so its artwork stays put.
+        let disc1 = format!("{dir}\u{1f}flying fish ambience");
+        assert_eq!(album.id, format!("{:016x}", fnv1a64(disc1.as_bytes())));
+    }
+
+    #[test]
+    fn keeps_albums_apart_when_their_discs_overlap() {
+        let groups = group(vec![
+            on_disc(song("Mix/01.flac", Some("One"), None, "A", 1), 1),
+            on_disc(song("Mix/02.flac", Some("Two"), None, "B", 1), 1),
+            song("Mix/03.flac", Some("Three"), None, "C", 1),
+        ]);
+        assert_eq!(groups.len(), 3);
+    }
+
+    #[test]
+    fn disc_markers_in_folders_and_titles_make_one_album() {
+        let groups = group(vec![
+            song("A/Box (CD2)/01.flac", Some("Box (Disc 2)"), None, "A", 1),
+            song("A/Box (CD1)/02.flac", Some("Box (Disc 1)"), None, "A", 2),
+            song("A/Box (CD1)/01.flac", Some("Box (Disc 1)"), None, "A", 1),
+        ]);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].title, "Box");
+        let order: Vec<_> = groups[0].tracks.iter().map(|t| (t.disc, t.track)).collect();
+        assert_eq!(order, [(Some(1), Some(1)), (Some(1), Some(2)), (Some(2), Some(1))]);
+        assert!(groups[0].discs.iter().all(|d| d.title.is_none()));
+
+        // A lone disc keeps its full title.
+        let groups = group(vec![song("B/Box (Disc 2)/01.flac", Some("Box (Disc 2)"), None, "B", 1)]);
+        assert_eq!(groups[0].title, "Box (Disc 2)");
+    }
+
+    #[test]
+    fn disc_folders_number_untagged_discs() {
+        let groups = group(vec![
+            song("X/CD2/01.flac", Some("Box"), None, "Band", 1),
+            song("X/CD1/02.flac", Some("Box"), None, "Band", 2),
+            song("X/CD1/01.flac", Some("Box"), None, "Band", 1),
+        ]);
+        let uris: Vec<_> = groups[0].tracks.iter().map(|t| t.uri.as_str()).collect();
+        assert_eq!(uris, ["X/CD1/01.flac", "X/CD1/02.flac", "X/CD2/01.flac"]);
+        assert_eq!(groups[0].discs.len(), 2);
+    }
+
+    #[test]
+    fn joins_discs_of_one_musicbrainz_release() {
+        let tagged = |uri: &str, album: &str, disc: u32| Song {
+            mb_album_id: Some("a1b2".into()),
+            ..on_disc(song(uri, Some(album), None, "A", 1), disc)
+        };
+        let groups =
+            group(vec![tagged("A/Side One/01.flac", "Side One", 1), tagged("A/Side Two/01.flac", "Side Two", 2)]);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].title, "Side One");
+
+        // Two copies of the same disc are versions, not discs.
+        let groups = group(vec![tagged("A/FLAC/01.flac", "Same", 1), tagged("A/MP3/01.mp3", "Same", 1)]);
+        assert_eq!(groups.len(), 2);
     }
 
     #[test]

@@ -17,4 +17,8 @@ format: AudioFormat | null,
 /**
  * Unix time of the newest file.
  */
-added: number, };
+added: number, 
+/**
+ * How many discs (CDs, LPs) the release spans.
+ */
+discs: number, };

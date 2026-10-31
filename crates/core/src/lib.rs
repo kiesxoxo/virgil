@@ -161,6 +161,8 @@ pub struct Album {
     pub format: Option<AudioFormat>,
     /// Unix time of the newest file.
     pub added: u32,
+    /// How many discs (CDs, LPs) the release spans.
+    pub discs: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -180,6 +182,17 @@ pub struct Track {
 pub struct AlbumDetail {
     pub album: Album,
     pub tracks: Vec<Track>,
+    /// One per disc, in order.
+    pub discs: Vec<Disc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct Disc {
+    pub number: u32,
+    /// Set when the disc has a title of its own, e.g. the second LP of
+    /// "Flying Fish Ambience" being "Saga of Capsizing Dolphins".
+    pub title: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
