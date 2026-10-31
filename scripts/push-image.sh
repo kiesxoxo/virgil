@@ -4,7 +4,6 @@
 # over SSH. Then restart the stack on the Pi with `docker compose up -d --pull never`.
 #
 #   scripts/push-image.sh mpk@pi-audio [ghcr.io/kiesxoxo/virgil:latest]
-#   SSH=/mnt/c/Windows/System32/OpenSSH/ssh.exe scripts/push-image.sh …   # WSL + Windows ssh-agent
 set -euo pipefail
 host="${1:?usage: push-image.sh user@host [image]}"
 image="${2:-ghcr.io/kiesxoxo/virgil:latest}"

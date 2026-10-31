@@ -3,7 +3,6 @@ import type { AddRequest } from './types/AddRequest.ts';
 import type { Album } from './types/Album.ts';
 import type { ArtOutcome } from './types/ArtOutcome.ts';
 import type { AlbumDetail } from './types/AlbumDetail.ts';
-import type { DesktopSettings } from './types/DesktopSettings.ts';
 import type { LookupQuery } from './types/LookupQuery.ts';
 import type { LookupRelease } from './types/LookupRelease.ts';
 import type { LookupResults } from './types/LookupResults.ts';
@@ -94,10 +93,6 @@ export const api = {
 
 	selectOutput: (id: number) => post(`/api/outputs/${id}/select`),
 	restart: () => post('/api/restart'),
-	/** Desktop mode only (Virgil.exe); 404 elsewhere. */
-	desktop: () => get<DesktopSettings>('/api/desktop'),
-	saveDesktop: (settings: DesktopSettings) => post('/api/desktop', settings),
-	quit: () => post('/api/quit'),
 
 	readTags: (uris: string[]) => call('POST', '/api/tags/read', { uris }).then((r) => r.json() as Promise<TaggedFile[]>),
 	writeTags: (edits: TagEdit[]) =>

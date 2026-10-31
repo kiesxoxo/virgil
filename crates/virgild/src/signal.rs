@@ -115,20 +115,10 @@ fn classify(source: &AudioFormat, output: &HwParams) -> (Verdict, bool, Option<S
 
 pub fn evaluate(hw: &Hw, player: &PlayerState, source: &SourceState) -> SignalPath {
     match hw {
-        // Without ALSA (a PC) there's nothing to read; idle unless something plays.
-        Hw::Missing if !cfg!(target_os = "linux") && player.audio.is_none() => SignalPath::default(),
         Hw::Missing => SignalPath {
             verdict: Verdict::Unknown,
             source: player.audio,
-            note: Some(
-                if cfg!(target_os = "linux") {
-                    "ALSA card not found"
-                } else {
-                    // Desktop mode: MPD logs the format WASAPI accepted when it opens the device.
-                    "the device didn't accept an exclusive-mode format (is another app using it?)"
-                }
-                .into(),
-            ),
+            note: Some("ALSA card not found".into()),
             ..SignalPath::default()
         },
         Hw::Closed => SignalPath::default(),
@@ -168,13 +158,6 @@ pub async fn run(app: App) {
             app.refresh_outputs().await;
         }
         let player = app.player();
-        // Desktop mode: the format WASAPI accepted, and the selected device's name.
-        if let Some(desktop) = &app.desktop {
-            let mut signal = evaluate(&desktop.hw(&player), &player, &app.source());
-            signal.device = app.enabled_output_label();
-            app.set_signal(signal);
-            continue;
-        }
         let card = app.active_card();
         let path = app.config.hw_params_path(&card);
         let hw = read_hw(&path).await;

@@ -10,9 +10,9 @@ use tower_http::compression::CompressionLayer;
 use tower_http::services::ServeDir;
 use tower_http::set_header::SetResponseHeaderLayer;
 use virgil_core::{
-    AddRequest, AlbumDetail, ArtOutcome, DesktopSettings, LibraryStatus, LookupQuery, LookupRelease, LookupResults,
-    LookupSource, ModesRequest, MoveRequest, OnlineSettings, OnlineSettingsUpdate, PlayState, Queue, Radio,
-    SearchResults, SeekRequest, ServerEvent,
+    AddRequest, AlbumDetail, ArtOutcome, LibraryStatus, LookupQuery, LookupRelease, LookupResults, LookupSource,
+    ModesRequest, MoveRequest, OnlineSettings, OnlineSettingsUpdate, PlayState, Queue, Radio, SearchResults,
+    SeekRequest, ServerEvent,
 };
 
 use crate::app::App;
@@ -106,9 +106,6 @@ pub fn router(app: App) -> Router {
         .route("/api/settings/online", get(online_settings).post(save_online_settings))
         .route("/api/outputs/{id}/select", post(select_output))
         .route("/api/restart", post(restart))
-        .route("/api/desktop", get(desktop_settings).post(save_desktop_settings))
-        .route("/api/desktop/show", post(show_window))
-        .route("/api/quit", post(quit))
         .route("/api/tags/read", post(tags::read))
         .route("/api/tags/write", post(tags::write))
         .route("/api/sources/{name}/acquire", post(acquire))
@@ -361,46 +358,13 @@ async fn select_output(State(app): State<App>, Path(id): Path<u32>) -> ApiResult
 }
 
 /// Restarts Virgil so MPD gets outputs for sound devices connected since it
-/// started. Desktop mode starts a fresh Virgil.exe itself; otherwise virgild
-/// exits and its supervisor (Docker, systemd) brings it back.
-async fn restart(State(app): State<App>) -> ApiResult {
+/// started: virgild exits and its supervisor (Docker, systemd) brings it back.
+async fn restart() -> ApiResult {
     tracing::info!("restart requested from the UI");
-    tokio::spawn(async move {
+    tokio::spawn(async {
         // Let the response go out first.
         tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-        match &app.desktop {
-            Some(desktop) => desktop.restart().await,
-            None => std::process::exit(RESTART_EXIT_CODE),
-        }
-    });
-    Ok(StatusCode::ACCEPTED)
-}
-
-fn desktop(app: &App) -> ApiResult<&std::sync::Arc<crate::desktop::Desktop>> {
-    app.desktop.as_ref().ok_or_else(|| ApiError::not_found("not running in desktop mode"))
-}
-
-/// A second launch of Virgil.exe asks for the running one's window.
-async fn show_window(State(app): State<App>) -> ApiResult {
-    desktop(&app)?.show_window();
-    Ok(DONE)
-}
-
-async fn desktop_settings(State(app): State<App>) -> ApiResult<Json<DesktopSettings>> {
-    Ok(Json(desktop(&app)?.settings()))
-}
-
-/// Saves the settings and restarts Virgil to apply them.
-async fn save_desktop_settings(State(app): State<App>, Json(settings): Json<DesktopSettings>) -> ApiResult {
-    desktop(&app)?.save_settings(settings).map_err(|e| ApiError::bad_request(format!("{e:#}")))?;
-    restart(State(app)).await
-}
-
-async fn quit(State(app): State<App>) -> ApiResult {
-    let desktop = desktop(&app)?.clone();
-    tokio::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-        desktop.quit().await
+        std::process::exit(RESTART_EXIT_CODE);
     });
     Ok(StatusCode::ACCEPTED)
 }

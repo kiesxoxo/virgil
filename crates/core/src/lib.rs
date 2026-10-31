@@ -305,7 +305,7 @@ impl Default for SourceState {
     }
 }
 
-/// One of MPD's audio outputs: a sound card (or, on a desktop, a device) Virgil can play to.
+/// One of MPD's audio outputs: a sound card Virgil can play to.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[ts(export)]
 pub struct Output {
@@ -315,7 +315,7 @@ pub struct Output {
     pub name: String,
     /// What people call it ("HiFiBerry Digi+ Pro").
     pub label: String,
-    /// MPD's output plugin: "alsa", "wasapi", "null", …
+    /// MPD's output plugin: "alsa", "null", …
     pub plugin: String,
     pub enabled: bool,
 }
@@ -328,17 +328,6 @@ pub struct Outputs {
     pub outputs: Vec<Output>,
     /// Descriptions of cards without an output yet ("USB Audio Device").
     pub new_cards: Vec<String>,
-}
-
-/// Desktop mode (Virgil.exe on a PC): settings Virgil keeps itself.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct DesktopSettings {
-    /// The music library folder MPD plays from.
-    pub music_dir: String,
-    /// Port of the web UI on 127.0.0.1.
-    pub port: u16,
 }
 
 /// An internet radio station: one of NTS's live channels or an Infinite Mixtape.

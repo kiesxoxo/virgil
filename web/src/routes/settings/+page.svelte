@@ -1,46 +1,12 @@
 <script lang="ts">
-	import { Airplay, Check, ImageDown, LoaderCircle, Monitor, Moon, Power, RefreshCw, RotateCw, Sun, Usb } from '@lucide/svelte';
+	import { Airplay, Check, ImageDown, LoaderCircle, Monitor, Moon, RefreshCw, RotateCw, Sun, Usb } from '@lucide/svelte';
 	import { onMount } from 'svelte';
 	import SignalPathCard from '#lib/components/SignalPathCard.svelte';
 	import { api } from '#lib/api.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { theme, type ThemeMode } from '#lib/theme.svelte.ts';
 	import { toasts } from '#lib/toast.svelte.ts';
-	import type { DesktopSettings } from '#lib/types/DesktopSettings.ts';
 	import type { OnlineSettings } from '#lib/types/OnlineSettings.ts';
-
-	// Desktop mode (Virgil.exe on a PC): Virgil's own settings, and a way to quit.
-	let desktop = $state<DesktopSettings | null>(null);
-	let musicDir = $state('');
-	let applying = $state(false);
-	let quitting = $state(false);
-
-	onMount(() => {
-		api.desktop().then(
-			(settings) => {
-				desktop = settings;
-				musicDir = settings.musicDir;
-			},
-			() => {} // not desktop mode
-		);
-	});
-
-	async function applyDesktop() {
-		if (!desktop) return;
-		applying = true;
-		try {
-			await api.saveDesktop({ ...desktop, musicDir: musicDir.trim() });
-			desktop = { ...desktop, musicDir: musicDir.trim() };
-			restarting = true;
-		} finally {
-			applying = false;
-		}
-	}
-
-	async function quit() {
-		quitting = true;
-		await api.quit().catch(() => (quitting = false));
-	}
 
 	const modes: { id: ThemeMode; label: string; icon: typeof Sun }[] = [
 		{ id: 'system', label: 'System', icon: Monitor },
@@ -320,55 +286,6 @@
 			<p class="mt-2 flex items-center gap-1.5 text-xs text-good"><Check class="size-3.5" /> A token is set</p>
 		{/if}
 	</form>
-
-	{#if desktop}
-		{@render section('This computer')}
-		<div class="divide-y divide-line rounded-2xl bg-surface">
-			<form
-				class="px-4 py-3.5"
-				onsubmit={(e) => {
-					e.preventDefault();
-					applyDesktop();
-				}}
-			>
-				<label for="music-dir" class="text-sm font-medium">Music folder</label>
-				<div class="mt-2 flex gap-2">
-					<input
-						id="music-dir"
-						class="h-9 min-w-0 flex-1 rounded-xl bg-bg px-3 text-base ring-1 ring-line outline-none focus:ring-2 focus:ring-accent sm:text-sm"
-						bind:value={musicDir}
-						spellcheck="false"
-						autocomplete="off"
-						placeholder="C:\Users\you\Music or \\server\share\Music"
-					/>
-					<button
-						type="submit"
-						class="press inline-flex h-9 shrink-0 items-center gap-2 rounded-full bg-bg px-4 text-[13px] font-semibold ring-1 ring-line disabled:opacity-50"
-						disabled={applying || restarting || !musicDir.trim() || musicDir.trim() === desktop.musicDir}
-					>
-						{#if applying || restarting}<LoaderCircle class="size-3.5 animate-spin" />{/if}
-						Apply
-					</button>
-				</div>
-				<p class="mt-1.5 text-xs text-muted">Virgil restarts and scans the new folder.</p>
-			</form>
-			<div class="flex items-center justify-between gap-4 px-4 py-3.5">
-				<div>
-					<div class="text-sm font-medium">Quit Virgil</div>
-					<div class="mt-0.5 text-xs text-muted">Stops playback and closes Virgil until you open it again.</div>
-				</div>
-				<button
-					type="button"
-					class="press inline-flex h-9 shrink-0 items-center gap-2 rounded-full bg-bg px-4 text-[13px] font-semibold text-accent ring-1 ring-line disabled:opacity-50"
-					disabled={quitting}
-					onclick={quit}
-				>
-					<Power class="size-3.5" />
-					{quitting ? 'Quitting…' : 'Quit'}
-				</button>
-			</div>
-		</div>
-	{/if}
 
 	{#if airplay}
 		{@render section('AirPlay')}

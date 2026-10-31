@@ -15,13 +15,6 @@ AirPlay 2 (multi-room, no subscription).
 docker pull ghcr.io/kiesxoxo/virgil:0.6.3
 ```
 
-**On a Windows PC**, download `Virgil.exe` from the [latest release](https://github.com/kiesxoxo/virgil/releases/latest)
-and run it. It's one file: the official `mpd.exe` is inside and unpacks to `%LOCALAPPDATA%\Virgil`.
-Virgil plays to the device you pick in Settings (headphone amp, USB DAC, S/PDIF) in WASAPI
-exclusive mode, so Windows' mixer never touches the audio, and runs in its own window (WebView2,
-built into Windows). Closing the window quits Virgil. Set the music folder (a local folder or a
-share like `\\nas\Music`) in Settings.
-
 ```
  phone / laptop ──HTTP + WebSocket──▶ virgild (Rust) ──MPD protocol──▶ MPD ──hw:──▶ Digi2 Pro ──S/PDIF──▶ DAC
                                         │    ▲

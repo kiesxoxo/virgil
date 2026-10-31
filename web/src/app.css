@@ -152,7 +152,7 @@ nav a {
 
 /* Frosted bars and menus. Tailwind's backdrop utilities write both the
    standard and the -webkit- property; hand-written, the minifier kept only
-   the -webkit- one, so Chrome, Edge and WebView2 showed no blur. */
+   the -webkit- one, so Chrome and Edge showed no blur. */
 @utility glass {
 	background: var(--elevated);
 	@apply backdrop-blur-[20px] backdrop-saturate-180;

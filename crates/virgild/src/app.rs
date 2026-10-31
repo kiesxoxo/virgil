@@ -13,7 +13,6 @@ use virgil_radio::Nts;
 
 use crate::api::ApiError;
 use crate::config::Config;
-use crate::desktop::{self, Desktop};
 use crate::online::Online;
 use crate::signal::{Hw, card_label, parse_cards, read_hw};
 
@@ -45,8 +44,6 @@ pub struct Inner {
     /// Online services' settings (the Discogs token).
     pub online: Online,
     pub events: broadcast::Sender<ServerEvent>,
-    /// Set in desktop mode (Virgil.exe), which runs MPD itself.
-    pub desktop: Option<Arc<Desktop>>,
     snapshot: RwLock<Snapshot>,
     arbiter: Mutex<Arbiter>,
 }
@@ -59,7 +56,7 @@ impl Deref for App {
 }
 
 impl App {
-    pub fn new(config: Config, library: Library, radio: Nts, desktop: Option<Arc<Desktop>>) -> Self {
+    pub fn new(config: Config, library: Library, radio: Nts) -> Self {
         let source = SourceState { active: LOCAL_SOURCE.into(), available: config.sources.keys().cloned().collect() };
         App(Arc::new(Inner {
             mpd: MpdEngine::new(&config.mpd),
@@ -67,7 +64,6 @@ impl App {
             radio,
             online: Online::load(&config.data_dir, config.discogs_token.clone()),
             events: broadcast::channel(256).0,
-            desktop,
             snapshot: RwLock::new(Snapshot { source, ..Snapshot::default() }),
             arbiter: Mutex::default(),
             config,
@@ -109,12 +105,9 @@ impl App {
                 output.label = card_label(dir, &output.name, &cards).await;
             }
         }
-        // Devices connected since MPD started: on a PC from Windows' list, on
-        // Linux where outputs are named after ALSA cards (the container image).
-        let new_cards = if self.desktop.is_some() {
-            let devices = tokio::task::spawn_blocking(desktop::devices).await.unwrap_or_default();
-            devices.into_iter().map(|d| d.name).filter(|name| !outputs.iter().any(|o| o.name == *name)).collect()
-        } else if outputs.iter().any(|o| o.plugin == "alsa" && cards.iter().any(|(id, _)| *id == o.name)) {
+        // Cards connected since MPD started, where outputs are named after ALSA
+        // cards (the container image).
+        let new_cards = if outputs.iter().any(|o| o.plugin == "alsa" && cards.iter().any(|(id, _)| *id == o.name)) {
             cards
                 .into_iter()
                 .filter(|(id, _)| !outputs.iter().any(|o| o.name == *id))
@@ -135,11 +128,6 @@ impl App {
         }
         self.refresh_outputs().await;
         Ok(())
-    }
-
-    pub fn enabled_output_label(&self) -> Option<String> {
-        let s = self.snapshot.read().expect("snapshot lock");
-        s.outputs.outputs.iter().find(|o| o.enabled).map(|o| o.label.clone())
     }
 
     /// The ALSA card being played to: the enabled output's, if it names a card, else `alsa_card`.
