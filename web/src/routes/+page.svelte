@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { ArrowDown, ArrowUp, LibraryBig, Search, X } from '@lucide/svelte';
+	import AlbumFlow from '#lib/components/AlbumFlow.svelte';
 	import AlbumGrid from '#lib/components/AlbumGrid.svelte';
 	import AlbumList, { LIST_COLUMNS_MIN_WIDTH, listColumns } from '#lib/components/AlbumList.svelte';
 	import Cover from '#lib/components/Cover.svelte';
@@ -13,7 +14,7 @@
 	import { library } from '#lib/library.svelte.ts';
 	import { contextMenu } from '#lib/menu.svelte.ts';
 	import { search } from '#lib/search.svelte.ts';
-	import { isBoolean, isView, store, stored } from '#lib/stored.ts';
+	import { isAlbumView, isBoolean, store, stored } from '#lib/stored.ts';
 	import type { Album } from '#lib/types/Album.ts';
 	import type { TrackHit } from '#lib/types/TrackHit.ts';
 
@@ -54,7 +55,7 @@
 		typeof v === 'object' && v !== null && (v as Sort).key in startsDesc && typeof (v as Sort).desc === 'boolean';
 
 	let sort = $state<Sort>(stored('albumSort', isSort, { key: 'artist', desc: false }));
-	let view = $state(stored('albumView', isView, 'grid'));
+	let view = $state(stored('albumView', isAlbumView, 'grid'));
 	let listArt = $state(stored('albumListArt', isBoolean, true));
 	let songs = $state<TrackHit[]>([]);
 	let contentWidth = $state(0);
@@ -133,7 +134,7 @@
 					<span class="mr-1 text-sm text-muted tabular-nums max-sm:hidden">{filtered.length.toLocaleString()}</span>
 				{/if}
 				<LibraryTabs />
-				<ViewToggle bind:view bind:art={listArt} />
+				<ViewToggle bind:view bind:art={listArt} flow />
 			</div>
 		</div>
 		<label class="relative mt-3 block max-lg:hidden lg:max-w-md">
@@ -262,6 +263,8 @@
 		<p class="mt-12 text-center text-sm text-muted">No albums match “{search.query}”.</p>
 	{:else if view === 'list'}
 		<AlbumList albums={filtered} art={listArt} {wide} />
+	{:else if view === 'flow'}
+		<AlbumFlow albums={filtered} />
 	{:else}
 		<AlbumGrid albums={filtered} />
 	{/if}

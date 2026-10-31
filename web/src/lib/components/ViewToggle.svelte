@@ -1,9 +1,16 @@
 <script lang="ts">
-	import { Image, ImageOff, LayoutGrid, List } from '@lucide/svelte';
+	import { GalleryHorizontal, Image, ImageOff, LayoutGrid, List } from '@lucide/svelte';
+	import type { View } from '../stored.ts';
 
 	// Grid or list, plus artwork on or off while it's a list. Shared by the
-	// Albums, Artists and Genres pages.
-	let { view = $bindable(), art = $bindable() }: { view: 'grid' | 'list'; art: boolean } = $props();
+	// Albums, Artists and Genres pages; Albums also has the cover flow.
+	let { view = $bindable(), art = $bindable(), flow = false }: { view: View; art: boolean; flow?: boolean } = $props();
+
+	const options = [
+		{ id: 'grid', label: 'Grid', icon: LayoutGrid },
+		{ id: 'list', label: 'List', icon: List },
+		{ id: 'flow', label: 'Cover flow', icon: GalleryHorizontal }
+	] as const;
 </script>
 
 {#if view === 'list'}
@@ -19,7 +26,7 @@
 	</button>
 {/if}
 <div class="flex rounded-lg bg-surface p-0.5" role="group" aria-label="Layout">
-	{#each [{ id: 'grid', label: 'Grid', icon: LayoutGrid }, { id: 'list', label: 'List', icon: List }] as const as option (option.id)}
+	{#each flow ? options : options.slice(0, 2) as option (option.id)}
 		<button
 			type="button"
 			class="grid size-7 place-items-center rounded-md transition-colors {view === option.id

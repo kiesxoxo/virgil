@@ -6,7 +6,7 @@
 	import { library } from '../library.svelte.ts';
 	import { contextMenu, type MenuItem } from '../menu.svelte.ts';
 	import { search } from '../search.svelte.ts';
-	import { isBoolean, isView, store, stored } from '../stored.ts';
+	import { isBoolean, isView, store, stored, type View } from '../stored.ts';
 	import GroupArt from './GroupArt.svelte';
 	import LibraryTabs from './LibraryTabs.svelte';
 	import Menu from './Menu.svelte';
@@ -38,7 +38,7 @@
 			{ key: 'name', desc: false }
 		)
 	);
-	let view = $state(stored(`${prefix}View`, isView, 'grid'));
+	let view = $state<View>(stored(`${prefix}View`, isView, 'grid'));
 	let listArt = $state(stored(`${prefix}ListArt`, isBoolean, true));
 	let contentWidth = $state(0);
 	let wide = $derived(contentWidth >= COLUMNS_MIN_WIDTH);
