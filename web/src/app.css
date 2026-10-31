@@ -100,6 +100,23 @@
 	}
 }
 
+/* Page changes: a quick cross-fade, and covers named on both pages move between them. */
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation-duration: 150ms;
+}
+::view-transition-group(*) {
+	animation-duration: 350ms;
+	animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+	::view-transition-group(*),
+	::view-transition-old(*),
+	::view-transition-new(*) {
+		animation: none;
+	}
+}
+
 /* Elements with a long-press menu: no iOS link callout or text selection. */
 .touch-menu {
 	-webkit-touch-callout: none;

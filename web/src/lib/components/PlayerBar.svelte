@@ -48,7 +48,7 @@
 			</button>
 		{:else}
 			<a href="/now" class="flex min-w-0 flex-1 items-center gap-3">
-				<Cover art={shown?.art} src={shown?.src} class="size-11 shrink-0 rounded-lg" />
+				<Cover art={shown?.art} src={shown?.src} name="now-cover" class="size-11 shrink-0 rounded-lg" />
 				<div class="min-w-0">
 					<div class="truncate text-sm font-semibold">{shown?.title ?? 'Not playing'}</div>
 					<div class="truncate text-xs text-muted">{shown ? shown.subtitle : 'Pick an album or a station'}</div>
@@ -94,7 +94,7 @@
 				<div class="truncate text-[13px] text-muted">Another device is playing here</div>
 			</div>
 		{:else if item && shown}
-			<a href="/now" class="shrink-0"><Cover art={shown.art} src={shown.src} class="size-14 rounded-lg shadow-cover" /></a>
+			<a href="/now" class="shrink-0"><Cover art={shown.art} src={shown.src} name="now-cover" class="size-14 rounded-lg shadow-cover" /></a>
 			<div class="min-w-0">
 				<a href="/now" class="block truncate text-sm font-semibold hover:underline">{shown.title}</a>
 				{#if item.albumId}

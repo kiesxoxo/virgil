@@ -2,6 +2,7 @@
 	import '../app.css';
 	import { ListMusic, LibraryBig, LoaderCircle, MicVocal, Radio as RadioIcon, Settings2, Shapes, WifiOff } from '@lucide/svelte';
 	import { onMount, type Snippet } from 'svelte';
+	import { onNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import ContextMenu from '#lib/components/ContextMenu.svelte';
 	import PlayerBar from '#lib/components/PlayerBar.svelte';
@@ -45,13 +46,32 @@
 	// Give the first connection a moment before complaining.
 	let patient = $state(true);
 
+	// Covers with the same view-transition-name on both pages morph into each other.
+	// Not after a swipe back that the browser already animated itself (iOS, Android).
+	let browserAnimated = false;
+	onNavigate((navigation) => {
+		const skip = navigation.type === 'popstate' && browserAnimated;
+		browserAnimated = false;
+		if (!document.startViewTransition || skip) return;
+		return new Promise((resolve) => {
+			document.startViewTransition(async () => {
+				resolve();
+				await navigation.complete;
+			});
+		});
+	});
+
 	onMount(() => {
 		hub.connect();
 		const wake = () => document.visibilityState === 'visible' && hub.wake();
 		document.addEventListener('visibilitychange', wake);
 		const timer = setTimeout(() => (patient = false), 1500);
 		const unwatch = keyboard.watch();
+		// Capture: runs before SvelteKit's own popstate listener starts the navigation.
+		const popped = (e: PopStateEvent) => (browserAnimated = e.hasUAVisualTransition);
+		addEventListener('popstate', popped, { capture: true });
 		return () => {
+			removeEventListener('popstate', popped, { capture: true });
 			document.removeEventListener('visibilitychange', wake);
 			clearTimeout(timer);
 			unwatch();

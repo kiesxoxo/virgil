@@ -48,7 +48,7 @@
 				<Airplay class="size-1/3" strokeWidth={1.25} />
 			</div>
 		{:else if item}
-			<Cover art={item.art} src={shown?.large} size={600} eager class="w-full rounded-3xl shadow-cover ring-1 ring-line transition-transform duration-500 {hub.playing ? 'scale-100' : 'scale-[0.94]'}" />
+			<Cover art={item.art} src={shown?.large} size={600} eager name="now-cover" class="w-full rounded-3xl shadow-cover ring-1 ring-line transition-transform duration-500 {hub.playing ? 'scale-100' : 'scale-[0.94]'}" />
 		{:else}
 			<div class="grid aspect-square w-full place-items-center rounded-3xl bg-surface text-faint">
 				<Disc3 class="size-1/3" strokeWidth={1} />

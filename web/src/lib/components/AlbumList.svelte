@@ -92,7 +92,7 @@
 				style:grid-template-columns={wide ? listColumns(art) : undefined}
 			>
 				{#if art}
-					<Cover art={album.art} class="size-10 shrink-0 rounded-md" />
+					<Cover art={album.art} name="cover-{album.id}" class="size-10 shrink-0 rounded-md" />
 				{/if}
 				{#if wide}
 					<span role="cell" class="flex min-w-0 items-center gap-2 text-sm font-medium {playing ? 'text-accent' : ''}">
