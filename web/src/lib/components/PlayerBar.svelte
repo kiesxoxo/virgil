@@ -21,6 +21,13 @@
 	let progress = $derived(
 		showProgress !== null ? showProgress * 100 : hub.player.duration > 0 ? (hub.elapsed / hub.player.duration) * 100 : 0
 	);
+	// The position moves once a second, and the bar glides to it; back to the start of a track it jumps.
+	let last = 0;
+	let glide = $derived.by(() => {
+		const forward = progress >= last;
+		last = progress;
+		return forward;
+	});
 </script>
 
 {#snippet airplayTile(cls: string)}
@@ -78,7 +85,7 @@
 			</button>
 			<div class="absolute inset-x-3 bottom-0 h-[2px] overflow-hidden rounded-full bg-fg/8">
 				<!-- Moved, not resized: a width animating all the time would lay out the page on every frame. -->
-				<div class="h-full bg-accent transition-transform duration-300 ease-linear" style:transform="translateX({progress - 100}%)"></div>
+				<div class="h-full bg-accent {glide ? 'transition-transform duration-1000 ease-linear' : ''}" style:transform="translateX({progress - 100}%)"></div>
 			</div>
 		{/if}
 	</div>

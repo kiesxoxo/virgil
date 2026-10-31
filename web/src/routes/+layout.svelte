@@ -75,7 +75,11 @@
 		// Capture: runs before SvelteKit's own popstate listener starts the navigation.
 		const popped = (e: PopStateEvent) => (browserAnimated = e.hasUAVisualTransition);
 		addEventListener('popstate', popped, { capture: true });
+		// Measuring on a phone: ?fps shows dropped frames (lib/fps.ts).
+		let stopProbe: (() => void) | undefined;
+		if (new URLSearchParams(location.search).has('fps')) import('#lib/fps.ts').then((m) => (stopProbe = m.probe()));
 		return () => {
+			stopProbe?.();
 			removeEventListener('popstate', popped, { capture: true });
 			document.removeEventListener('visibilitychange', wake);
 			clearTimeout(timer);

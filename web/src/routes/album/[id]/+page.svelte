@@ -168,7 +168,7 @@
 			</a>
 
 			<header class="flex flex-col items-center gap-6 pt-2 text-center md:flex-row md:items-end md:gap-8 md:pt-10 md:text-left">
-				<Cover art={album?.art} size={600} eager name="cover-{data.id}" class="w-[min(68vw,18rem)] shrink-0 rounded-2xl shadow-cover ring-1 ring-line md:w-60" />
+				<Cover art={album?.art} size={1000} eager name="cover-{data.id}" class="w-[min(68vw,18rem)] shrink-0 rounded-2xl shadow-cover ring-1 ring-line md:w-60" />
 				<div class="min-w-0 flex-1">
 					<h1 class="text-2xl font-bold tracking-tight text-balance md:text-4xl">{album?.title ?? ''}</h1>
 					<p class="mt-1 text-lg font-semibold text-accent md:text-xl">

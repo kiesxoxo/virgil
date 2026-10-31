@@ -70,7 +70,13 @@ export function hhmm(unix: number): string {
 	return new Date(unix * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-export function artUrl(art: string | null | undefined, size: 300 | 600 = 300): string | null {
+/** Edge lengths of the covers virgild renders (crates/library/src/art.rs). */
+export type ArtSize = 300 | 600 | 1000;
+
+/** What grid tiles load: 600 where a point is two pixels or more, so a 180pt tile stays sharp. */
+export const TILE: ArtSize = (globalThis.devicePixelRatio ?? 1) >= 2 ? 600 : 300;
+
+export function artUrl(art: string | null | undefined, size: ArtSize = 300): string | null {
 	return art ? `/art/${art}-${size}.jpg` : null;
 }
 

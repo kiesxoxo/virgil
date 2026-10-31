@@ -12,9 +12,10 @@
 	import { clock, fold, qualityRank } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
+	import { hasWebGL2 } from '#lib/coverflow-gl.ts';
 	import { contextMenu } from '#lib/menu.svelte.ts';
 	import { search } from '#lib/search.svelte.ts';
-	import { isAlbumView, isBoolean, store, stored } from '#lib/stored.ts';
+	import { isAlbumView, isBoolean, store, stored, type View } from '#lib/stored.ts';
 	import type { Album } from '#lib/types/Album.ts';
 	import type { TrackHit } from '#lib/types/TrackHit.ts';
 
@@ -55,7 +56,8 @@
 		typeof v === 'object' && v !== null && (v as Sort).key in startsDesc && typeof (v as Sort).desc === 'boolean';
 
 	let sort = $state<Sort>(stored('albumSort', isSort, { key: 'artist', desc: false }));
-	let view = $state(stored('albumView', isAlbumView, 'grid'));
+	// The cover flow needs WebGL2: without it, the grid.
+	let view = $state(stored('albumView', (v): v is View => isAlbumView(v) && (v !== 'flow' || hasWebGL2), 'grid'));
 	let listArt = $state(stored('albumListArt', isBoolean, true));
 	let songs = $state<TrackHit[]>([]);
 	let contentWidth = $state(0);
@@ -134,7 +136,7 @@
 					<span class="mr-1 text-sm text-muted tabular-nums max-sm:hidden">{filtered.length.toLocaleString()}</span>
 				{/if}
 				<LibraryTabs />
-				<ViewToggle bind:view bind:art={listArt} flow />
+				<ViewToggle bind:view bind:art={listArt} flow={hasWebGL2} />
 			</div>
 		</div>
 		<label class="relative mt-3 block max-lg:hidden lg:max-w-md">

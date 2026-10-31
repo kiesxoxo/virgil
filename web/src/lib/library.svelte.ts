@@ -1,6 +1,7 @@
 import { api } from './api.ts';
 import { artists, genres, type Group } from './browse.ts';
 import { bare, fold, qualityRank } from './format.ts';
+import * as idb from './idb.ts';
 import type { Album } from './types/Album.ts';
 
 /**
@@ -21,12 +22,24 @@ function better(a: Album, b: Album): number {
 
 /**
  * The whole album list, fetched once per library revision (the server answers
- * 304 when unchanged) and filtered/sorted on the client.
+ * 304 when unchanged) and filtered/sorted on the client. The last one fetched is
+ * kept on the device, so the app opens on it before the server has answered.
  */
 class Library {
 	albums = $state.raw<Album[]>([]);
 	loaded = $state(false);
 	#revision = -1;
+
+	constructor() {
+		if (typeof indexedDB === 'undefined') return;
+		idb.get<Album[]>('albums').then((albums) => {
+			// Unless the server was quicker.
+			if (albums && !this.loaded) {
+				this.albums = albums;
+				this.loaded = true;
+			}
+		});
+	}
 
 	#byId = $derived(new Map(this.albums.map((a) => [a.id, a])));
 
@@ -86,6 +99,7 @@ class Library {
 		try {
 			this.albums = await api.albums();
 			this.loaded = true;
+			idb.set('albums', this.albums);
 		} catch {
 			this.#revision = -1;
 		}

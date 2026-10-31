@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Disc3 } from '@lucide/svelte';
-	import { artUrl } from '../format.ts';
+	import { TILE, artUrl, type ArtSize } from '../format.ts';
 
 	let {
 		art,
@@ -13,7 +13,7 @@
 		art: string | null | undefined;
 		/** A full image URL (radio artwork), used instead of `art`. */
 		src?: string | null;
-		size?: 300 | 600;
+		size?: ArtSize;
 		class?: string;
 		eager?: boolean;
 		/** `view-transition-name`: the same name on two pages morphs one cover into the other. */
@@ -23,8 +23,9 @@
 	let loaded = $state(false);
 	let thumbLoaded = $state(false);
 	let src = $derived(image ?? artUrl(art, size));
-	// The small cover is usually cached already (grid, player bar): show it until the large one is in.
-	let thumb = $derived(!image && size === 600 ? artUrl(art, 300) : null);
+	// The grid's cover is usually cached already: show it until the large one is in (or instead of
+	// it, where virgild has no large one yet).
+	let thumb = $derived(!image && size > TILE ? artUrl(art, TILE) : null);
 </script>
 
 <div class="relative aspect-square overflow-hidden bg-surface-2 {className}" style:view-transition-name={name}>

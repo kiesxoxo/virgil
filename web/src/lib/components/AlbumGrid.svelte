@@ -2,6 +2,7 @@
 	import { Layers, Play } from '@lucide/svelte';
 	import { albumHeader, albumItems } from '../actions.ts';
 	import { queue } from '../api.ts';
+	import { TILE } from '../format.ts';
 	import { library } from '../library.svelte.ts';
 	import { morph } from '../morph.svelte.ts';
 	import { contextMenu } from '../menu.svelte.ts';
@@ -60,7 +61,7 @@
 		>
 			<a href="/album/{album.id}" class="block press">
 				<div class="relative">
-					<Cover art={album.art} name={morph.name(album.id)} class="rounded-xl shadow-cover ring-1 ring-line" />
+					<Cover art={album.art} size={TILE} name={morph.name(album.id)} class="rounded-xl shadow-cover ring-1 ring-line" />
 					{#if versions > 1}
 						<span
 							class="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white"

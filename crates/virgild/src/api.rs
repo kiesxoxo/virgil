@@ -68,11 +68,12 @@ pub type ApiResult<T = StatusCode> = Result<T, ApiError>;
 const DONE: StatusCode = StatusCode::NO_CONTENT;
 
 pub fn router(app: App) -> Router {
+    // Covers never change under a URL (it names a hash of the picture), but one that isn't there
+    // yet may be soon (a size being added): only what was found is cached for good.
     let art = ServiceBuilder::new()
-        .layer(SetResponseHeaderLayer::overriding(
-            header::CACHE_CONTROL,
-            HeaderValue::from_static("public, max-age=31536000, immutable"),
-        ))
+        .layer(SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, |res: &Response<_>| {
+            res.status().is_success().then(|| HeaderValue::from_static("public, max-age=31536000, immutable"))
+        }))
         .service(ServeDir::new(app.library.art_dir()));
 
     Router::new()

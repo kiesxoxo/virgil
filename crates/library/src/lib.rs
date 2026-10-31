@@ -42,6 +42,8 @@ struct Inner {
     music_dir: Option<PathBuf>,
     finder: online::Finder,
     downloading: AtomicBool,
+    /// Every cover has had its thumbnails completed once since Virgil started.
+    sizes_completed: AtomicBool,
 }
 
 /// Folder images MPD's `albumart` doesn't read but people use (folder.jpg, front.png, …).
@@ -154,6 +156,7 @@ impl Library {
                 music_dir,
                 finder: online::Finder::new()?,
                 downloading: AtomicBool::new(false),
+                sizes_completed: AtomicBool::new(false),
             }),
         };
         library.spawn_worker();
@@ -239,6 +242,8 @@ impl Library {
                     warn!("library sync failed: {e:#}");
                 } else if let Err(e) = library.fetch_art().await {
                     warn!("artwork pass stopped: {e:#}");
+                } else if let Err(e) = library.complete_art().await {
+                    warn!("artwork sizes pass stopped: {e:#}");
                 }
                 library.set_scanning(false);
             }
@@ -320,6 +325,38 @@ impl Library {
         if pending > 0 {
             self.bump().await?;
         }
+        Ok(())
+    }
+
+    /// Renders the sizes added since covers were first rendered (1000px, in Virgil 0.8) from
+    /// the picture MPD has. Once per run: covers it can't redo are not asked for again.
+    async fn complete_art(&self) -> anyhow::Result<()> {
+        if self.inner.sizes_completed.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+        let dir = self.inner.art_dir.clone();
+        let mut todo = self.db(|conn| db::art_covers(conn)).await?;
+        todo.retain(|(_, key)| !art::complete(&dir, key));
+        if !todo.is_empty() {
+            info!("artwork: adding sizes to {} covers", todo.len());
+        }
+        for (uri, key) in todo {
+            let picture = match self.inner.mpd.picture(&uri).await {
+                Ok(picture) => picture,
+                Err(e) if e.is_connection() => return Err(e.into()),
+                Err(e) => {
+                    debug!("no artwork for {uri}: {e}");
+                    None
+                }
+            };
+            // A cover that has changed since is the next artwork pass's to redo.
+            if let Some(bytes) = picture.filter(|bytes| art::key(bytes) == key)
+                && let Err(e) = self.thumbs(bytes).await
+            {
+                debug!("unreadable artwork for {uri}: {e:#}");
+            }
+        }
+        self.inner.sizes_completed.store(true, Ordering::Relaxed);
         Ok(())
     }
 

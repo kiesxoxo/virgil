@@ -52,7 +52,7 @@ class Hub {
 
 	#receivedAt = $state(0);
 	#now = $state(0);
-	#ticker: ReturnType<typeof setInterval> | undefined;
+	#ticker: ReturnType<typeof setTimeout> | undefined;
 	#ws: WebSocket | null = null;
 	#retry = 0;
 	#reconnect: ReturnType<typeof setTimeout> | undefined;
@@ -94,6 +94,7 @@ class Hub {
 
 	/** Phones suspend background tabs; reconnect as soon as we're visible again. */
 	wake() {
+		this.#tick();
 		if (!this.#ws) {
 			clearTimeout(this.#reconnect);
 			this.#retry = 0;
@@ -147,14 +148,21 @@ class Hub {
 
 	#setPlayer(player: PlayerState) {
 		this.player = player;
-		this.#receivedAt = this.#now = performance.now();
-		if (player.state === 'play' && !this.#ticker) {
-			this.#ticker = setInterval(() => (this.#now = performance.now()), 250);
-		} else if (player.state !== 'play' && this.#ticker) {
-			clearInterval(this.#ticker);
-			this.#ticker = undefined;
-		}
+		this.#receivedAt = performance.now();
+		this.#tick();
 	}
+
+	/**
+	 * Moves `elapsed` on, then again when it next reaches a whole second: what the clocks show
+	 * (the progress bars glide in between). Not while paused, nor while the page is hidden.
+	 */
+	#tick = () => {
+		clearTimeout(this.#ticker);
+		this.#now = performance.now();
+		if (this.player.state !== 'play' || document.hidden) return;
+		const elapsed = this.player.elapsed + (this.#now - this.#receivedAt) / 1000;
+		this.#ticker = setTimeout(this.#tick, (Math.floor(elapsed) + 1 - elapsed) * 1000 + 10);
+	};
 
 	// Transport, applied optimistically; the next server event confirms or corrects.
 

@@ -6,47 +6,62 @@
 <script lang="ts">
 	import { Play } from '@lucide/svelte';
 	import { untrack } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { albumHeader, albumItems } from '../actions.ts';
 	import { queue } from '../api.ts';
+	import { TOP, hitTest, layout } from '../coverflow.ts';
+	import { flowRenderer, readTheme, type Scene } from '../coverflow-gl.ts';
 	import { contextMenu } from '../menu.svelte.ts';
 	import { morph } from '../morph.svelte.ts';
+	import { theme } from '../theme.svelte.ts';
 	import type { Album } from '../types/Album.ts';
+	import AlbumGrid from './AlbumGrid.svelte';
 	import Cover from './Cover.svelte';
 
 	let { albums }: { albums: Album[] } = $props();
 
-	/** Covers kept in the DOM on each side of the middle one. */
+	/** Snap points kept in the DOM on each side of the middle cover. */
 	const REACH = 10;
-	/** How far the side covers turn towards the middle. */
-	const ANGLE = 55;
-	const TOP = 24;
-	/** The reflection's height, in covers. */
-	const REFLECTION = 0.35;
-	/** The album's title and Play button under the covers. */
-	const CAPTION = 100;
 
 	const still = matchMedia('(prefers-reduced-motion: reduce)');
+	// The covers are drawn with WebGL (lib/coverflow-gl.ts), straight from the scroll position:
+	// scrolling changes nothing here but the cover in the middle, once per cover.
+	const renderer = flowRenderer();
 
-	let scroller: HTMLDivElement;
+	let scroller = $state() as HTMLDivElement;
+	let link = $state<HTMLAnchorElement>();
 	let width = $state(0);
 	let innerHeight = $state(800);
 	/** The page's height that isn't for the covers: what is above them, and the bars below. */
 	let chrome = $state(0);
-	let scroll = $state(0);
+	let current = $state(0);
+	/** At rest on the middle cover, not between two. */
+	let settled = $state(true);
 
-	// As big as fits with the Play button clear of the player bar (in Safari on a phone, the
-	// browser's own bars leave little height).
-	let fit = $derived((innerHeight - chrome - CAPTION - TOP) / (1 + REFLECTION));
-	let cover = $derived(Math.round(Math.max(120, Math.min(width * 0.68, fit, 340))));
-	/** Distance between neighbouring covers; the middle one gets `room` more on each side. */
-	let slot = $derived(Math.round(cover * 0.42));
-	let room = $derived(cover * 0.42);
-	let reflection = $derived(Math.round(cover * REFLECTION));
-	let position = $derived(scroll / slot);
-	let current = $derived(Math.min(albums.length - 1, Math.max(0, Math.round(position))));
-	let first = $derived(Math.max(0, Math.floor(position) - REACH));
-	let last = $derived(Math.min(albums.length, Math.ceil(position) + REACH + 1));
+	let l = $derived(layout(width, innerHeight - chrome));
+	let snaps = $derived.by(() => {
+		const first = Math.max(0, current - REACH);
+		return Array.from({ length: Math.min(albums.length, current + REACH + 1) - first }, (_, i) => first + i);
+	});
 	let album = $derived(albums[current]);
+	/** The cover a page transition moves: a real image over the canvas, so it can fly. */
+	let moving = $derived(settled && !!album && morph.album === album.id);
+
+	const position = () => scroller.scrollLeft / l.slot;
+
+	// Untracked: drawing at once from an effect must not make the effect depend on the scroll.
+	const scene = (): Scene =>
+		untrack(() => {
+			const list = albums;
+			return {
+				layout: l,
+				position: scroller ? position() : current,
+				count: list.length,
+				art: (index) => list[index]?.art ?? null,
+				hidden: moving ? current : -1,
+				settled
+			};
+		});
 
 	// The same album stays in the middle when the list changes (search, sort) or the size does.
 	$effect(() => {
@@ -54,14 +69,32 @@
 		const index = Math.max(0, albums.findIndex((a) => a.id === untrack(() => centred)));
 		// Snapping off meanwhile: Chrome would re-snap to the cover it snapped to before the jump.
 		scroller.style.scrollSnapType = 'none';
-		scroller.scrollLeft = scroll = index * slot;
+		scroller.scrollLeft = index * l.slot;
+		current = index;
+		settled = true;
+		// Now, not on the next frame: a page transition may be taking its picture of this one.
+		renderer?.draw();
 		const frame = requestAnimationFrame(() => (scroller.style.scrollSnapType = ''));
 		return () => cancelAnimationFrame(frame);
 	});
 
+	$effect(() => {
+		void [l, albums, moving, settled];
+		renderer?.invalidate();
+	});
+
+	$effect(() => {
+		void theme.dark;
+		renderer?.setTheme(readTheme());
+	});
+
 	function onscroll() {
-		scroll = scroller.scrollLeft;
-		centred = albums[Math.round(scroll / slot)]?.id ?? centred;
+		const left = scroller.scrollLeft;
+		const index = Math.min(albums.length - 1, Math.max(0, Math.round(left / l.slot)));
+		current = index;
+		settled = Math.abs(left - index * l.slot) < 1;
+		centred = albums[index]?.id ?? centred;
+		renderer?.invalidate();
 	}
 
 	/** Where a smooth scroll is heading, so steps add up before it gets there. */
@@ -69,11 +102,11 @@
 
 	function goTo(index: number) {
 		target = Math.max(0, Math.min(albums.length - 1, index));
-		scroller.scrollTo({ left: target * slot, behavior: still.matches ? 'instant' : 'smooth' });
+		scroller.scrollTo({ left: target * l.slot, behavior: still.matches ? 'instant' : 'smooth' });
 	}
 
 	function step(by: number) {
-		goTo((Math.abs(target - position) < 1.5 ? target : current) + by);
+		goTo((Math.abs(target - position()) < 1.5 ? target : current) + by);
 	}
 
 	function onkeydown(e: KeyboardEvent) {
@@ -81,11 +114,30 @@
 		if (to === undefined) return;
 		e.preventDefault();
 		step(to);
-		requestAnimationFrame(() => scroller.querySelector<HTMLElement>(`[data-index="${target}"] a`)?.focus({ preventScroll: true }));
+		link?.focus({ preventScroll: true });
 	}
 
-	// Arrow keys come from the focused cover link. A mouse wheel scrolls up and down: step
-	// through the covers instead. (Sideways is the scroller's.)
+	/** The cover under the pointer, or -1. */
+	function hit(e: MouseEvent): number {
+		const r = scroller.getBoundingClientRect();
+		return hitTest(l, position(), albums.length, e.clientX - r.left, e.clientY - r.top);
+	}
+
+	// The middle cover is a link of its own; a side cover comes to the middle.
+	function onclick(e: MouseEvent) {
+		if (link?.contains(e.target as Node)) return;
+		const index = hit(e);
+		if (index === current) goto(`/album/${albums[index].id}`);
+		else if (index >= 0) goTo(index);
+	}
+
+	/** The album a long press or right-click is on: the one under it, or the middle one. */
+	let pressed = -1;
+	const menuAlbum = () => albums[pressed] ?? album;
+
+	// Arrow keys come from the middle cover's link. A mouse wheel scrolls up and down: step
+	// through the covers instead. (Sideways is the scroller's.) Clicks and taps go to the cover
+	// under them.
 	function controls(node: HTMLElement) {
 		let sum = 0;
 		const onwheel = (e: WheelEvent) => {
@@ -96,11 +148,19 @@
 			step(Math.sign(sum));
 			sum = 0;
 		};
+		// Captured, so it is known before the context menu asks.
+		const onpress = (e: MouseEvent) => (pressed = hit(e));
 		node.addEventListener('keydown', onkeydown);
+		node.addEventListener('click', onclick);
 		node.addEventListener('wheel', onwheel, { passive: false });
+		node.addEventListener('pointerdown', onpress, true);
+		node.addEventListener('contextmenu', onpress, true);
 		return () => {
 			node.removeEventListener('keydown', onkeydown);
+			node.removeEventListener('click', onclick);
 			node.removeEventListener('wheel', onwheel);
+			node.removeEventListener('pointerdown', onpress, true);
+			node.removeEventListener('contextmenu', onpress, true);
 		};
 	}
 
@@ -119,101 +179,84 @@
 		return () => observer.disconnect();
 	}
 
-	function place(index: number): string {
-		const d = Math.max(-1, Math.min(1, index - position));
-		return `translateX(${d * room}px) translateZ(${-Math.abs(d) * cover * 0.6}px) rotateY(${-d * ANGLE}deg)`;
+	// The renderer's canvas lies under the scroller, which takes the touches.
+	function canvas(node: HTMLElement) {
+		if (!renderer) return;
+		node.prepend(renderer.canvas);
+		renderer.show(scene);
+		return () => {
+			renderer.hide();
+			renderer.canvas.remove();
+		};
 	}
 </script>
 
 <svelte:window bind:innerHeight />
 
-<!-- Named, so a page transition captures the flow on its own: Safari draws the page's own
-     snapshot without 3D, and the side covers would lie flat until the transition ends. The
-     moving cover is a picture of its own above it (app.css). -->
-<div
-	bind:this={scroller}
-	style:view-transition-name="cover-flow"
-	{onscroll}
-	{@attach measure}
-	{@attach controls}
-	class="-mx-4 snap-x snap-mandatory overflow-x-auto overflow-y-hidden [scrollbar-width:none] lg:-mx-8 [&::-webkit-scrollbar]:hidden"
-	role="region"
-	aria-roledescription="carousel"
-	aria-label="Albums"
->
-	<div
-		class="relative"
-		style:width="{width + (albums.length - 1) * slot}px"
-		style:height="{TOP + cover + reflection}px"
-	>
-		{#each albums.slice(first, last) as item, i (item.id)}
-			{@const index = first + i}
-			{@const middle = index === current}
-			{@const left = width / 2 - slot / 2 + index * slot}
-			<!-- Perspective works on direct children only, so each slot has it, all seen from the middle.
-			     The stacking changes only when the middle cover does, not on every frame. -->
-			<div
-				class="pointer-events-none absolute top-0 h-full snap-center"
-				style:left="{left}px"
-				style:width="{slot}px"
-				style:z-index={1000 - Math.abs(index - current)}
-				style:perspective="{cover * 3}px"
-				style:perspective-origin="{scroll + width / 2 - left}px {TOP + cover / 2}px"
-				data-index={index}
-			>
-				<div
-					class="pointer-events-auto absolute"
-					style:top="{TOP}px"
-					style:left="{(slot - cover) / 2}px"
-					style:width="{cover}px"
-					style:transform={place(index)}
-					{@attach contextMenu(
-						() => albumItems(item),
-						() => albumHeader(item)
-					)}
-				>
-					<a
-						href="/album/{item.id}"
-						class="block"
-						tabindex={middle ? 0 : -1}
-						aria-label="{item.title} by {item.artist}"
-						onclick={(e) => {
-							if (middle) return;
-							e.preventDefault();
-							goTo(index);
-						}}
-					>
-						<Cover art={item.art} size={600} eager name={morph.name(item.id)} class="rounded-xl shadow-cover ring-1 ring-line" />
-					</a>
-					<div
-						class="absolute inset-x-0 overflow-hidden rounded-xl"
-						style:top="calc(100% + 4px)"
-						style:height="{reflection}px"
-						style:mask-image="linear-gradient(to bottom, rgb(0 0 0 / 0.3), transparent 85%)"
-						aria-hidden="true"
-					>
-						<!-- The small image, not the cover's own: when one image is both the cover and its
-						     reflection, Safari drops frames all through the scroll. -->
-						<Cover art={item.art} class="-scale-y-100" />
-					</div>
-				</div>
-			</div>
-		{/each}
-	</div>
-</div>
-
-{#if album}
-	<div class="mt-1 flex flex-col items-center px-4 text-center" aria-live="polite">
-		<a href="/album/{album.id}" class="max-w-full min-w-0">
-			<div class="truncate text-base font-semibold">{album.title}</div>
-			<div class="truncate text-sm text-muted">{album.artist}{album.year ? ` · ${album.year}` : ''}</div>
-		</a>
-		<button
-			type="button"
-			class="press mt-3 inline-flex h-10 items-center gap-1.5 rounded-full bg-accent pr-5 pl-4 text-sm font-semibold text-accent-fg shadow-float"
-			onclick={() => queue.playAlbum(album.id)}
+{#if renderer}
+	<div class="relative -mx-4 lg:-mx-8" {@attach canvas}>
+		<div
+			bind:this={scroller}
+			{onscroll}
+			{@attach measure}
+			{@attach controls}
+			{@attach contextMenu(
+				() => albumItems(menuAlbum()),
+				() => albumHeader(menuAlbum())
+			)}
+			class="relative snap-x snap-mandatory overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+			role="region"
+			aria-roledescription="carousel"
+			aria-label="Albums"
 		>
-			<Play class="size-4" fill="currentColor" /> Play
-		</button>
+			<div class="relative" style:width="{width + (albums.length - 1) * l.slot}px" style:height="{l.height}px">
+				{#each snaps as index (index)}
+					<div class="absolute top-0 h-full snap-center" style:left="{width / 2 - l.slot / 2 + index * l.slot}px" style:width="{l.slot}px"></div>
+				{/each}
+				{#if album}
+					<!-- Where the middle cover is drawn when at rest. At rest it also holds the cover as an
+					     image, shown when a page transition moves it (the canvas leaves that one out). -->
+					<a
+						bind:this={link}
+						href="/album/{album.id}"
+						class="absolute block rounded-xl"
+						style:left="{width / 2 - l.cover / 2 + current * l.slot}px"
+						style:top="{TOP}px"
+						style:width="{l.cover}px"
+						style:height="{l.cover}px"
+						aria-label="{album.title} by {album.artist}"
+					>
+						{#if settled}
+							<Cover
+								art={album.art}
+								size={1000}
+								eager
+								name={morph.name(album.id)}
+								class="rounded-xl shadow-cover ring-1 ring-line {moving ? '' : 'opacity-0'}"
+							/>
+						{/if}
+					</a>
+				{/if}
+			</div>
+		</div>
 	</div>
+
+	{#if album}
+		<div class="mt-1 flex flex-col items-center px-4 text-center" aria-live="polite">
+			<a href="/album/{album.id}" class="max-w-full min-w-0">
+				<div class="truncate text-base font-semibold">{album.title}</div>
+				<div class="truncate text-sm text-muted">{album.artist}{album.year ? ` · ${album.year}` : ''}</div>
+			</a>
+			<button
+				type="button"
+				class="press mt-3 inline-flex h-10 items-center gap-1.5 rounded-full bg-accent pr-5 pl-4 text-sm font-semibold text-accent-fg shadow-float"
+				onclick={() => queue.playAlbum(album.id)}
+			>
+				<Play class="size-4" fill="currentColor" /> Play
+			</button>
+		</div>
+	{/if}
+{:else}
+	<!-- No WebGL after all (the page offers the flow only where there is): the grid instead. -->
+	<AlbumGrid {albums} />
 {/if}

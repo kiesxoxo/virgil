@@ -109,16 +109,6 @@
 	animation-duration: 350ms;
 	animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
 }
-/* A transition's pictures stack in the order their names turned up, not as on the page: coming
-   back to the cover flow, the flow would cover the album cover flying into it. Whatever moves on
-   its own flies above the page and the flow. */
-::view-transition-group(*) {
-	z-index: 1;
-}
-::view-transition-group(root),
-::view-transition-group(cover-flow) {
-	z-index: 0;
-}
 @media (max-width: 1023px) {
 	::view-transition-group(*) {
 		animation-duration: 300ms;

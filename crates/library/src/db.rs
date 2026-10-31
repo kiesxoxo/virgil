@@ -276,6 +276,15 @@ pub fn art_todo(conn: &Connection) -> rusqlite::Result<Vec<(String, String)>> {
     stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?.collect()
 }
 
+/// Each cover in use, once, with a song of an album that has it.
+pub fn art_covers(conn: &Connection) -> rusqlite::Result<Vec<(String, String)>> {
+    let mut stmt = conn.prepare(
+        "SELECT MIN(a.cover_uri), art.art FROM albums a JOIN art ON art.album_id = a.id
+         WHERE art.art IS NOT NULL GROUP BY art.art",
+    )?;
+    stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?.collect()
+}
+
 pub fn set_art(conn: &Connection, album_id: &str, art: Option<&str>, checked: u32) -> rusqlite::Result<()> {
     conn.execute(
         "INSERT INTO art (album_id, art, checked) VALUES (?1, ?2, ?3)

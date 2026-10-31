@@ -114,7 +114,7 @@
 <div class="relative w-full touch-pan-y" bind:clientWidth={width} {@attach swipe}>
 	<div class="mover" class:dragging style:transform="translateX({drag}px)">
 		<div class="sleeve" style:--scale={playing ? 1 : 0.94} {@attach tilt()}>
-			<Cover {art} {src} size={600} eager name="now-cover" class="w-full rounded-3xl shadow-cover ring-1 ring-line" />
+			<Cover {art} {src} size={1000} eager name="now-cover" class="w-full rounded-3xl shadow-cover ring-1 ring-line" />
 			<div class="sheen rounded-3xl"></div>
 		</div>
 	</div>
