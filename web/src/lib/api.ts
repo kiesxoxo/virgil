@@ -107,8 +107,8 @@ export const queue = {
 	playAlbum: (album: string, start?: string) => api.add({ uris: [], album, start, mode: 'replace', play: true }),
 	albumNext: (album: string) => api.add({ uris: [], album, mode: 'next', play: false }).then(next),
 	albumLast: (album: string) => api.add({ uris: [], album, mode: 'append', play: false }).then(last),
-	trackNext: (uri: string) => api.add({ uris: [uri], mode: 'next', play: false }).then(next),
-	trackLast: (uri: string) => api.add({ uris: [uri], mode: 'append', play: false }).then(last),
+	tracksNext: (uris: string[]) => api.add({ uris, mode: 'next', play: false }).then(next),
+	tracksLast: (uris: string[]) => api.add({ uris, mode: 'append', play: false }).then(last),
 	/** Plays several albums in order (an artist's, a genre's): the first replaces the queue. */
 	playAlbums: async (albums: string[]) => {
 		for (const [i, album] of albums.entries()) {

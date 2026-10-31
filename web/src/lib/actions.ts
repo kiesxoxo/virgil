@@ -79,8 +79,8 @@ export const albumHeader = (album: Album): MenuHeader => ({ title: album.title, 
 export function trackItems(track: Track, albumId: string): MenuItem[] {
 	return [
 		{ label: 'Play', icon: Play, run: () => queue.playAlbum(albumId, track.uri) },
-		{ label: 'Play next', icon: ListPlus, run: () => queue.trackNext(track.uri) },
-		{ label: 'Add to end of queue', icon: ListEnd, run: () => queue.trackLast(track.uri) },
+		{ label: 'Play next', icon: ListPlus, run: () => queue.tracksNext([track.uri]) },
+		{ label: 'Add to end of queue', icon: ListEnd, run: () => queue.tracksLast([track.uri]) },
 		{ label: 'Edit tags…', icon: Tags, run: () => tagEditor.show([track.uri], track.title) }
 	];
 }

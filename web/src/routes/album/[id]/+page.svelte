@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { ChevronLeft, CircleCheck, Circle, Layers, ListChecks, ListEnd, ListPlus, Play, Tags } from '@lucide/svelte';
 	import { SvelteSet } from 'svelte/reactivity';
+	import { afterNavigate, goto } from '$app/navigation';
 	import Cover from '#lib/components/Cover.svelte';
 	import Equalizer from '#lib/components/Equalizer.svelte';
 	import Menu from '#lib/components/Menu.svelte';
@@ -17,6 +18,18 @@
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
+
+	/** The page this one was opened from, when it was a link in the app; unknown after a reload or a jump through history. */
+	let from = $state<string | null>(null);
+	afterNavigate((navigation) => {
+		if (navigation.type !== 'popstate') from = navigation.from?.route.id ?? null;
+	});
+
+	/** Back to where the album was opened from, as it was left (the cover flow on this album, the grid scrolled); else to the albums. */
+	function back() {
+		if (from) history.back();
+		else goto('/');
+	}
 
 	let detail = $state<AlbumDetail | null>(null);
 	let missing = $state(false);
@@ -123,8 +136,11 @@
 		selected.clear();
 	}
 
+	/** The selected tracks' URIs, in album order rather than click order. */
+	const selectedUris = () => tracks.filter((t) => selected.has(t.uri)).map((t) => t.uri);
+
 	function editSelected() {
-		const uris = tracks.filter((t) => selected.has(t.uri)).map((t) => t.uri);
+		const uris = selectedUris();
 		tagEditor.show(uris, uris.length === 1 ? (tracks.find((t) => t.uri === uris[0])?.title ?? '') : (album?.title ?? ''));
 	}
 
@@ -163,12 +179,29 @@
 		{/if}
 
 		<div class="pt-safe mx-auto max-w-6xl px-4 lg:px-8">
-			<a href="/" class="-ml-1.5 inline-flex h-11 items-center gap-0.5 text-[15px] font-medium text-accent lg:hidden">
+			<a
+				href="/"
+				class="-ml-1.5 inline-flex h-11 items-center gap-0.5 text-[15px] font-medium text-accent"
+				onclick={(e) => {
+					if (from !== '/' || e.metaKey || e.ctrlKey || e.shiftKey) return;
+					e.preventDefault();
+					back();
+				}}
+			>
 				<ChevronLeft class="size-5" /> Albums
 			</a>
 
 			<header class="flex flex-col items-center gap-6 pt-2 text-center md:flex-row md:items-end md:gap-8 md:pt-10 md:text-left">
-				<Cover art={album?.art} size={1000} eager name="cover-{data.id}" class="w-[min(68vw,18rem)] shrink-0 rounded-2xl shadow-cover ring-1 ring-line md:w-60" />
+				<!-- The cover, and a margin around it, goes back: the cover flies home to the list. -->
+				<button
+					type="button"
+					class="relative w-[min(68vw,18rem)] shrink-0 cursor-pointer rounded-2xl transition-transform duration-200 ease-out after:absolute after:-inset-4 hover:scale-[1.015] active:scale-[0.97] active:duration-100 md:w-60"
+					aria-label="Back"
+					title="Back"
+					onclick={back}
+				>
+					<Cover art={album?.art} size={1000} eager name="cover-{data.id}" class="w-full rounded-2xl shadow-cover ring-1 ring-line" />
+				</button>
 				<div class="min-w-0 flex-1">
 					<h1 class="text-2xl font-bold tracking-tight text-balance md:text-4xl">{album?.title ?? ''}</h1>
 					<p class="mt-1 text-lg font-semibold text-accent md:text-xl">
@@ -190,6 +223,7 @@
 								{@const active = version.id === data.id}
 								<a
 									href="/album/{version.id}"
+									data-sveltekit-replacestate
 									role="radio"
 									aria-checked={active}
 									title={version.title}
@@ -235,7 +269,7 @@
 								: 'bg-surface hover:bg-surface-2'}"
 							disabled={!detail}
 							aria-pressed={selecting}
-							title="Select tracks to edit their tags"
+							title="Select tracks to queue or edit"
 							onclick={() => (selecting ? stopSelecting() : (selecting = true))}
 						>
 							<ListChecks class="size-[18px]" /> <span class="max-sm:hidden">Select</span>
@@ -256,11 +290,33 @@
 					</button>
 					<button
 						type="button"
+						class="press inline-flex h-9 items-center gap-1.5 rounded-full bg-surface px-3 text-[13px] font-semibold disabled:opacity-40"
+						disabled={!selected.size}
+						title="Play next"
+						aria-label="Play next"
+						onclick={() => queue.tracksNext(selectedUris())}
+					>
+						<ListPlus class="size-4" /> <span class="max-md:hidden">Play next</span>
+					</button>
+					<button
+						type="button"
+						class="press inline-flex h-9 items-center gap-1.5 rounded-full bg-surface px-3 text-[13px] font-semibold disabled:opacity-40"
+						disabled={!selected.size}
+						title="Add to end of queue"
+						aria-label="Add to end of queue"
+						onclick={() => queue.tracksLast(selectedUris())}
+					>
+						<ListEnd class="size-4" /> <span class="max-md:hidden">Add to queue</span>
+					</button>
+					<button
+						type="button"
 						class="press inline-flex h-9 items-center gap-1.5 rounded-full bg-accent px-4 text-[13px] font-semibold text-accent-fg disabled:opacity-40"
 						disabled={!selected.size}
+						title="Edit tags"
+						aria-label="Edit tags"
 						onclick={editSelected}
 					>
-						<Tags class="size-4" /> Edit tags
+						<Tags class="size-4" /> <span class="max-sm:hidden">Edit tags</span>
 					</button>
 					<button type="button" class="press h-9 rounded-full bg-surface px-3.5 text-[13px] font-semibold" onclick={stopSelecting}>Done</button>
 				</div>
