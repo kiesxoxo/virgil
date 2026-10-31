@@ -14,6 +14,7 @@
 	import { hub } from '../hub.svelte.ts';
 	import { library } from '../library.svelte.ts';
 	import { contextMenu } from '../menu.svelte.ts';
+	import { morph } from '../morph.svelte.ts';
 	import type { Album } from '../types/Album.ts';
 	import Cover from './Cover.svelte';
 	import Equalizer from './Equalizer.svelte';
@@ -92,7 +93,7 @@
 				style:grid-template-columns={wide ? listColumns(art) : undefined}
 			>
 				{#if art}
-					<Cover art={album.art} name="cover-{album.id}" class="size-10 shrink-0 rounded-md" />
+					<Cover art={album.art} name={morph.name(album.id)} class="size-10 shrink-0 rounded-md" />
 				{/if}
 				{#if wide}
 					<span role="cell" class="flex min-w-0 items-center gap-2 text-sm font-medium {playing ? 'text-accent' : ''}">

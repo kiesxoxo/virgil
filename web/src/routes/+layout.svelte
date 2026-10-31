@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { ListMusic, LibraryBig, LoaderCircle, MicVocal, Radio as RadioIcon, Settings2, Shapes, WifiOff } from '@lucide/svelte';
-	import { onMount, type Snippet } from 'svelte';
+	import { onMount, tick, type Snippet } from 'svelte';
 	import { onNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import ContextMenu from '#lib/components/ContextMenu.svelte';
@@ -12,6 +12,7 @@
 	import { hub } from '#lib/hub.svelte.ts';
 	import { keyboard } from '#lib/keyboard.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
+	import { morph } from '#lib/morph.svelte.ts';
 	import { isStream, radio } from '#lib/radio.svelte.ts';
 	import '#lib/theme.svelte.ts';
 
@@ -49,10 +50,14 @@
 	// Covers with the same view-transition-name on both pages morph into each other.
 	// Not after a swipe back that the browser already animated itself (iOS, Android).
 	let browserAnimated = false;
-	onNavigate((navigation) => {
+	onNavigate(async (navigation) => {
 		const skip = navigation.type === 'popstate' && browserAnimated;
 		browserAnimated = false;
 		if (!document.startViewTransition || skip) return;
+		// The album being opened, or the one being left: its cover is the one that moves.
+		const album = [navigation.to, navigation.from].find((target) => target?.route.id === '/album/[id]');
+		morph.album = album?.params?.id ?? null;
+		await tick();
 		return new Promise((resolve) => {
 			document.startViewTransition(async () => {
 				resolve();

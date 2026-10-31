@@ -9,6 +9,7 @@
 	import { albumHeader, albumItems } from '../actions.ts';
 	import { queue } from '../api.ts';
 	import { contextMenu } from '../menu.svelte.ts';
+	import { morph } from '../morph.svelte.ts';
 	import type { Album } from '../types/Album.ts';
 	import Cover from './Cover.svelte';
 
@@ -94,6 +95,15 @@
 		};
 	}
 
+	// bind:clientWidth reports a frame late; the first frame (and a view transition's snapshot of
+	// it) needs the real width, or the covers start at their smallest.
+	function measure(node: HTMLElement) {
+		width = node.clientWidth;
+		const observer = new ResizeObserver(() => (width = node.clientWidth));
+		observer.observe(node);
+		return () => observer.disconnect();
+	}
+
 	function place(index: number): string {
 		const d = Math.max(-1, Math.min(1, index - position));
 		return `translateX(${d * room}px) translateZ(${-Math.abs(d) * cover * 0.6}px) rotateY(${-d * ANGLE}deg)`;
@@ -104,8 +114,8 @@
 
 <div
 	bind:this={scroller}
-	bind:clientWidth={width}
 	{onscroll}
+	{@attach measure}
 	{@attach controls}
 	class="-mx-4 snap-x snap-mandatory overflow-x-auto overflow-y-hidden [scrollbar-width:none] lg:-mx-8 [&::-webkit-scrollbar]:hidden"
 	role="region"
@@ -153,7 +163,7 @@
 							goTo(index);
 						}}
 					>
-						<Cover art={item.art} size={600} eager name="cover-{item.id}" class="rounded-xl shadow-cover ring-1 ring-line" />
+						<Cover art={item.art} size={600} eager name={morph.name(item.id)} class="rounded-xl shadow-cover ring-1 ring-line" />
 					</a>
 					<div
 						class="absolute inset-x-0 overflow-hidden rounded-xl"

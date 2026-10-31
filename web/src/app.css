@@ -109,6 +109,11 @@
 	animation-duration: 350ms;
 	animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
 }
+@media (max-width: 1023px) {
+	::view-transition-group(*) {
+		animation-duration: 300ms;
+	}
+}
 @media (prefers-reduced-motion: reduce) {
 	::view-transition-group(*),
 	::view-transition-old(*),
