@@ -3,7 +3,6 @@ name: ci
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -146,7 +145,6 @@ jobs:
           images: ${{ env.IMAGE }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
-            type=semver,pattern={{version}}
             type=sha
       - name: Tag the multi-arch image
         working-directory: ${{ runner.temp }}/digests
@@ -157,13 +155,11 @@ jobs:
           docker buildx imagetools inspect "$IMAGE:${{ steps.meta.outputs.version }}"
 
   # Virgil.exe: the desktop app for Windows, one file with the official mpd.exe
-  # inside. Built natively, which also lints the Windows-only code. Release
-  # tags attach it to the GitHub release.
+  # inside. Built natively, which also lints the Windows-only code. The
+  # release workflow attaches this run's artifact to the GitHub release.
   windows:
     needs: test
     runs-on: windows-latest
-    permissions:
-      contents: write
     env:
       # Bump together with the checksum. The file is signed by MPD's maintainer
       # (key 0392335A78083894A4301C43236E8A58C6DB4512); it was verified when pinned.
@@ -203,11 +199,3 @@ jobs:
         with:
           name: virgil-windows
           path: dist/Virgil.exe
-      - name: Attach to the release
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --generate-notes
-          gh release upload "$GITHUB_REF_NAME" dist/Virgil.exe --clobber
