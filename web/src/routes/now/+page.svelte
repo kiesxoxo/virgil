@@ -2,6 +2,7 @@
 	import { Airplay, ChevronDown, Disc3, ExternalLink, ListMusic } from '@lucide/svelte';
 	import Backdrop from '#lib/components/Backdrop.svelte';
 	import Cover from '#lib/components/Cover.svelte';
+	import NowCover from '#lib/components/NowCover.svelte';
 	import OnAir from '#lib/components/OnAir.svelte';
 	import Scrubber from '#lib/components/Scrubber.svelte';
 	import SignalPathCard from '#lib/components/SignalPathCard.svelte';
@@ -31,7 +32,7 @@
 	<div class="absolute inset-0 bg-gradient-to-b from-bg/30 via-bg/60 to-bg"></div>
 </div>
 
-<div class="pt-safe pb-safe mx-auto flex min-h-dvh max-w-md flex-col px-6 lg:max-w-5xl lg:px-10">
+<div class="pt-safe pb-safe mx-auto flex min-h-dvh max-w-md flex-col overflow-x-clip px-6 lg:max-w-5xl lg:px-10">
 	<header class="flex h-14 items-center justify-between">
 		<button type="button" class="press -ml-2 grid size-10 place-items-center rounded-full hover:bg-fg/6" aria-label="Close" onclick={close}>
 			<ChevronDown class="size-6" />
@@ -48,14 +49,23 @@
 				<Airplay class="size-1/3" strokeWidth={1.25} />
 			</div>
 		{:else if item}
-			<Cover art={item.art} src={shown?.large} size={600} eager name="now-cover" class="w-full rounded-3xl shadow-cover ring-1 ring-line transition-transform duration-500 {hub.playing ? 'scale-100' : 'scale-[0.94]'}" />
+			<NowCover
+				id={item.id}
+				art={item.art}
+				src={shown?.large ?? null}
+				record={!stream}
+				playing={hub.playing}
+				canPrevious={!stream && hub.currentIndex > 0}
+				canNext={!stream && hub.currentIndex < hub.queue.items.length - 1}
+			/>
 		{:else}
 			<div class="grid aspect-square w-full place-items-center rounded-3xl bg-surface text-faint">
 				<Disc3 class="size-1/3" strokeWidth={1} />
 			</div>
 		{/if}
 
-		<div class="flex min-w-0 flex-col gap-6">
+		<!-- Positioned, so the record coming out of the sleeve passes under it. -->
+		<div class="relative flex min-w-0 flex-col gap-6">
 			{#if hub.external}
 				<div>
 					<h1 class="text-2xl font-bold tracking-tight">AirPlay</h1>
