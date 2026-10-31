@@ -127,8 +127,11 @@
 
 <svelte:window bind:innerHeight />
 
+<!-- Named, so a page transition captures the flow on its own: Safari draws the page's own
+     snapshot without 3D, and the side covers would lie flat until the transition ends. -->
 <div
 	bind:this={scroller}
+	style:view-transition-name="cover-flow"
 	{onscroll}
 	{@attach measure}
 	{@attach controls}
