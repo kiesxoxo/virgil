@@ -20,19 +20,28 @@
 	/** How far the side covers turn towards the middle. */
 	const ANGLE = 55;
 	const TOP = 24;
+	/** The reflection's height, in covers. */
+	const REFLECTION = 0.35;
+	/** The album's title and Play button under the covers. */
+	const CAPTION = 100;
 
 	const still = matchMedia('(prefers-reduced-motion: reduce)');
 
 	let scroller: HTMLDivElement;
 	let width = $state(0);
 	let innerHeight = $state(800);
+	/** The page's height that isn't for the covers: what is above them, and the bars below. */
+	let chrome = $state(0);
 	let scroll = $state(0);
 
-	let cover = $derived(Math.round(Math.max(120, Math.min(width * 0.68, innerHeight * 0.42, 340))));
+	// As big as fits with the Play button clear of the player bar (in Safari on a phone, the
+	// browser's own bars leave little height).
+	let fit = $derived((innerHeight - chrome - CAPTION - TOP) / (1 + REFLECTION));
+	let cover = $derived(Math.round(Math.max(120, Math.min(width * 0.68, fit, 340))));
 	/** Distance between neighbouring covers; the middle one gets `room` more on each side. */
 	let slot = $derived(Math.round(cover * 0.42));
 	let room = $derived(cover * 0.42);
-	let reflection = $derived(Math.round(cover * 0.35));
+	let reflection = $derived(Math.round(cover * REFLECTION));
 	let position = $derived(scroll / slot);
 	let current = $derived(Math.min(albums.length - 1, Math.max(0, Math.round(position))));
 	let first = $derived(Math.max(0, Math.floor(position) - REACH));
@@ -98,8 +107,14 @@
 	// bind:clientWidth reports a frame late; the first frame (and a view transition's snapshot of
 	// it) needs the real width, or the covers start at their smallest.
 	function measure(node: HTMLElement) {
-		width = node.clientWidth;
-		const observer = new ResizeObserver(() => (width = node.clientWidth));
+		const update = () => {
+			width = node.clientWidth;
+			// The main element's bottom padding keeps the page clear of the player bar (and tab bar).
+			const bars = parseFloat(getComputedStyle(node.closest('main') ?? node).paddingBottom) || 0;
+			chrome = node.getBoundingClientRect().top + scrollY + bars;
+		};
+		update();
+		const observer = new ResizeObserver(update);
 		observer.observe(node);
 		return () => observer.disconnect();
 	}
@@ -131,12 +146,13 @@
 			{@const index = first + i}
 			{@const middle = index === current}
 			{@const left = width / 2 - slot / 2 + index * slot}
-			<!-- Perspective works on direct children only, so each slot has it, all seen from the middle. -->
+			<!-- Perspective works on direct children only, so each slot has it, all seen from the middle.
+			     The stacking changes only when the middle cover does, not on every frame. -->
 			<div
 				class="pointer-events-none absolute top-0 h-full snap-center"
 				style:left="{left}px"
 				style:width="{slot}px"
-				style:z-index={1000 - Math.round(Math.abs(index - position) * 10)}
+				style:z-index={1000 - Math.abs(index - current)}
 				style:perspective="{cover * 3}px"
 				style:perspective-origin="{scroll + width / 2 - left}px {TOP + cover / 2}px"
 				data-index={index}
@@ -172,7 +188,9 @@
 						style:mask-image="linear-gradient(to bottom, rgb(0 0 0 / 0.3), transparent 85%)"
 						aria-hidden="true"
 					>
-						<Cover art={item.art} size={600} class="-scale-y-100" />
+						<!-- The small image, not the cover's own: when one image is both the cover and its
+						     reflection, Safari drops frames all through the scroll. -->
+						<Cover art={item.art} class="-scale-y-100" />
 					</div>
 				</div>
 			</div>

@@ -94,7 +94,7 @@
 								<span class="grid size-9 place-items-center rounded-full bg-white text-lg font-black text-black shadow-float sm:size-11 sm:text-xl">{i + 1}</span>
 								<span class="flex items-center gap-2">
 									{@render status(station)}
-									<span class="inline-flex items-center gap-1.5 rounded-full bg-black/45 px-2 py-1 text-[10px] font-bold tracking-wider backdrop-blur-sm sm:px-2.5 sm:text-[11px]">
+									<span class="inline-flex items-center gap-1.5 rounded-full bg-black/55 px-2 py-1 text-[10px] font-bold tracking-wider sm:px-2.5 sm:text-[11px]">
 										<span class="size-1.5 animate-pulse rounded-full bg-accent"></span>LIVE
 									</span>
 								</span>
@@ -107,7 +107,7 @@
 									<div class="mt-1 line-clamp-3 text-[15px] leading-tight font-bold sm:line-clamp-2 sm:text-lg sm:leading-snug lg:text-xl">{show.title}</div>
 									{#if progress !== null}
 										<div class="mt-2.5 h-1 overflow-hidden rounded-full bg-white/25 sm:mt-3">
-											<div class="h-full rounded-full bg-white transition-[width] duration-1000" style:width="{progress * 100}%"></div>
+											<div class="h-full rounded-full bg-white transition-transform duration-1000" style:transform="translateX({progress * 100 - 100}%)"></div>
 										</div>
 									{/if}
 								{:else}

@@ -122,8 +122,11 @@
 	}
 }
 
-/* Elements with a long-press menu: no iOS link callout or text selection. */
-.touch-menu {
+/* Elements with a long-press menu, buttons and the app's bars: no iOS link callout or text
+   selection on a long press. */
+.touch-menu,
+button,
+nav a {
 	-webkit-touch-callout: none;
 	-webkit-user-select: none;
 	user-select: none;

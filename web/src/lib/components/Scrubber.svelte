@@ -67,7 +67,7 @@
 		onkeydown={key}
 	>
 		<div class="h-1 w-full overflow-hidden rounded-full bg-fg/12 transition-[height] group-hover:h-1.5" class:h-1.5={dragging}>
-			<div class="h-full rounded-full bg-fg/85" style:width="{pct}%"></div>
+			<div class="h-full rounded-full bg-fg/85" style:transform="translateX({pct - 100}%)"></div>
 		</div>
 		{#if active}
 			<div

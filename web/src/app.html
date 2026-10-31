@@ -10,6 +10,8 @@
 		<meta name="apple-mobile-web-app-title" content="Virgil" />
 		<link rel="manifest" href="%sveltekit.assets%/manifest.webmanifest" />
 		<link rel="icon" href="%sveltekit.assets%/icon.svg" type="image/svg+xml" />
+		<!-- iOS takes no SVG for the home screen, and rounds the corners itself. -->
+		<link rel="apple-touch-icon" href="%sveltekit.assets%/apple-touch-icon.png" />
 		<title>Virgil</title>
 		<script>
 			// Apply the theme before first paint so there is no flash.

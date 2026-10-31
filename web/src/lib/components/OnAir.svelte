@@ -25,7 +25,7 @@
 			{#if compact}<span class="shrink-0 text-right font-medium whitespace-nowrap text-muted tabular-nums">{hhmm(show.start)}</span>{/if}
 			<div class="flex h-5 flex-1 items-center" role="progressbar" aria-label="{show.title}, on air" aria-valuenow={Math.round(progress * 100)}>
 				<div class="h-1 w-full overflow-hidden rounded-full bg-fg/12">
-					<div class="h-full rounded-full bg-accent transition-[width] duration-1000" style:width="{progress * 100}%"></div>
+					<div class="h-full rounded-full bg-accent transition-transform duration-1000" style:transform="translateX({progress * 100 - 100}%)"></div>
 				</div>
 			</div>
 			{#if compact}<span class="shrink-0 font-medium whitespace-nowrap text-muted tabular-nums">{hhmm(show.end)}</span>{/if}

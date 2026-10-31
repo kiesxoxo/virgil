@@ -35,8 +35,9 @@
 	let visible = $derived(albums.slice(first, last));
 	let playingAlbum = $derived(hub.current?.albumId ?? null);
 
+	// In whole rows: scrolling within a row then changes nothing, and there is nothing to redraw.
 	function measure() {
-		if (list) offset = -list.getBoundingClientRect().top;
+		if (list) offset = Math.floor(-list.getBoundingClientRect().top / rowHeight) * rowHeight;
 	}
 
 	$effect(() => {

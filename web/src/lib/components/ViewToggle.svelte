@@ -3,7 +3,8 @@
 	import type { View } from '../stored.ts';
 
 	// Grid or list, plus artwork on or off while it's a list. Shared by the
-	// Albums, Artists and Genres pages; Albums also has the cover flow.
+	// Albums, Artists and Genres pages; Albums also has the cover flow. Each button reaches 44px
+	// tall for a finger.
 	let { view = $bindable(), art = $bindable(), flow = false }: { view: View; art: boolean; flow?: boolean } = $props();
 
 	const options = [
@@ -16,7 +17,7 @@
 {#if view === 'list'}
 	<button
 		type="button"
-		class="press grid size-8 place-items-center rounded-lg bg-surface {art ? 'text-fg' : 'text-muted'} hover:text-fg"
+		class="press relative grid size-8 after:absolute after:inset-x-0 after:-inset-y-2 place-items-center rounded-lg bg-surface {art ? 'text-fg' : 'text-muted'} hover:text-fg"
 		aria-pressed={art}
 		aria-label={art ? 'Hide artwork' : 'Show artwork'}
 		title={art ? 'Hide artwork' : 'Show artwork'}
@@ -29,7 +30,7 @@
 	{#each flow ? options : options.slice(0, 2) as option (option.id)}
 		<button
 			type="button"
-			class="grid size-7 place-items-center rounded-md transition-colors {view === option.id
+			class="relative after:absolute after:inset-x-0 after:-inset-y-2 grid size-7 place-items-center rounded-md transition-colors {view === option.id
 				? 'bg-bg text-fg shadow-sm ring-1 ring-line'
 				: 'text-muted hover:text-fg'}"
 			aria-pressed={view === option.id}

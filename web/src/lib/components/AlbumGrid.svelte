@@ -30,8 +30,9 @@
 	let last = $derived(Math.min(rows, Math.ceil((offset + viewport) / rowHeight) + OVERSCAN));
 	let visible = $derived(albums.slice(first * cols, last * cols));
 
+	// In whole rows: scrolling within a row then changes nothing, and there is nothing to redraw.
 	function measure() {
-		if (grid) offset = -grid.getBoundingClientRect().top;
+		if (grid) offset = Math.floor(-grid.getBoundingClientRect().top / rowHeight) * rowHeight;
 	}
 
 	$effect(() => {
@@ -62,7 +63,7 @@
 					<Cover art={album.art} name={morph.name(album.id)} class="rounded-xl shadow-cover ring-1 ring-line" />
 					{#if versions > 1}
 						<span
-							class="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm"
+							class="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white"
 							title="{versions} versions"
 						>
 							<Layers class="size-3" />{versions}

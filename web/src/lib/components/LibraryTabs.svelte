@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 
 	// Phones: a compact switch between the library's views, beside the other
-	// view controls. Desktop has them in the sidebar.
+	// view controls. Desktop has them in the sidebar. Each reaches 44px tall for a finger.
 	const views = [
 		{ href: '/', label: 'Albums', icon: LibraryBig },
 		{ href: '/artists', label: 'Artists', icon: MicVocal },
@@ -16,7 +16,7 @@
 		{@const active = page.url.pathname === view.href}
 		<a
 			href={view.href}
-			class="grid size-7 place-items-center rounded-md transition-colors {active
+			class="relative after:absolute after:inset-x-0 after:-inset-y-2 grid size-7 place-items-center rounded-md transition-colors {active
 				? 'bg-bg text-fg shadow-sm ring-1 ring-line'
 				: 'text-muted hover:text-fg'}"
 			aria-current={active ? 'page' : undefined}

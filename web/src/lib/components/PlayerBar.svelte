@@ -47,7 +47,7 @@
 				Play here
 			</button>
 		{:else}
-			<a href="/now" class="flex min-w-0 flex-1 items-center gap-3">
+			<a href="/now" class="touch-menu flex min-w-0 flex-1 items-center gap-3">
 				<Cover art={shown?.art} src={shown?.src} name="now-cover" class="size-11 shrink-0 rounded-lg" />
 				<div class="min-w-0">
 					<div class="truncate text-sm font-semibold">{shown?.title ?? 'Not playing'}</div>
@@ -77,7 +77,8 @@
 				<SkipForward class="size-5" fill="currentColor" />
 			</button>
 			<div class="absolute inset-x-3 bottom-0 h-[2px] overflow-hidden rounded-full bg-fg/8">
-				<div class="h-full bg-accent transition-[width] duration-300 ease-linear" style:width="{progress}%"></div>
+				<!-- Moved, not resized: a width animating all the time would lay out the page on every frame. -->
+				<div class="h-full bg-accent transition-transform duration-300 ease-linear" style:transform="translateX({progress - 100}%)"></div>
 			</div>
 		{/if}
 	</div>
