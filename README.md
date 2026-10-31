@@ -12,7 +12,7 @@ AirPlay 2 (multi-room, no subscription).
 </p>
 
 ```sh
-docker pull ghcr.io/kiesxoxo/virgil:0.6.2
+docker pull ghcr.io/kiesxoxo/virgil:0.6.3
 ```
 
 **On a Windows PC**, download `Virgil.exe` from the [latest release](https://github.com/kiesxoxo/virgil/releases/latest)
