@@ -32,7 +32,7 @@
 	<div class="absolute inset-0 bg-gradient-to-b from-bg/30 via-bg/60 to-bg"></div>
 </div>
 
-<div class="pt-safe pb-safe mx-auto flex min-h-dvh max-w-md flex-col overflow-x-clip px-6 lg:max-w-5xl lg:px-10">
+<div class="pt-safe pb-safe mx-auto flex min-h-dvh max-w-md flex-col px-6 lg:max-w-5xl lg:px-10">
 	<header class="flex h-14 items-center justify-between">
 		<button type="button" class="press -ml-2 grid size-10 place-items-center rounded-full hover:bg-fg/6" aria-label="Close" onclick={close}>
 			<ChevronDown class="size-6" />
@@ -53,7 +53,6 @@
 				id={item.id}
 				art={item.art}
 				src={shown?.large ?? null}
-				record={!stream}
 				playing={hub.playing}
 				canPrevious={!stream && hub.currentIndex > 0}
 				canNext={!stream && hub.currentIndex < hub.queue.items.length - 1}
@@ -64,8 +63,7 @@
 			</div>
 		{/if}
 
-		<!-- Positioned, so the record coming out of the sleeve passes under it. -->
-		<div class="relative flex min-w-0 flex-col gap-6">
+		<div class="flex min-w-0 flex-col gap-6">
 			{#if hub.external}
 				<div>
 					<h1 class="text-2xl font-bold tracking-tight">AirPlay</h1>

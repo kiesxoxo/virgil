@@ -34,8 +34,9 @@ export function tilt(max = 6): Attachment<HTMLElement> {
 			if (e.beta === null || e.gamma === null) return;
 			set(clamp(e.gamma / 30), clamp((e.beta - 45) / 30));
 		};
-		const askFirst = typeof (DeviceOrientationEvent as unknown as { requestPermission?: unknown }).requestPermission === 'function';
-		const phone = matchMedia('(pointer: coarse)').matches && !askFirst;
+		// Safari has no DeviceOrientationEvent outside a secure context (plain http on the LAN).
+		const sensor = window.DeviceOrientationEvent as unknown as { requestPermission?: unknown } | undefined;
+		const phone = matchMedia('(pointer: coarse)').matches && !!sensor && typeof sensor.requestPermission !== 'function';
 
 		node.addEventListener('pointermove', onmove);
 		node.addEventListener('pointerleave', reset);
