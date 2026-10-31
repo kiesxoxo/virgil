@@ -16,9 +16,10 @@ export default defineConfig({
 	],
 	server: {
 		proxy: {
-			'/api': { target, ws: true },
+			// changeOrigin: an HTTPS virgild behind a reverse proxy needs its own hostname (SNI, Host).
+			'/api': { target, ws: true, changeOrigin: true },
 			// Artwork only: a bare '/art' would also send /artists and /artist/… to virgild.
-			'^/art/': target
+			'^/art/': { target, changeOrigin: true }
 		}
 	}
 });
