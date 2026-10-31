@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Airplay, ChevronDown, Disc3, ExternalLink, ListMusic } from '@lucide/svelte';
+	import Backdrop from '#lib/components/Backdrop.svelte';
 	import Cover from '#lib/components/Cover.svelte';
 	import OnAir from '#lib/components/OnAir.svelte';
 	import Scrubber from '#lib/components/Scrubber.svelte';
@@ -26,11 +27,7 @@
 <svelte:head><title>{shown ? `${shown.title} · ${shown.subtitle}` : 'Now playing'} · Virgil</title></svelte:head>
 
 <div class="fixed inset-0 -z-10 overflow-hidden bg-bg">
-	{#if backdrop}
-		{#key backdrop}
-			<img src={backdrop} alt="" aria-hidden="true" class="size-full scale-150 object-cover opacity-50 blur-3xl saturate-150 dark:opacity-40" />
-		{/key}
-	{/if}
+	<Backdrop src={backdrop} playing={hub.playing} />
 	<div class="absolute inset-0 bg-gradient-to-b from-bg/30 via-bg/60 to-bg"></div>
 </div>
 
