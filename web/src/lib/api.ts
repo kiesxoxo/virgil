@@ -88,6 +88,7 @@ export const api = {
 
 	selectOutput: (id: number) => post(`/api/outputs/${id}/select`),
 	restart: () => post('/api/restart'),
+	resetHomekit: () => post('/api/homekit/reset'),
 
 	readTags: (uris: string[]) => call('POST', '/api/tags/read', { uris }).then((r) => r.json() as Promise<TaggedFile[]>),
 	writeTags: (edits: TagEdit[]) =>

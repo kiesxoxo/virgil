@@ -2,6 +2,7 @@ mod api;
 mod app;
 mod config;
 mod ctl;
+mod homekit;
 mod signal;
 mod sync;
 mod tags;
@@ -61,11 +62,15 @@ async fn serve(config: Config, listener: TcpListener) -> anyhow::Result<()> {
     let library = Library::open(&config.data_dir, &config.mpd, config.music_dir.clone())?;
     let radio = virgil_radio::Nts::new()?;
     let listen = config.listen;
-    let app = App::new(config, library, radio);
+    let (switch, writes) = homekit::start(&config).await.unzip();
+    let app = App::new(config, library, radio, switch);
 
     tokio::spawn(sync::run_mpd(app.clone()));
     tokio::spawn(sync::run_library(app.clone()));
     tokio::spawn(signal::run(app.clone()));
+    if let Some(writes) = writes {
+        tokio::spawn(homekit::run(app.clone(), writes));
+    }
 
     info!("virgild listening on http://{listen}");
     // Open WebSockets would stall a graceful shutdown, and there is nothing to

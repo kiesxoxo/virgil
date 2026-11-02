@@ -130,7 +130,8 @@ ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
 	VIRGIL_PORT=80 \
 	ALSA_CARD=sndrpihifiberry \
 	MPD_DOP=yes \
-	AIRPLAY=on
+	AIRPLAY=on \
+	HOMEKIT=on
 VOLUME ["/data"]
 EXPOSE 80
 ENTRYPOINT ["tini", "-g", "--", "virgil-entrypoint"]

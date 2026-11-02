@@ -72,6 +72,21 @@ cover downloads do).
 
 Each Pi is an ordinary AirPlay 2 speaker; group rooms from Control Center on the iPhone or Mac.
 
+## Apple Home and Siri
+
+virgild is also a HomeKit accessory: a switch named *Virgil* that is on while anything plays (the
+library, radio or AirPlay). "Hey Siri, turn off Virgil" pauses the library, stops radio and ends an
+AirPlay session; "turn on Virgil" resumes where it left off. It works from a HomePod and in scenes
+and automations too, through your home hub.
+
+To add it, open *Settings › Apple Home* in the web UI on your iPhone and tap *Add to Home*, or in
+the Home app choose *Add Accessory › More options…* and enter the setup code shown there. The
+Home app warns that it is uncertified; add it anyway. Rename it or put it in a room in the Home app.
+
+virgild speaks HAP (HomeKit Accessory Protocol) on TCP port 51827 itself, and advertises through
+the Pi's avahi-daemon over D-Bus. If the accessory was removed from the Home app while Virgil was
+offline, use *Reset* in Settings so it can be added again.
+
 ## Layout
 
 ```
@@ -163,6 +178,7 @@ Settings live in `compose.yaml`:
 | `ALSA_CARD` | `sndrpihifiberry` | DAC card id from `cat /proc/asound/cards` |
 | `MPD_DOP` | `yes` | DSD64 as DoP; `no` if your DAC does not accept DoP |
 | `AIRPLAY` | `on` | `off` if you run Virgil without the shairport-sync container |
+| `HOMEKIT` | `on` | `off` to keep Virgil out of Apple Home |
 
 To take full control, mount your own `/config/mpd.conf` and/or `/config/virgild.toml` into the
 `virgil` container. Both containers use host networking (AirPlay 2, mDNS and NQPTP need it) and the

@@ -3,7 +3,7 @@
 # the container stops and Docker's restart policy brings both back.
 #
 # Configuration comes from the environment (VIRGIL_PORT, ALSA_CARD, MPD_DOP,
-# AIRPLAY). To take full control, mount your own files at /config/mpd.conf
+# AIRPLAY, HOMEKIT). To take full control, mount your own files at /config/mpd.conf
 # and/or /config/virgild.toml.
 set -euo pipefail
 
@@ -90,6 +90,13 @@ EOF
 
 [sources.airplay]
 preempt = "dbus-send --system --type=method_call --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.gnome.ShairportSync.DropSession"
+EOF
+	fi
+	if [ "${HOMEKIT}" = "on" ]; then
+		cat >> "$virgil_conf" <<'EOF'
+
+# Apple Home: a switch for Siri, advertised through the host's avahi-daemon.
+[homekit]
 EOF
 	fi
 fi

@@ -24,6 +24,8 @@ pub struct Config {
     pub asound_dir: PathBuf,
     /// External sources that share the DAC (AirPlay, Spotify…), by name.
     pub sources: BTreeMap<String, SourceConfig>,
+    /// Appear in Apple Home as a switch, so Siri can stop playback. Off without this section.
+    pub homekit: Option<HomekitConfig>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -31,6 +33,21 @@ pub struct Config {
 pub struct SourceConfig {
     /// Shell command that makes the source let go of the DAC when local playback starts.
     pub preempt: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct HomekitConfig {
+    /// The switch's name in the Home app, and what Siri answers to ("turn off Virgil").
+    pub name: String,
+    /// HAP's TCP port. Controllers find it through mDNS; 51826 is Homebridge's.
+    pub port: u16,
+}
+
+impl Default for HomekitConfig {
+    fn default() -> Self {
+        Self { name: "Virgil".into(), port: 51827 }
+    }
 }
 
 impl Default for Config {
@@ -43,6 +60,7 @@ impl Default for Config {
             alsa_card: "sndrpihifiberry".into(),
             asound_dir: "/proc/asound".into(),
             sources: BTreeMap::new(),
+            homekit: None,
         }
     }
 }
@@ -71,5 +89,7 @@ mod tests {
         let config: Config = toml::from_str(text).unwrap();
         assert_eq!(config.mpd, "/run/mpd/socket");
         assert!(config.sources["airplay"].preempt.is_some());
+        let homekit = config.homekit.expect("deploy config enables HomeKit");
+        assert_eq!((homekit.name.as_str(), homekit.port), ("Virgil", 51827));
     }
 }

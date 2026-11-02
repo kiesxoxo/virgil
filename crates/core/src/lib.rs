@@ -305,6 +305,21 @@ impl Default for SourceState {
     }
 }
 
+/// Virgil as a HomeKit switch, for the Settings page. Absent when it is off.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct HomekitStatus {
+    /// Added to a home (nobody else can add it until it is removed).
+    pub paired: bool,
+    /// Visible on the network (registered with avahi-daemon).
+    pub advertised: bool,
+    /// `XXX-XX-XXX`, while it can be added.
+    pub setup_code: Option<String>,
+    /// `X-HM://…`, opens the Home app's pairing, while it can be added.
+    pub setup_uri: Option<String>,
+}
+
 /// One of MPD's audio outputs: a sound card Virgil can play to.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[ts(export)]
@@ -479,6 +494,7 @@ pub enum ServerEvent {
         source: SourceState,
         library: LibraryStatus,
         outputs: Outputs,
+        homekit: Option<HomekitStatus>,
     },
     Player(PlayerState),
     Outputs(Outputs),
@@ -486,6 +502,7 @@ pub enum ServerEvent {
     Signal(SignalPath),
     Source(SourceState),
     Library(LibraryStatus),
+    Homekit(HomekitStatus),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

@@ -20,3 +20,10 @@ alsa_card = "sndrpihifiberry"
 # during an AirPlay session, virgild runs `preempt` to end that session.
 [sources.airplay]
 preempt = "dbus-send --system --type=method_call --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.gnome.ShairportSync.DropSession"
+
+# Apple Home: a switch that is on while Virgil plays, so "Hey Siri, turn off
+# Virgil" stops it. Advertised through avahi-daemon; add it from Settings ›
+# Apple Home in the web UI. Remove this section to turn it off.
+[homekit]
+name = "Virgil"
+port = 51827

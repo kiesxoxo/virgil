@@ -1,0 +1,19 @@
+[package]
+name = "virgil-homekit"
+description = "Virgil as a HomeKit switch (HAP over IP, advertised through avahi)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+base64.workspace = true
+futures-util = { version = "0.3", default-features = false }
+num-bigint.workspace = true
+ring.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+socket2.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+zbus.workspace = true

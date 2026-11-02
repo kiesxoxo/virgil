@@ -109,6 +109,7 @@ pub fn router(app: App) -> Router {
         .route("/api/tags/write", post(tags::write))
         .route("/api/sources/{name}/acquire", post(acquire))
         .route("/api/sources/{name}/release", post(release))
+        .route("/api/homekit/reset", post(homekit_reset))
         .nest_service("/art", art)
         .fallback(web::serve)
         .layer(CompressionLayer::new())
@@ -131,13 +132,7 @@ async fn pause(State(app): State<App>) -> ApiResult {
 
 async fn toggle(State(app): State<App>) -> ApiResult {
     if app.player().state == PlayState::Play {
-        // Radio stops rather than pauses: resuming then picks it up live
-        // instead of minutes behind, or not at all once the server hangs up.
-        if app.playing_stream() {
-            app.mpd.stop().await?;
-        } else {
-            app.mpd.pause(true).await?;
-        }
+        app.pause_local().await?;
     } else {
         app.play().await?;
     }
@@ -356,5 +351,11 @@ async fn acquire(State(app): State<App>, Path(name): Path<String>) -> ApiResult 
 
 async fn release(State(app): State<App>, Path(name): Path<String>) -> ApiResult {
     app.release(&name).await;
+    Ok(DONE)
+}
+
+async fn homekit_reset(State(app): State<App>) -> ApiResult {
+    let homekit = app.homekit.as_ref().ok_or_else(|| ApiError::not_found("HomeKit is off"))?;
+    homekit.reset()?;
     Ok(DONE)
 }

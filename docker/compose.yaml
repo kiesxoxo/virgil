@@ -22,6 +22,7 @@ services:
       ALSA_CARD: sndrpihifiberry # your DAC, from `cat /proc/asound/cards`
       MPD_DOP: "yes"             # DSD64 as DoP; set "no" if your DAC lacks DoP
       AIRPLAY: "on"
+      HOMEKIT: "on"              # Apple Home switch for Siri ("turn off Virgil")
     volumes:
       # Your music library. rslave: a NAS share mounted here after the
       # container starts (e.g. from /etc/fstab) still shows up inside.
@@ -34,7 +35,7 @@ services:
       - /dev/snd:/dev/snd            # sound devices (see device_cgroup_rules)
       - virgil-data:/data              # library database, artwork, MPD state
       - /proc/asound:/host/asound:ro # for the bit-perfect check (Docker hides /proc/asound)
-      - /run/dbus:/run/dbus          # to end an AirPlay session when you press play
+      - /run/dbus:/run/dbus          # to end AirPlay sessions; to appear in Apple Home (avahi)
 
   shairport-sync:
     image: mikebrady/shairport-sync:latest

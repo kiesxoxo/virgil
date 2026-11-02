@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Airplay, Check, ImageDown, LoaderCircle, Monitor, Moon, RefreshCw, RotateCw, Sun, Usb } from '@lucide/svelte';
+	import { Airplay, Check, House, ImageDown, LoaderCircle, Monitor, Moon, RefreshCw, RotateCw, Sun, TriangleAlert, Usb } from '@lucide/svelte';
 	import SignalPathCard from '#lib/components/SignalPathCard.svelte';
 	import { api } from '#lib/api.ts';
 	import { hub } from '#lib/hub.svelte.ts';
@@ -63,6 +63,21 @@
 		if (motion.enabled) return motion.disable();
 		if (!(await motion.enable()))
 			toasts.show("Motion access wasn't allowed. Turn it on in Settings › Apps › Safari › Motion & Orientation Access.", 'error', 8000);
+	}
+
+	let homekit = $derived(hub.homekit);
+	let confirmReset = $state(false);
+	let confirmTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function resetHomekit() {
+		if (!confirmReset) {
+			confirmReset = true;
+			clearTimeout(confirmTimer);
+			confirmTimer = setTimeout(() => (confirmReset = false), 3000);
+			return;
+		}
+		confirmReset = false;
+		api.resetHomekit().then(() => toasts.done('Virgil can be added to a home again'));
 	}
 
 	let download = $derived(hub.library.artDownload);
@@ -240,6 +255,60 @@
 					Starting playback here takes the DAC back from AirPlay.
 				</p>
 			</div>
+		</div>
+	{/if}
+
+	{#if homekit}
+		{@render section('Apple Home')}
+		<div class="divide-y divide-line rounded-2xl bg-surface">
+			<div class="flex gap-4 px-4 py-3.5">
+				<div class="grid size-10 shrink-0 place-items-center rounded-xl bg-info-bg text-info"><House class="size-5" /></div>
+				<div class="min-w-0">
+					{#if homekit.paired}
+						<div class="text-sm font-medium">In your home</div>
+						<p class="mt-0.5 text-[13px] text-muted">
+							Say “Hey Siri, turn off Virgil” to stop playback, and “turn on Virgil” to resume. Rename it or give it
+							a room in the Home app.
+						</p>
+					{:else}
+						<div class="text-sm font-medium">Not in a home yet</div>
+						<p class="mt-0.5 text-[13px] text-muted">
+							Add Virgil to the Home app, then say “Hey Siri, turn off Virgil” to stop playback. The Home app calls it
+							uncertified; add it anyway.
+						</p>
+						<div class="mt-3 font-mono text-2xl font-semibold tracking-wider tabular-nums select-all">{homekit.setupCode}</div>
+						<a
+							href={homekit.setupUri}
+							class="press mt-3 inline-flex h-9 items-center gap-2 rounded-full bg-accent px-4 text-[13px] font-semibold text-accent-fg"
+						>
+							<House class="size-3.5" /> Add to Home
+						</a>
+						<p class="mt-2 text-xs text-muted">Or in the Home app: Add Accessory › More options…, then enter the code.</p>
+					{/if}
+					{#if !homekit.advertised}
+						<p class="mt-2 flex items-start gap-1.5 text-xs text-warn">
+							<TriangleAlert class="mt-px size-3.5 shrink-0" />
+							Not visible on the network yet. Is avahi-daemon running on the Pi?
+						</p>
+					{/if}
+				</div>
+			</div>
+			{#if homekit.paired}
+				<div class="flex items-center justify-between gap-4 px-4 py-3.5">
+					<div class="min-w-0 text-xs text-muted">
+						Removed it in the Home app while Virgil was off? Reset so it can be added again.
+					</div>
+					<button
+						type="button"
+						class="press inline-flex h-9 shrink-0 items-center rounded-full px-4 text-[13px] font-semibold ring-1 ring-line {confirmReset
+							? 'bg-accent text-accent-fg'
+							: 'bg-bg'}"
+						onclick={resetHomekit}
+					>
+						{confirmReset ? 'Tap to confirm' : 'Reset'}
+					</button>
+				</div>
+			{/if}
 		</div>
 	{/if}
 </div>

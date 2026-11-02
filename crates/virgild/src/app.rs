@@ -5,9 +5,11 @@ use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, broadcast};
 use tracing::{info, warn};
 use virgil_core::{
-    AddMode, LOCAL_SOURCE, Outputs, PlayState, PlayerState, Queue, QueueItem, ServerEvent, SignalPath, SourceState,
+    AddMode, HomekitStatus, LOCAL_SOURCE, Outputs, PlayState, PlayerState, Queue, QueueItem, ServerEvent, SignalPath,
+    SourceState,
 };
 use virgil_engine_mpd::MpdEngine;
+use virgil_homekit::Switch;
 use virgil_library::Library;
 use virgil_radio::Nts;
 
@@ -23,6 +25,7 @@ struct Snapshot {
     signal: SignalPath,
     source: SourceState,
     outputs: Outputs,
+    homekit: Option<HomekitStatus>,
 }
 
 /// Serializes hand-overs of the DAC between local playback and external sources.
@@ -40,6 +43,8 @@ pub struct Inner {
     pub mpd: MpdEngine,
     pub library: Library,
     pub radio: Nts,
+    /// The HomeKit accessory, when enabled and running.
+    pub homekit: Option<Switch>,
     pub events: broadcast::Sender<ServerEvent>,
     snapshot: RwLock<Snapshot>,
     arbiter: Mutex<Arbiter>,
@@ -53,12 +58,13 @@ impl Deref for App {
 }
 
 impl App {
-    pub fn new(config: Config, library: Library, radio: Nts) -> Self {
+    pub fn new(config: Config, library: Library, radio: Nts, homekit: Option<Switch>) -> Self {
         let source = SourceState { active: LOCAL_SOURCE.into(), available: config.sources.keys().cloned().collect() };
         App(Arc::new(Inner {
             mpd: MpdEngine::new(&config.mpd),
             library,
             radio,
+            homekit,
             events: broadcast::channel(256).0,
             snapshot: RwLock::new(Snapshot { source, ..Snapshot::default() }),
             arbiter: Mutex::default(),
@@ -84,6 +90,7 @@ impl App {
             source: s.source.clone(),
             library: self.library.status(),
             outputs: s.outputs.clone(),
+            homekit: s.homekit.clone(),
         }
     }
 
@@ -179,6 +186,10 @@ impl App {
         self.update(|s| &mut s.signal, signal, ServerEvent::Signal);
     }
 
+    pub fn set_homekit(&self, status: HomekitStatus) {
+        self.update(|s| &mut s.homekit, Some(status), |s| ServerEvent::Homekit(s.expect("just set")));
+    }
+
     fn set_active_source(&self, name: &str) {
         let mut source = self.source();
         source.active = name.to_string();
@@ -233,6 +244,31 @@ impl App {
                 }
                 self.mpd.play().await?;
             }
+        }
+        Ok(())
+    }
+
+    /// Pauses local playback. Radio stops instead: resuming then picks it up
+    /// live rather than minutes behind, or not at all once the server hangs up.
+    pub async fn pause_local(&self) -> Result<(), ApiError> {
+        if self.playing_stream() {
+            self.mpd.stop().await?;
+        } else {
+            self.mpd.pause(true).await?;
+        }
+        Ok(())
+    }
+
+    /// Silences whatever plays: ends an external source's session, pauses
+    /// local playback. Where an external source interrupted local playback is
+    /// kept, so playing again resumes there.
+    pub async fn turn_off(&self) -> Result<(), ApiError> {
+        {
+            let _arbiter = self.arbiter.lock().await;
+            self.end_external().await;
+        }
+        if self.mpd.status().await?.state == PlayState::Play {
+            self.pause_local().await?;
         }
         Ok(())
     }
@@ -301,6 +337,13 @@ impl App {
     /// source's `preempt` command. Returns where local playback was interrupted.
     pub async fn claim_local(&self) -> Option<(u32, f64)> {
         let mut arbiter = self.arbiter.lock().await;
+        self.end_external().await;
+        arbiter.resume.take()
+    }
+
+    /// Makes the active external source let go of the DAC (its `preempt`
+    /// command) and waits for the device. Call with the arbiter locked.
+    async fn end_external(&self) {
         let active = self.source().active;
         if active != LOCAL_SOURCE {
             info!("taking the DAC back from {active}");
@@ -310,7 +353,6 @@ impl App {
             self.set_active_source(LOCAL_SOURCE);
             self.wait_until_dac_free(Duration::from_secs(3)).await;
         }
-        arbiter.resume.take()
     }
 
     async fn wait_until_dac_free(&self, timeout: Duration) {

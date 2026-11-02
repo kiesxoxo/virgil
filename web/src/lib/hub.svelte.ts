@@ -1,4 +1,5 @@
 import { api } from './api.ts';
+import type { HomekitStatus } from './types/HomekitStatus.ts';
 import type { LibraryStatus } from './types/LibraryStatus.ts';
 import type { Outputs } from './types/Outputs.ts';
 import type { PlayerState } from './types/PlayerState.ts';
@@ -49,6 +50,8 @@ class Hub {
 		artDownload: null
 	});
 	outputs = $state.raw<Outputs>({ outputs: [], newCards: [] });
+	/** The Apple Home switch; null when HomeKit is off. */
+	homekit = $state.raw<HomekitStatus | null>(null);
 
 	#receivedAt = $state(0);
 	#now = $state(0);
@@ -111,6 +114,7 @@ class Hub {
 				this.source = event.source;
 				this.library = event.library;
 				this.outputs = event.outputs;
+				this.homekit = event.homekit;
 				this.ready = true;
 				break;
 			case 'outputs': {
@@ -141,6 +145,11 @@ class Hub {
 			case 'library': {
 				const { type: _, ...library } = event;
 				this.library = library;
+				break;
+			}
+			case 'homekit': {
+				const { type: _, ...homekit } = event;
+				this.homekit = homekit;
 				break;
 			}
 		}
