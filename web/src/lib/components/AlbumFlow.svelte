@@ -10,7 +10,7 @@
 	import { albumHeader, albumItems } from '../actions.ts';
 	import { colorsOf } from '../ambient.svelte.ts';
 	import { queue } from '../api.ts';
-	import { TOP, hitTest, layout, spin, turnAngles, type Turn } from '../coverflow.ts';
+	import { TOP, hitTest, layout, shuffle, turnAngles, type Shuffle, type Turn } from '../coverflow.ts';
 	import { flight } from '../flight.svelte.ts';
 	import { TILE, artUrl } from '../format.ts';
 	import { glitter } from '../glitter.ts';
@@ -46,7 +46,7 @@
 	/** The phone's tilt. Not state: it changes every frame while the phone moves, and only the canvas cares. */
 	let turn: Turn = [0, 0];
 
-	/** The dice rolling: the flow spinning to an album picked at random. */
+	/** The dice rolling: the covers shuffled like cards, and an album picked at random dealt out on top. */
 	let rolling = $state(false);
 	/** Rolls landed: each one's pick gets its moment. */
 	let rolls = $state(0);
@@ -54,9 +54,9 @@
 	let face = $state(5);
 	let tumble = $state(0);
 	const faces = [Dice1, Dice2, Dice3, Dice4, Dice5, Dice6];
-	/** While it spins, where the flow is drawn (in covers): finer than the scroll position, which may be whole pixels. */
-	let spinning: number | null = null;
-	/** Where it is spinning to: the covers there are fetched first. */
+	/** The shuffle under way, and when it started: drawn in place of the flow until the last cover is dealt. */
+	let shuffling: { shuffle: Shuffle; start: number } | null = null;
+	/** Where it deals the flow out: the covers there are fetched meanwhile. */
 	let heading: number | null = null;
 	/** How far the pick comes out towards the viewer as it lands, px. */
 	let lift = 0;
@@ -85,7 +85,7 @@
 			const [list, middle, morphing] = [albums, current, moving];
 			return {
 				layout: l,
-				position: spinning ?? (scroller ? position() : current),
+				position: scroller ? position() : current,
 				count: list.length,
 				art: (index) => list[index]?.art ?? null,
 				// Covers in the air, and the middle one shown by the page for a page transition to morph.
@@ -96,6 +96,7 @@
 				settled,
 				turn,
 				lift,
+				shuffled: shuffling?.shuffle.at((performance.now() - shuffling.start) / 1000),
 				heading: heading ?? undefined
 			};
 		});
@@ -130,7 +131,7 @@
 		const left = scroller.scrollLeft;
 		const index = Math.min(albums.length - 1, Math.max(0, Math.round(left / l.slot)));
 		current = index;
-		// Passing a cover on its way to the pick isn't resting on it.
+		// While the dice roll, the deck is drawn, not the flow at rest.
 		settled = !rolling && Math.abs(left - index * l.slot) < 1;
 		centred = albums[index]?.id ?? centred;
 		renderer.invalidate();
@@ -142,8 +143,9 @@
 	});
 
 	/**
-	 * Rolls the dice: picks an album at random (not one picked lately) and spins the flow to it,
-	 * the die tumbling as the covers go by. Landing, the pick jumps out at you and glitter bursts
+	 * Rolls the dice: picks an album at random (not one picked lately) and shuffles the covers in
+	 * sight like a deck of cards, the die turning over as they land. The pick comes out on top, the
+	 * covers around it are dealt out from under it, and it jumps out at you with glitter bursting
 	 * out of it.
 	 */
 	function roll() {
@@ -161,32 +163,35 @@
 		rolling = true;
 		settled = false;
 		heading = to;
-		scroller.style.scrollSnapType = 'none';
-		const course = spin(position(), to, count);
+		if (still.matches) return land(to, colors);
 		const start = performance.now();
-		let [shown, flipped] = [current, 0];
+		shuffling = { shuffle: shuffle(l, current, to, count), start };
+		const { beats, dealt, duration } = shuffling.shuffle;
+		let [beat, flipped] = [0, 0];
 		const frame = (now: number) => {
 			const t = (now - start) / 1000;
-			const done = still.matches || t >= course.duration;
-			spinning = done ? to : course.at(t);
-			scroller.scrollLeft = spinning * l.slot;
-			renderer.invalidate();
-			// The die turns over as covers pass, slower as they do.
-			const index = Math.round(spinning);
-			if (index !== shown && now - flipped > 70) {
-				[shown, flipped] = [index, now];
+			for (; beats[beat] <= t; beat++) {
+				if (now - flipped < 70) continue;
+				flipped = now;
 				face = 1 + ((face + Math.floor(Math.random() * 5)) % 6);
 				tumble += Math.random() < 0.5 ? 90 : -90;
 			}
-			if (done) land(to, colors);
-			else rollFrame = requestAnimationFrame(frame);
+			if (rolling && t >= dealt) land(to, colors);
+			// Out at the viewer and back as the flow is dealt out under it, settling with a little bounce.
+			const out = t - dealt;
+			lift = out > 0 && out < 1 ? l.cover * 0.2 * Math.exp(-out / 0.16) * Math.sin((out * Math.PI * 2) / 0.5) : 0;
+			if (t >= duration) shuffling = null;
+			renderer.invalidate();
+			rollFrame = t < Math.max(duration, dealt + 1) ? requestAnimationFrame(frame) : 0;
 		};
 		rollFrame = requestAnimationFrame(frame);
 	}
 
+	/** The pick lands on the deck: the scroll goes straight to it, under the covers still being dealt out. */
 	function land(to: number, colors: Promise<Rgb[] | null>) {
-		spinning = heading = null;
+		heading = null;
 		rolling = false;
+		scroller.style.scrollSnapType = 'none';
 		scroller.scrollLeft = to * l.slot;
 		onscroll();
 		requestAnimationFrame(() => (scroller.style.scrollSnapType = ''));
@@ -201,28 +206,18 @@
 		// Not waiting long for its colours: the glitter comes as it lands.
 		const late = new Promise<null>((resolve) => setTimeout(() => resolve(null), 150));
 		void Promise.race([colors, late]).then((cover) => glitter.burst(from, { cover, ledges, dark: theme.dark }));
-		if (still.matches) return;
-		// Out at the viewer and back, settling with a little bounce.
-		const start = performance.now();
-		const pop = (now: number) => {
-			const t = (now - start) / 1000;
-			lift = t < 1 ? l.cover * 0.2 * Math.exp(-t / 0.16) * Math.sin((t * Math.PI * 2) / 0.5) : 0;
-			renderer.invalidate();
-			rollFrame = t < 1 ? requestAnimationFrame(pop) : 0;
-		};
-		rollFrame = requestAnimationFrame(pop);
 	}
 
-	/** Taking the flow in hand stops the dice: it snaps to the nearest cover from where it is. */
+	/** Taking the flow in hand stops the dice: the flow is back at once, where it was or at the pick if dealt. */
 	function stopRoll() {
 		cancelAnimationFrame(rollFrame);
 		rollFrame = 0;
 		lift = 0;
+		shuffling = null;
 		renderer.invalidate();
 		if (!rolling) return;
-		spinning = heading = null;
+		heading = null;
 		rolling = false;
-		scroller.style.scrollSnapType = '';
 		onscroll();
 	}
 
@@ -404,8 +399,7 @@
 	</div>
 
 	{#if album}
-		<!-- Not read out while the dice roll: the names fly by. -->
-		<div class="mt-1 flex flex-col items-center px-4 text-center" aria-live={rolling ? 'off' : 'polite'}>
+		<div class="mt-1 flex flex-col items-center px-4 text-center" aria-live="polite">
 			{#key rolls}
 				<a href="/album/{album.id}" class="max-w-full min-w-0 transition-opacity duration-300" class:opacity-50={rolling} class:picked={rolls > 0}>
 					<div class="truncate text-base font-semibold">{album.title}</div>

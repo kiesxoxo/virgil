@@ -6,7 +6,7 @@
 // (and a page transition's picture of it) finds the covers already loaded.
 
 import { markDecoded } from './artwork.ts';
-import { GAP, backToFront, middle, place, turnAngles, visible, type Layout, type Turn } from './coverflow.ts';
+import { ANGLE, GAP, REFLECTION, middle, poses, turnAngles, visible, type Layout, type Pose, type Turn } from './coverflow.ts';
 import { TILE, artUrl, type ArtSize } from './format.ts';
 import { hexRgb } from './palette.ts';
 
@@ -28,10 +28,9 @@ export interface Scene {
 	turn: Turn;
 	/** How far the middle cover comes out towards the viewer, px (the dice's pick, landing). */
 	lift?: number;
-	/**
-	 * Where the flow is spinning to (in covers): its covers are fetched there, rather than the
-	 * ones flashing by, which would hold up the ones it stops at.
-	 */
+	/** While the dice roll: the covers as they are shuffled, back to front, drawn in place of the flow. */
+	shuffled?: Pose[];
+	/** Where the dice's shuffle deals the flow out (in covers): its covers are fetched there meanwhile. */
 	heading?: number;
 }
 
@@ -50,11 +49,13 @@ export interface Card {
 	centre: [number, number, number];
 	/** Its turn about its own vertical axis, in radians. */
 	angle: number;
+	/** Its turn in its own plane, clockwise (a card askew in a pile), in radians. */
+	roll?: number;
 	/** Everything turned about the eye, as CSS rotateX and rotateY (radians). */
 	turn: [number, number];
 	size: number;
 	radius: number;
-	/** The reflection's height (0 for none). */
+	/** The reflection's height: `REFLECTION` of the cover is all of it, less shows less of it (0 for none). */
 	reflection: number;
 	/** 0 none … 1 the covers' usual shadow; more when lifted. */
 	shadow: number;
@@ -94,23 +95,42 @@ const FADE_MS = 200;
 const LINGER_MS = 30_000;
 /** The flow's corner radius, as rounded-xl. */
 const RADIUS = 12;
+/** A side cover's turn, in radians: it is shaded the more, the more it is turned. */
+const TURNED = (ANGLE * Math.PI) / 180;
 const SIZES: ArtSize[] = [300, 600, 1000];
 
 const VERTEX = `#version 300 es
 	in vec2 a_corner;
+	uniform highp int u_mode; // 2: the reflection
 	uniform vec4 u_rect;    // the quad, from the cover's centre: x, y, width, height
 	uniform vec3 u_centre;  // the cover's centre from the eye
 	uniform float u_angle;  // its turn about its own vertical axis
+	uniform float u_roll;   // and in its own plane
+	uniform float u_cover;
 	uniform vec2 u_turn;    // everything turned about the eye, as CSS rotateX and rotateY
 	uniform vec2 u_eye;     // where the camera looks from, on the canvas
 	uniform float u_perspective;
 	uniform vec2 u_canvas;  // the canvas's size
 	out vec2 v_local;
 
+	const float GAP = ${GAP.toFixed(1)};
+
 	void main() {
 		vec2 local = u_rect.xy + a_corner * u_rect.zw;
+		v_local = local;
+		vec3 centre = u_centre;
+		float roll = u_roll;
+		if (u_mode == 2) {
+			// The cover mirrored in the floor, half a gap below it: a cover lifted off the floor has
+			// its reflection drop away, and one askew has it askew the other way.
+			float floor_ = u_cover + GAP;
+			centre.y = floor_ - centre.y;
+			local.y -= floor_;
+			roll = -roll;
+		}
+		local = mat2(cos(roll), sin(roll), -sin(roll), cos(roll)) * local;
 		float c = cos(u_angle), s = sin(u_angle);
-		vec3 p = u_centre + vec3(local.x * c, local.y, -local.x * s);
+		vec3 p = centre + vec3(local.x * c, local.y, -local.x * s);
 		// As project() in coverflow.ts: about the vertical axis, then the horizontal one.
 		float cy = cos(u_turn.y), sy = sin(u_turn.y), cx = cos(u_turn.x), sx = sin(u_turn.x);
 		p = vec3(p.x * cy + p.z * sy, p.y, p.z * cy - p.x * sy);
@@ -119,7 +139,6 @@ const VERTEX = `#version 300 es
 		float w = (u_perspective - p.z) / u_perspective;
 		vec2 screen = u_eye * w + p.xy;
 		gl_Position = vec4(screen.x / u_canvas.x * 2.0 - w, w - screen.y / u_canvas.y * 2.0, 0.0, w);
-		v_local = local;
 	}
 `;
 
@@ -129,7 +148,7 @@ const FRAGMENT = `#version 300 es
 	in vec2 v_local;
 	out vec4 o_color;
 
-	uniform int u_mode; // 0 shadow, 1 cover, 2 reflection
+	uniform highp int u_mode; // 0 shadow, 1 cover, 2 reflection
 	uniform float u_cover;
 	uniform float u_radius;
 	uniform float u_reflection;
@@ -224,6 +243,7 @@ const UNIFORMS = [
 	'u_rect',
 	'u_centre',
 	'u_angle',
+	'u_roll',
 	'u_turn',
 	'u_eye',
 	'u_perspective',
@@ -288,32 +308,31 @@ export function cssColor(text: string): Rgba {
  */
 export function flowCards(scene: Scene, host: { left: number; top: number } | null): { index: number; card: Card }[] {
 	const l = scene.layout;
-	const { first, last } = visible(l, scene.position, scene.count);
 	const eye: [number, number] = [(host?.left ?? 0) + l.width / 2, (host?.top ?? 0) + middle(l)];
 	const turn = turnAngles(scene.turn);
 	const [x, y] = scene.turn;
 	const light: [number, number, number] = [0.5 + x * 0.4, 0.5 + y * 0.4, Math.min(1, Math.hypot(x, y) * 3)];
 	const front = Math.round(scene.position);
-	return backToFront(first, last, scene.position).map((index) => {
-		const p = place(l, index, scene.position);
-		const lift = index === front ? (scene.lift ?? 0) : 0;
+	return (scene.shuffled ?? poses(l, scene.position, scene.count)).map((p) => {
+		const lift = p.index === front ? (scene.lift ?? 0) : 0;
 		const card: Card = {
-			art: scene.art(index) ?? '',
+			art: scene.art(p.index) ?? '',
 			eye,
 			perspective: l.perspective,
-			centre: [p.x - l.width / 2, 0, p.z + lift],
+			centre: [p.x - l.width / 2, p.y, p.z + lift],
 			angle: p.angle,
+			roll: p.roll,
 			turn,
 			size: l.cover,
 			radius: RADIUS,
-			reflection: l.reflection,
-			shadow: 1 + Math.max(0, lift) / l.cover,
+			reflection: l.reflection * p.open,
+			shadow: p.open + Math.max(0, p.z + lift) / l.cover,
 			ring: 1,
-			shade: 1 - 0.1 * Math.abs(p.d),
+			shade: 1 - (0.1 * Math.abs(p.angle)) / TURNED,
 			opacity: 1,
 			light
 		};
-		return { index, card };
+		return { index: p.index, card };
 	});
 }
 
@@ -562,10 +581,12 @@ export class Stage {
 		gl.uniform1f(u.u_perspective, card.perspective);
 		gl.uniform3f(u.u_centre, card.centre[0], card.centre[1], card.centre[2]);
 		gl.uniform1f(u.u_angle, card.angle);
+		gl.uniform1f(u.u_roll, card.roll ?? 0);
 		gl.uniform2f(u.u_turn, card.turn[0], card.turn[1]);
 		gl.uniform1f(u.u_cover, card.size);
 		gl.uniform1f(u.u_radius, card.radius);
-		gl.uniform1f(u.u_reflection, card.reflection);
+		const reflection = Math.round(card.size * REFLECTION);
+		gl.uniform1f(u.u_reflection, reflection);
 		gl.uniform1f(u.u_shade, card.shade);
 		gl.uniform1f(u.u_alpha, card.opacity);
 		gl.uniform1f(u.u_fade, fade);
@@ -587,7 +608,11 @@ export class Stage {
 			gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 		};
 		if (card.shadow > 0) pass(0, -h - 34, -h - 24, card.size + 68, card.size + 68);
-		if (card.reflection > 0) pass(2, -h, h + GAP, card.size, card.reflection);
+		if (card.reflection > 0) {
+			gl.uniform1f(u.u_alpha, card.opacity * Math.min(1, card.reflection / reflection));
+			pass(2, -h, h + GAP, card.size, reflection);
+			gl.uniform1f(u.u_alpha, card.opacity);
+		}
 		if (cover) pass(1, -h - 2, -h - 2, card.size + 4, card.size + 4);
 		return fade < 1 && !!art?.texture;
 	}

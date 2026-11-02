@@ -2,7 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { TOP, backToFront, hitTest, layout, place, project, spin, visible } from './coverflow.ts';
+import { TOP, backToFront, hitTest, layout, place, poses, project, shuffle, visible, type Pose } from './coverflow.ts';
 
 const phone = layout(390, 640);
 const close = (a: number, b: number) => assert.ok(Math.abs(a - b) < 1e-6, `${a} ≈ ${b}`);
@@ -106,24 +106,127 @@ test('hitTest: taps land on the covers as they are turned', () => {
 	assert.notEqual(hitTest(phone, 7, 100, 195 + h - 1, TOP + h, turn), 7);
 });
 
-test('spin: from the cover in the middle to the pick, never past either end', () => {
-	for (const [from, to, count] of [
-		[0, 900, 1000],
-		[999, 3, 1000],
-		[500, 510, 1000],
-		[2, 5, 8],
-		[7, 0, 8],
-		[0, 1, 2],
-		[40, 20, 45]
-	]) {
-		const s = spin(from, to, count);
-		assert.equal(s.at(0), from);
-		assert.equal(s.at(s.duration), to);
-		for (let t = 0; t <= s.duration; t += 1 / 120) {
-			const p = s.at(t);
-			assert.ok(p >= 0 && p <= count - 1, `${from}→${to} of ${count}: ${p} at ${t}`);
+const desk = layout(1440, 900);
+const rolls: [number, number, number][] = [
+	[0, 900, 1000],
+	[999, 3, 1000],
+	[500, 502, 1000],
+	[500, 497, 1000],
+	[2, 5, 8],
+	[7, 0, 8],
+	[0, 1, 2],
+	[40, 20, 45]
+];
+
+/** The same numbers every run. */
+function seeded(seed: number) {
+	return () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+}
+
+const same = (a: Pose, b: Pose) => {
+	for (const key of ['x', 'y', 'z', 'angle', 'roll', 'open'] as const) close(a[key], b[key]);
+};
+
+test('shuffle: starts as the flow at the middle cover and ends as the flow at the pick', () => {
+	for (const l of [phone, desk]) {
+		for (const [from, to, count] of rolls) {
+			const s = shuffle(l, from, to, count, seeded(from + to));
+			const start = s.at(0);
+			for (const p of poses(l, from, count)) same(start.find((q) => q.index === p.index)!, p);
+			// The pick out of sight is there too, under another cover.
+			const pick = start.find((p) => p.index === to)!;
+			if (!poses(l, from, count).some((p) => p.index === to)) {
+				const over = start.find((p) => p !== pick && p.x === pick.x)!;
+				assert.ok(start.indexOf(over) > start.indexOf(pick));
+			}
+			const end = s.at(s.duration);
+			assert.deepEqual(end.map((p) => p.index), poses(l, to, count).map((p) => p.index));
+			end.forEach((p, i) => same(p, poses(l, to, count)[i]));
 		}
-		// It ends slowly: the last 1/30 s moves less than a tenth of a cover.
-		assert.ok(Math.abs(s.at(s.duration - 1 / 30) - to) < 0.1);
+	}
+});
+
+test('shuffle: only the covers in sight at the start are shuffled, and those around the pick dealt', () => {
+	for (const l of [phone, desk]) {
+		for (const [from, to, count] of rolls) {
+			const s = shuffle(l, from, to, count, seeded(from * to));
+			const before = new Set([...poses(l, from, count).map((p) => p.index), to]);
+			const after = new Set(poses(l, to, count).map((p) => p.index));
+			for (let t = 0; t <= s.duration + 0.1; t += 1 / 60) {
+				const drawn = s.at(t).map((p) => p.index);
+				assert.equal(new Set(drawn).size, drawn.length, `a cover twice at ${t}`);
+				for (const index of drawn) assert.ok((t < s.dealt ? before : after).has(index), `${from}→${to}: cover ${index} at ${t}`);
+			}
+		}
+	}
+});
+
+test('shuffle: the pick lands last, flat on top in the middle', () => {
+	for (const [from, to, count] of rolls) {
+		const s = shuffle(phone, from, to, count, seeded(to));
+		const top = s.at(s.dealt - 1e-9).at(-1)!;
+		assert.equal(top.index, to);
+		close(top.x, 195);
+		assert.ok(Math.abs(top.z) < 1e-3 && Math.abs(top.roll) < 1e-3 && Math.abs(top.angle) < 1e-3);
+		assert.ok(s.beats.every((beat) => beat < s.dealt));
+		assert.equal(s.at(s.dealt).at(-1)!.index, to);
+	}
+});
+
+test('shuffle: the piles take turns, each from the top, the pick last', () => {
+	const s = shuffle(phone, 500, 900, 1000, () => 0.5);
+	// Each card thrown is drawn over those before it.
+	const order: number[] = [];
+	for (let t = 0; t < s.dealt; t += 1 / 240) {
+		const top = s.at(t).at(-1)!.index;
+		if (top !== 500 && top !== order.at(-1)) order.push(top);
+	}
+	assert.equal(order.length, 11);
+	assert.equal(order.at(-1), 900);
+	const sides = order.slice(0, -1).map((index) => Math.sign(index - 500));
+	sides.forEach((side, i) => i && assert.notEqual(side, sides[i - 1]));
+	// Each pile from the top: nearest the middle first.
+	for (const side of [-1, 1]) {
+		const pile = order.filter((index) => index !== 900 && Math.sign(index - 500) === side);
+		assert.deepEqual(pile, [1, 2, 3, 4, 5].map((k) => 500 + side * k));
+	}
+});
+
+test('shuffle: the piles stay clear of the deck, so a card thrown from one is never behind it', () => {
+	for (const l of [phone, desk]) {
+		const s = shuffle(l, 500, 900, 1000, seeded(3));
+		const h = l.cover / 2;
+		const across = (p: Pose) =>
+			([[-h, -h], [h, -h], [h, h], [-h, h]] as const).map(([u, v]) => project(l, { ...p, d: 0 }, u * Math.cos(p.roll) - v * Math.sin(p.roll), u * Math.sin(p.roll) + v * Math.cos(p.roll) + p.y)[0]);
+		const turned = (55 * Math.PI) / 180;
+		for (let t = 0.26; t < s.dealt; t += 1 / 120) {
+			const poses = s.at(t);
+			// In a pile, turned all the way; on the deck, flat (in the air, between).
+			const deck = poses.filter((p) => p.angle === 0).flatMap(across);
+			const [left, right] = [Math.min(...deck), Math.max(...deck)];
+			for (const p of poses.filter((p) => Math.abs(Math.abs(p.angle) - turned) < 1e-9)) {
+				const edges = across(p);
+				assert.ok(p.angle > 0 ? Math.max(...edges) <= left : Math.min(...edges) >= right, `cover ${p.index} over the deck at ${t}`);
+			}
+		}
+	}
+});
+
+test('shuffle: covers askew stay on the canvas and above the floor', () => {
+	for (const l of [phone, desk, layout(390, 300)]) {
+		const s = shuffle(l, 500, 900, 1000, seeded(7));
+		const h = l.cover / 2;
+		for (let t = 0; t <= s.duration; t += 1 / 120) {
+			for (const p of s.at(t)) {
+				const corners = ([[-h, -h], [h, -h], [h, h], [-h, h]] as const).map(([u, v]) =>
+					project(l, { ...p, d: 0 }, u * Math.cos(p.roll) - v * Math.sin(p.roll), u * Math.sin(p.roll) + v * Math.cos(p.roll) + p.y)
+				);
+				const top = Math.min(...corners.map(([, y]) => y));
+				assert.ok(top >= 0, `top at ${top} (${t})`);
+				// Standing on its lowest corner, or lifted.
+				const low = Math.max(...[-h, h].map((u) => u * Math.sin(Math.abs(p.roll)) + h * Math.cos(p.roll))) + p.y;
+				assert.ok(low <= h + 1e-6, `${low} below the floor (${t})`);
+			}
+		}
 	}
 });
