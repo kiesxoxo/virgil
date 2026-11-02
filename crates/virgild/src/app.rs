@@ -13,7 +13,6 @@ use virgil_radio::Nts;
 
 use crate::api::ApiError;
 use crate::config::Config;
-use crate::online::Online;
 use crate::signal::{Hw, card_label, parse_cards, read_hw};
 
 /// Latest state of everything the UI shows; `hello` sends it whole.
@@ -41,8 +40,6 @@ pub struct Inner {
     pub mpd: MpdEngine,
     pub library: Library,
     pub radio: Nts,
-    /// Online services' settings (the Discogs token).
-    pub online: Online,
     pub events: broadcast::Sender<ServerEvent>,
     snapshot: RwLock<Snapshot>,
     arbiter: Mutex<Arbiter>,
@@ -62,7 +59,6 @@ impl App {
             mpd: MpdEngine::new(&config.mpd),
             library,
             radio,
-            online: Online::load(&config.data_dir, config.discogs_token.clone()),
             events: broadcast::channel(256).0,
             snapshot: RwLock::new(Snapshot { source, ..Snapshot::default() }),
             arbiter: Mutex::default(),

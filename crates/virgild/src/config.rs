@@ -24,8 +24,6 @@ pub struct Config {
     pub asound_dir: PathBuf,
     /// External sources that share the DAC (AirPlay, Spotify…), by name.
     pub sources: BTreeMap<String, SourceConfig>,
-    /// A personal Discogs token for tag lookups; one set in Settings takes precedence.
-    pub discogs_token: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -45,7 +43,6 @@ impl Default for Config {
             alsa_card: "sndrpihifiberry".into(),
             asound_dir: "/proc/asound".into(),
             sources: BTreeMap::new(),
-            discogs_token: None,
         }
     }
 }

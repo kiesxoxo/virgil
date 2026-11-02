@@ -1,7 +1,7 @@
 //! Looking albums up online for the tag editor: MusicBrainz (open, no account
-//! needed) and Discogs (works without an account; a personal token raises its
-//! rate limit). Both are normalized to one shape; the editor decides what to
-//! write, and nothing is written until the user saves.
+//! needed) and Discogs (anonymous requests). Both are normalized to one shape;
+//! the editor decides what to write, and nothing is written until the user
+//! saves.
 
 use std::time::Duration;
 
@@ -13,9 +13,8 @@ use virgil_core::{LookupCandidate, LookupQuery, LookupRelease, LookupResults, Lo
 use crate::Library;
 use crate::online::{Finder, phrase, space};
 
-/// Discogs allows 25 requests a minute without a token, 60 with one.
+/// Discogs allows 25 anonymous requests a minute.
 const DISCOGS_INTERVAL: Duration = Duration::from_millis(2500);
-const DISCOGS_INTERVAL_TOKEN: Duration = Duration::from_millis(1100);
 /// Candidates per source.
 const CANDIDATES: &str = "10";
 /// Genres kept per release, most fitting first.
@@ -382,25 +381,15 @@ fn dg_release(r: DgRelease) -> LookupRelease {
 
 // --- Requests ----------------------------------------------------------------
 
-async fn discogs_get<T: DeserializeOwned>(
-    finder: &Finder,
-    path: &str,
-    query: &[(&str, &str)],
-    token: Option<&str>,
-) -> anyhow::Result<T> {
-    let interval = if token.is_some() { DISCOGS_INTERVAL_TOKEN } else { DISCOGS_INTERVAL };
+async fn discogs_get<T: DeserializeOwned>(finder: &Finder, path: &str, query: &[(&str, &str)]) -> anyhow::Result<T> {
     for attempt in 0..3 {
-        space(&finder.last_discogs, interval).await;
-        let mut request = finder.http.get(format!("https://api.discogs.com/{path}")).query(query);
-        if let Some(token) = token {
-            request = request.header(reqwest::header::AUTHORIZATION, format!("Discogs token={token}"));
-        }
+        space(&finder.last_discogs, DISCOGS_INTERVAL).await;
+        let request = finder.http.get(format!("https://api.discogs.com/{path}")).query(query);
         let response = request.send().await.context("cannot reach Discogs (does the Pi have internet access?)")?;
         match response.status() {
             reqwest::StatusCode::TOO_MANY_REQUESTS if attempt < 2 => {
                 tokio::time::sleep(Duration::from_secs(5 * (attempt + 1))).await;
             }
-            reqwest::StatusCode::UNAUTHORIZED => bail!("Discogs didn't accept the token set in Settings"),
             _ => return Ok(response.error_for_status().map_err(reqwest::Error::without_url)?.json().await?),
         }
     }
@@ -416,32 +405,24 @@ async fn musicbrainz_search(finder: &Finder, query: &LookupQuery) -> anyhow::Res
     Ok(found.releases.into_iter().map(mb_candidate).collect())
 }
 
-async fn discogs_search(
-    finder: &Finder,
-    query: &LookupQuery,
-    token: Option<&str>,
-) -> anyhow::Result<Vec<LookupCandidate>> {
+async fn discogs_search(finder: &Finder, query: &LookupQuery) -> anyhow::Result<Vec<LookupCandidate>> {
     let mut params = vec![("type", "release"), ("release_title", query.album.trim()), ("per_page", CANDIDATES)];
     if !query.artist.trim().is_empty() {
         params.push(("artist", query.artist.trim()));
     }
-    let found: DgSearch = discogs_get(finder, "database/search", &params, token).await?;
+    let found: DgSearch = discogs_get(finder, "database/search", &params).await?;
     Ok(found.results.into_iter().map(dg_candidate).collect())
 }
 
 impl Library {
     /// Releases that might be the album, from MusicBrainz and Discogs at once.
     /// A source that fails is reported in `errors`; the other's results stay.
-    pub async fn lookup_online(
-        &self,
-        query: &LookupQuery,
-        discogs_token: Option<&str>,
-    ) -> anyhow::Result<LookupResults> {
+    pub async fn lookup_online(&self, query: &LookupQuery) -> anyhow::Result<LookupResults> {
         if query.album.trim().is_empty() {
             bail!("the album needs a title to look it up");
         }
         let finder = &self.inner.finder;
-        let (mb, dg) = tokio::join!(musicbrainz_search(finder, query), discogs_search(finder, query, discogs_token));
+        let (mb, dg) = tokio::join!(musicbrainz_search(finder, query), discogs_search(finder, query));
         let mut results = LookupResults::default();
         for (source, found) in [("MusicBrainz", mb), ("Discogs", dg)] {
             match found {
@@ -461,12 +442,7 @@ impl Library {
     }
 
     /// One release's tags and tracklist.
-    pub async fn lookup_release(
-        &self,
-        source: LookupSource,
-        id: &str,
-        discogs_token: Option<&str>,
-    ) -> anyhow::Result<LookupRelease> {
+    pub async fn lookup_release(&self, source: LookupSource, id: &str) -> anyhow::Result<LookupRelease> {
         let finder = &self.inner.finder;
         match source {
             LookupSource::Musicbrainz => {
@@ -485,7 +461,7 @@ impl Library {
                 if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
                     bail!("not a Discogs release id: {id}");
                 }
-                let release: DgRelease = discogs_get(finder, &format!("releases/{id}"), &[], discogs_token).await?;
+                let release: DgRelease = discogs_get(finder, &format!("releases/{id}"), &[]).await?;
                 Ok(dg_release(release))
             }
         }

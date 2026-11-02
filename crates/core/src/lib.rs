@@ -465,24 +465,6 @@ pub struct LookupTrack {
     pub duration: Option<f64>,
 }
 
-/// Online services as Settings shows them. The Discogs token itself never
-/// leaves the server.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct OnlineSettings {
-    /// A personal Discogs token is set (searches are allowed more often).
-    pub discogs_token: bool,
-}
-
-/// Sets the Discogs token; an empty one removes it.
-#[derive(Debug, Clone, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct OnlineSettingsUpdate {
-    pub discogs_token: String,
-}
-
 /// Pushed over `/api/ws`. `hello` carries the full state; the rest replace one slice of it.
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(tag = "type", rename_all = "camelCase")]

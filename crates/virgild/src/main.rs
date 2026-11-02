@@ -2,7 +2,6 @@ mod api;
 mod app;
 mod config;
 mod ctl;
-mod online;
 mod signal;
 mod sync;
 mod tags;
