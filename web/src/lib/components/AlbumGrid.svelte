@@ -7,6 +7,7 @@
 	import { library } from '../library.svelte.ts';
 	import { contextMenu } from '../menu.svelte.ts';
 	import type { Album } from '../types/Album.ts';
+	import { Rows } from '../virtual.svelte.ts';
 	import Cover from './Cover.svelte';
 
 	/** `reveal`: the album to open on (in the middle of the screen in the view before). */
@@ -17,51 +18,28 @@
 	const GAP_Y = 22;
 	const OVERSCAN = 3;
 
-	let grid: HTMLDivElement;
-	let width = $state(0);
-	let offset = $state(0);
-	let viewport = $state(800);
+	const grid: Rows = new Rows(() => ({
+		count: albums.length,
+		columns: cols,
+		rowHeight,
+		overscan: OVERSCAN,
+		// Its row in the middle of the screen.
+		reveal: reveal ? { index: untrack(() => albums.findIndex((a) => a.id === reveal)), height: tile } : null
+	}));
 
+	let width: number = $derived(grid.width);
 	let gapX = $derived(width < 640 ? 14 : 22);
 	let minTile = $derived(width < 640 ? 140 : 172);
-	let cols = $derived(Math.max(2, Math.floor((width + gapX) / (minTile + gapX))));
+	let cols: number = $derived(Math.max(2, Math.floor((width + gapX) / (minTile + gapX))));
 	let tile = $derived(Math.max(0, (width - gapX * (cols - 1)) / cols));
 	let rowHeight = $derived(tile + META + GAP_Y);
 	let rows = $derived(Math.ceil(albums.length / cols));
-	let first = $derived(Math.max(0, Math.floor(offset / rowHeight) - OVERSCAN));
-	let last = $derived(Math.min(rows, Math.ceil((offset + viewport) / rowHeight) + OVERSCAN));
-	let visible = $derived(albums.slice(first * cols, last * cols));
-
-	// In whole rows: scrolling within a row then changes nothing, and there is nothing to redraw.
-	function measure() {
-		if (grid) offset = Math.floor(-grid.getBoundingClientRect().top / rowHeight) * rowHeight;
-	}
-
-	$effect(() => {
-		// Content above the grid can change height (search results); re-measure with the data.
-		void albums.length;
-		void width;
-		measure();
-	});
-
-	// Its row in the middle of the screen, once the grid knows its width.
-	let revealed = false;
-	$effect(() => {
-		if (!width || revealed) return;
-		revealed = true;
-		const index = untrack(() => (reveal ? albums.findIndex((a) => a.id === reveal) : -1));
-		if (index < 0) return;
-		const top = grid.getBoundingClientRect().top + scrollY + Math.floor(index / cols) * rowHeight;
-		scrollTo({ top: Math.max(0, top + tile / 2 - innerHeight / 2), behavior: 'instant' });
-		measure();
-	});
+	let visible = $derived(grid.ready ? albums.slice(grid.first * cols, grid.last * cols) : []);
 </script>
 
-<svelte:window onscroll={measure} onresize={measure} bind:innerHeight={viewport} />
-
-<div bind:this={grid} bind:clientWidth={width} class="relative" style:height="{Math.max(0, rows * rowHeight - GAP_Y)}px">
+<div {@attach grid.attach} class="relative" style:height="{Math.max(0, rows * rowHeight - GAP_Y)}px">
 	{#each visible as album, i (album.id)}
-		{@const index = first * cols + i}
+		{@const index = grid.first * cols + i}
 		{@const versions = library.versions(album.id).length}
 		<div
 			class="group absolute top-0 left-0"

@@ -1,15 +1,8 @@
-<script lang="ts" module>
-	import { TILE, artUrl, type ArtSize } from '../format.ts';
-
-	/** Images shown already, so still in the browser's memory: shown again at once rather than faded in over the placeholder. */
-	const seen = new Set<string>();
-	/** Sharpest first. */
-	const SIZES: ArtSize[] = [1000, 600, 300];
-</script>
-
 <script lang="ts">
 	import { Disc3 } from '@lucide/svelte';
+	import { isDecoded, markDecoded, standIn } from '../artwork.ts';
 	import { flight } from '../flight.svelte.ts';
+	import { TILE, artUrl, type ArtSize } from '../format.ts';
 
 	let {
 		art,
@@ -32,23 +25,40 @@
 		slot?: string;
 	} = $props();
 
-	let loaded = $state(false);
-	let thumbLoaded = $state(false);
+	/** The image that has come in and is ready to show, and the one standing in. */
+	let loaded = $state<string | null>(null);
+	let thumbLoaded = $state<string | null>(null);
 	let src = $derived(image ?? artUrl(art, size));
 	// Until it is in (or instead of it, where virgild has no large one yet), another size stands in:
-	// one shown before (the list's, on the way to the grid), else the grid's, usually cached already.
+	// the sharpest decoded lately (lib/artwork.ts), else the grid's, usually cached already.
 	let thumb = $derived.by(() => {
 		if (image) return null;
-		const before = SIZES.map((other) => artUrl(art, other)).find((url) => url && url !== src && seen.has(url));
-		return before ?? (size > TILE ? artUrl(art, TILE) : null);
+		return standIn(art, src) ?? (size > TILE ? artUrl(art, TILE) : null);
 	});
-	/** Shown before (a page coming back, the view switching): up at once, with no placeholder and no fade. */
-	let known = $derived(!!src && seen.has(src));
-	let shown = $derived(loaded || known);
+	/** Decoded lately (a page coming back, the view switching): up at once, with no placeholder and no fade. */
+	let known = $derived(isDecoded(src));
+	let shown = $derived((!!src && loaded === src) || known);
+	/** Something stands in: the image takes its place at once when ready, rather than fading in over the placeholder. */
+	let covered = $derived(!!thumb && thumbLoaded === thumb);
 
-	function show() {
-		loaded = true;
-		if (src) seen.add(src);
+	/** `url` came in, in `img`: ready to show once decoded, so that swapping it in for a stand-in leaves no frame with neither. */
+	function decoded(img: EventTarget, url: string | null, then: (url: string) => void) {
+		if (!url) return;
+		(img as HTMLImageElement).decode().then(
+			() => {
+				markDecoded(url);
+				then(url);
+			},
+			// It loaded: show it however it decodes.
+			() => then(url)
+		);
+	}
+
+	/** `img` is in already (cached): shown at once, instead of fading in again. */
+	function cached(img: HTMLImageElement, url: string | null, then: (url: string) => void) {
+		if (!url || !img.complete || !img.naturalWidth) return;
+		markDecoded(url);
+		then(url);
 	}
 </script>
 
@@ -66,14 +76,12 @@
 			<img
 				src={thumb}
 				alt=""
-				decoding={seen.has(thumb) ? 'sync' : 'async'}
+				decoding={isDecoded(thumb) ? 'sync' : 'async'}
 				draggable="false"
 				class="absolute inset-0 size-full object-cover"
-				{@attach (img) => {
-					if (img.complete && img.naturalWidth) thumbLoaded = true;
-				}}
-				onload={() => (thumbLoaded = true)}
-				onerror={() => (thumbLoaded = false)}
+				{@attach (img) => cached(img, thumb, (url) => (thumbLoaded = url))}
+				onload={(e) => decoded(e.currentTarget, thumb, (url) => (thumbLoaded = url))}
+				onerror={() => (thumbLoaded = null)}
 			/>
 		{/key}
 	{/if}
@@ -85,18 +93,15 @@
 				loading={eager || known ? 'eager' : 'lazy'}
 				decoding={known ? 'sync' : 'async'}
 				draggable="false"
-				class="absolute inset-0 size-full object-cover transition-opacity duration-300"
+				class="absolute inset-0 size-full object-cover {covered ? '' : 'transition-opacity duration-300'}"
 				class:opacity-0={!shown}
-				{@attach (img) => {
-					// Already cached: show it at once instead of fading in again.
-					if (img.complete && img.naturalWidth) show();
-				}}
-				onload={show}
-				onerror={() => (loaded = false)}
+				{@attach (img) => cached(img, src, (url) => (loaded = url))}
+				onload={(e) => decoded(e.currentTarget, src, (url) => (loaded = url))}
+				onerror={() => (loaded = null)}
 			/>
 		{/key}
 	{/if}
-	{#if !src || (!shown && !thumbLoaded)}
+	{#if !src || (!shown && !covered)}
 		<div class="absolute inset-0 grid place-items-center text-faint">
 			<Disc3 class="size-2/5" strokeWidth={1.25} />
 		</div>

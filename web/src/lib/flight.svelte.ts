@@ -52,6 +52,8 @@ const LEAN_SPEED = 2500;
 const LIFT_SPEED = 1500;
 /** A cover not given anywhere to land by then fades where it is. */
 const STRANDED_MS = 2000;
+/** Landing on a cover not in sight yet (its row still to come in), it looks again on each frame this long. */
+const SEEK_MS = 200;
 
 const clamp = (v: number, lo = -1, hi = 1) => Math.max(lo, Math.min(hi, v));
 
@@ -94,6 +96,8 @@ interface Mover {
 	to: Place | null;
 	/** 0 where it was … 1 where it goes. */
 	t: Spring;
+	/** How far it goes on the screen, in px: it has landed within half a pixel of the way. */
+	span: number;
 	/** Seconds before it sets off: the covers nearest the middle go first. */
 	wait: number;
 }
@@ -122,6 +126,8 @@ class Flight {
 	#springs: Record<(typeof PARTS)[number], Spring> | null = null;
 	/** Where it is going is known (until then it waits where it lifted off). */
 	#landing = false;
+	/** Until when it looks for the cover it lands on, while that isn't in sight; 0 once found (or given up on). */
+	#seeking = 0;
 	/**
 	 * The cover it lands on, and how it was when the flight set off: followed on every frame, as the
 	 * page may still move under it (content coming in above, its scroll put back).
@@ -202,29 +208,32 @@ class Flight {
 		// Hidden from the start in the new view too, until they land there.
 		this.between = new Set(before.keys());
 		this.#air = new Set(before.keys());
-		this.#movers = [...before.values()].map(({ key, src, place }) => ({ key, src: src!, origin: place, goal: null, from: place, to: null, t: spring(0), wait: 0 }));
+		this.#movers = [...before.values()].map(({ key, src, place }) => ({ key, src: src!, origin: place, goal: null, from: place, to: null, t: spring(0), span: 0, wait: 0 }));
+		// Beneath the bars over the page, as the covers they fly from and to.
+		flyers.clip(open());
 		this.#drawMovers(0);
 		// The flow leaves them out from now on, on the same frame.
 		stage().draw();
+		// The new view lays itself out where it opens as it is made (lib/virtual.svelte.ts): where its
+		// covers are is known at once, and they set off as it comes in.
+		const swap = async () => {
+			change();
+			await tick();
+			if (switched === this.#switched) this.#depart(before);
+		};
 		// The rest of the page cross-fades, under the stage (live through it: app.css).
 		if (document.startViewTransition) {
 			await tick();
-			await document.startViewTransition(async () => {
-				change();
-				await tick();
-			}).updateCallbackDone;
+			await document.startViewTransition(swap).updateCallbackDone;
 		} else {
-			change();
+			await swap();
 		}
-		// The new view laid out (it measures itself a frame after it is made).
-		for (let i = 0; i < 2; i++) {
-			await tick();
-			await new Promise(requestAnimationFrame);
-		}
-		if (switched !== this.#switched) return;
+	}
 
-		// Into the flow, or onto a cover on the page with its image in: not onto a placeholder.
-		const after = new Map([...this.#inSight()].filter(([, sighted]) => sighted.place.flow || sighted.src));
+	/** Sends the covers in the air between views to where the new view has them, or to fade where they were. */
+	#depart(before: Map<string, Sighted>) {
+		// Into the flow, or onto a cover on the page: it shows that image (or one as sharp) at once (lib/artwork.ts).
+		const after = this.#inSight();
 		const middle = (p: Place) => Math.hypot(p.eye[0] + p.centre[0] - innerWidth / 2, p.eye[1] + p.centre[1] - innerHeight / 2);
 		let flying = this.#movers.filter((m) => after.has(m.key));
 		flying.sort((a, b) => middle(after.get(a.key)!.place) - middle(after.get(b.key)!.place));
@@ -256,12 +265,12 @@ class Flight {
 	}
 
 	/**
-	 * The album covers in sight: on the page, and in the flow. Only those clear of the bars over the
-	 * page: in the air they are above them, so one beneath a bar would be drawn over it.
+	 * The album covers in sight: on the page, and in the flow. Only those mostly clear of the bars
+	 * over the page (their middle is): in the air they are cut off where the bars begin.
 	 */
 	#inSight(): Map<string, Sighted> {
 		const [top, bottom] = open();
-		const clear = (y: number, size: number) => y - size / 2 > top - 1 && y + size / 2 < bottom + 1;
+		const clear = (y: number) => y > top && y < bottom;
 		const found = new Map<string, Sighted>();
 		for (const key of this.#slots.keys()) {
 			const slot = key.startsWith('album:') && this.#find(key);
@@ -270,10 +279,10 @@ class Flight {
 			if (!slot || !art || slot.el.closest('[data-reflection]')) continue;
 			const pose = poseOf(slot.el);
 			const img = best(slot.el);
-			if (clear(pose.y, pose.size)) found.set(key, { key, art, place: flat(pose), src: img?.currentSrc || null, img, el: slot.el });
+			if (clear(pose.y)) found.set(key, { key, art, place: flat(pose), src: img?.currentSrc || null, img, el: slot.el });
 		}
 		for (const { key, art, place } of this.flow?.() ?? []) {
-			if (clear(place.eye[1] + place.centre[1], place.size)) found.set(key, { key, art, place, src: stage().source(art) });
+			if (clear(place.eye[1] + place.centre[1])) found.set(key, { key, art, place, src: stage().source(art) });
 		}
 		return found;
 	}
@@ -292,7 +301,8 @@ class Flight {
 				continue;
 			}
 			advance(m.t, dt, SWITCH_RESPONSE, SWITCH_DAMPING);
-			if (!settled(m.t, 0.002)) moving = true;
+			// Within half a pixel of where it lands; fading, within a hundredth of the way.
+			if (!settled(m.t, m.to ? 0.5 / m.span : 0.01)) moving = true;
 		}
 		if (moving) this.#raf = requestAnimationFrame(this.#switchFrame);
 		this.#drawMovers();
@@ -378,6 +388,7 @@ class Flight {
 		// Already in the air (back before it landed): it turns round from where it is.
 		if (this.#springs && this.key === key) {
 			this.#landing = false;
+			this.#seeking = 0;
 			this.#strand();
 			return true;
 		}
@@ -409,10 +420,22 @@ class Flight {
 
 	/** Flies the lifted cover to where slot `key`'s cover is now, or fades it where it is if there is none. */
 	land(key: string) {
-		const springs = this.#springs;
-		if (!springs || this.key !== key) return;
+		if (!this.#springs || this.key !== key) return;
 		clearTimeout(this.#stranded);
-		const to = this.#find(key);
+		this.#seeking = performance.now() + SEEK_MS;
+		this.#seek();
+		this.#landing = true;
+		this.#fly();
+	}
+
+	/**
+	 * Aims at where the cover it lands on is, once it is in sight; looked for long enough and not, it
+	 * fades where it is.
+	 */
+	#seek() {
+		const springs = this.#springs;
+		if (!springs || !this.key) return;
+		const to = this.#find(this.key);
 		if (to) {
 			const pose = poseOf(to.el);
 			for (const part of PARTS) springs[part].target = pose[part];
@@ -421,11 +444,11 @@ class Flight {
 			// Landing beneath the bars over the page, it goes under them all the way, rather than over
 			// them until it lands. Landing in a bar (the mini player), it stays above them all.
 			flyers.clip(to.el.closest('[data-bar]') ? null : open());
-		} else {
+			this.#seeking = 0;
+		} else if (performance.now() >= this.#seeking) {
 			springs.opacity.target = 0;
+			this.#seeking = 0;
 		}
-		this.#landing = true;
-		this.#fly();
 	}
 
 	/**
@@ -457,6 +480,7 @@ class Flight {
 		const dt = this.#last ? Math.min(0.05, (time - this.#last) / 1000) : 0;
 		this.#last = time;
 		if (this.#landing) {
+			if (this.#seeking) this.#seek();
 			this.#follow(springs);
 			for (const part of PARTS) advance(springs[part], dt, RESPONSE, DAMPING);
 		}
@@ -485,7 +509,7 @@ class Flight {
 			opacity: clamp(springs.opacity.value, 0, 1)
 		};
 		this.#show([card]);
-		if (this.#landing && PARTS.every((part) => settled(springs[part], WITHIN[part]))) return this.#finish();
+		if (this.#landing && !this.#seeking && PARTS.every((part) => settled(springs[part], WITHIN[part]))) return this.#finish();
 		if (this.#landing) this.#raf = requestAnimationFrame(this.#frame);
 	};
 
@@ -516,6 +540,7 @@ class Flight {
 		this.#last = 0;
 		this.#springs = null;
 		this.#target = null;
+		this.#seeking = 0;
 		this.key = null;
 		stage().draw();
 		// One more frame in the air, so the page's cover is up before it goes.
@@ -568,6 +593,9 @@ function aim(m: Mover) {
 	const goal = m.goal!;
 	m.from = goal.flow && !m.origin.flow ? seenFrom(m.origin, goal) : m.origin;
 	m.to = goal.flow || !m.origin.flow ? goal : seenFrom(goal, m.origin);
+	const [from, to] = [m.origin, goal];
+	const [dx, dy] = [to.eye[0] + to.centre[0] - from.eye[0] - from.centre[0], to.eye[1] + to.centre[1] - from.eye[1] - from.centre[1]];
+	m.span = Math.max(1, Math.hypot(dx, dy) + Math.abs(to.size - from.size));
 }
 
 /** Flat `place` as seen through `other`'s camera: the same pixels, so the two can be mixed. */

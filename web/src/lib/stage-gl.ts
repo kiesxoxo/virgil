@@ -5,6 +5,7 @@
 // pixels. The renderer, its canvas and its textures outlive the flow on the page: coming back to it
 // (and a page transition's picture of it) finds the covers already loaded.
 
+import { markDecoded } from './artwork.ts';
 import { GAP, backToFront, middle, place, turnAngles, visible, type Layout, type Turn } from './coverflow.ts';
 import { TILE, artUrl, type ArtSize } from './format.ts';
 import { hexRgb } from './palette.ts';
@@ -634,6 +635,8 @@ export class Stage {
 			const image = new Image();
 			image.src = artUrl(key, size)!;
 			await image.decode();
+			// The page's covers can show it at once too (lib/artwork.ts).
+			markDecoded(image.src);
 			this.#ready.push({ key, size, image });
 		} catch {
 			art.missing = size;

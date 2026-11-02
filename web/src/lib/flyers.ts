@@ -3,6 +3,7 @@
 // cover flow's renderer draws one (lib/stage-gl.ts), and its matrix projects as that renderer does:
 // a cover leaves the flow, and lands in it, on the pixels the flow draws it on.
 
+import { markDecoded } from './artwork.ts';
 import { GAP, REFLECTION } from './coverflow.ts';
 import type { Card } from './stage-gl.ts';
 
@@ -62,18 +63,18 @@ export function apply(m: Matrix, x: number, y: number): [number, number] {
 	return [(m[0] * x + m[4] * y + m[12]) / w, (m[1] * x + m[5] * y + m[13]) / w];
 }
 
+/** The parts of a cover in the air besides its image, each made only once a card needs it: every one is a layer of its own. */
+type Part = 'shadow' | 'lifted' | 'ring' | 'shade' | 'reflection';
+
 interface Flyer {
 	root: HTMLDivElement;
+	cover: HTMLDivElement;
 	img: HTMLImageElement;
 	/** A sharper image of it, shown over the first once decoded. */
 	sharp: HTMLImageElement;
-	mirror: HTMLImageElement;
-	shadow: HTMLDivElement;
-	/** More shadow, lifted. */
-	lifted: HTMLDivElement;
-	ring: HTMLDivElement;
-	shade: HTMLDivElement;
-	reflection: HTMLDivElement;
+	parts: Partial<Record<Part, HTMLDivElement>>;
+	/** The reflection's image. */
+	mirror: HTMLImageElement | null;
 	base: number;
 	/** What was last written, so a frame writes only what changed. */
 	written: Record<string, string>;
@@ -81,54 +82,82 @@ interface Flyer {
 
 const CORNERED = 'position:absolute;inset:0;border-radius:inherit';
 
+const element = <K extends keyof HTMLElementTagNameMap>(tag: K, css: string) => {
+	const node = document.createElement(tag);
+	node.style.cssText = css;
+	return node;
+};
+
+const image = (css: string) => {
+	const img = element('img', css);
+	img.alt = '';
+	img.decoding = 'sync';
+	img.draggable = false;
+	return img;
+};
+
 function make(card: FlyerCard): Flyer {
-	const el = <K extends keyof HTMLElementTagNameMap>(tag: K, css: string) => {
-		const node = document.createElement(tag);
-		node.style.cssText = css;
-		return node;
-	};
-	const root = el('div', 'position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform,opacity');
-	const shadow = el('div', `${CORNERED};box-shadow:var(--shadow-cover);will-change:opacity`);
-	const lifted = el('div', `${CORNERED};box-shadow:var(--shadow-float);opacity:0;will-change:opacity`);
-	const cover = el('div', `${CORNERED};overflow:hidden;background:var(--surface-2)`);
-	const img = el('img', 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover');
-	const sharp = el('img', 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0');
-	const shade = el('div', 'position:absolute;inset:0;background:#000;opacity:0;will-change:opacity');
-	const ring = el('div', `${CORNERED};box-shadow:0 0 0 1px var(--line);will-change:opacity`);
-	// The cover's lower part upside down below it, fading out, as the flow draws it.
-	const reflection = el(
-		'div',
-		'position:absolute;left:0;top:100%;width:100%;overflow:hidden;border-radius:inherit;opacity:0;will-change:transform,opacity;' +
-			'-webkit-mask-image:linear-gradient(rgb(0 0 0 / 0.3),transparent 85%);mask-image:linear-gradient(rgb(0 0 0 / 0.3),transparent 85%)'
-	);
-	const mirror = el('img', 'position:absolute;left:0;top:0;width:100%;object-fit:cover;transform:scaleY(-1)');
-	for (const image of [img, sharp, mirror]) {
-		image.alt = '';
-		image.decoding = 'sync';
-		image.draggable = false;
-	}
-	cover.append(img, sharp, shade);
-	reflection.append(mirror);
-	root.append(shadow, lifted, cover, ring, reflection);
-	const flyer: Flyer = { root, img, sharp, mirror, shadow, lifted, ring, shade, reflection, base: 0, written: {} };
+	const root = element('div', 'position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform,opacity');
+	const cover = element('div', `${CORNERED};overflow:hidden;background:var(--surface-2)`);
+	const img = image('position:absolute;inset:0;width:100%;height:100%;object-fit:cover');
+	const sharp = image('position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0');
+	cover.append(img, sharp);
+	root.append(cover);
+	const flyer: Flyer = { root, cover, img, sharp, parts: {}, mirror: null, base: 0, written: {} };
 	resize(flyer, card.base);
-	img.src = mirror.src = card.src;
+	img.src = card.src;
+	markDecoded(card.src);
 	return flyer;
+}
+
+/** Makes part `name` of `f`, in its place among the others: the shadows under the cover, the ring and reflection over it, the shade on it. */
+function part(f: Flyer, name: Part): HTMLDivElement {
+	const made = f.parts[name];
+	if (made) return made;
+	let node: HTMLDivElement;
+	if (name === 'shadow') node = element('div', `${CORNERED};box-shadow:var(--shadow-cover);will-change:opacity`);
+	// More shadow, lifted.
+	else if (name === 'lifted') node = element('div', `${CORNERED};box-shadow:var(--shadow-float);opacity:0;will-change:opacity`);
+	else if (name === 'ring') node = element('div', `${CORNERED};box-shadow:0 0 0 1px var(--line);will-change:opacity`);
+	else if (name === 'shade') node = element('div', 'position:absolute;inset:0;background:#000;opacity:0;will-change:opacity');
+	else {
+		// The cover's lower part upside down below it, fading out, as the flow draws it.
+		node = element(
+			'div',
+			'position:absolute;left:0;top:100%;width:100%;overflow:hidden;border-radius:inherit;opacity:0;will-change:transform,opacity;' +
+				'-webkit-mask-image:linear-gradient(rgb(0 0 0 / 0.3),transparent 85%);mask-image:linear-gradient(rgb(0 0 0 / 0.3),transparent 85%)'
+		);
+		f.mirror = image('position:absolute;left:0;top:0;width:100%;object-fit:cover;transform:scaleY(-1)');
+		f.mirror.src = f.img.src;
+		node.append(f.mirror);
+	}
+	f.parts[name] = node;
+	if (name === 'shade') f.cover.append(node);
+	else if (name === 'shadow') f.root.prepend(node);
+	else if (name === 'lifted') f.root.insertBefore(node, f.cover);
+	else if (name === 'ring') f.cover.after(node);
+	else f.root.append(node);
+	resize(f, f.base);
+	return node;
 }
 
 function resize(f: Flyer, base: number) {
 	f.base = base;
 	f.root.style.width = f.root.style.height = `${base}px`;
-	f.reflection.style.height = `${Math.round(base * REFLECTION)}px`;
-	f.mirror.style.height = `${base}px`;
+	if (f.parts.reflection) f.parts.reflection.style.height = `${Math.round(base * REFLECTION)}px`;
+	if (f.mirror) f.mirror.style.height = `${base}px`;
 }
 
-/** Sets style `name` on `f`'s part `part` to `value`, unless it is that already. */
-function write(f: Flyer, part: 'root' | 'shadow' | 'lifted' | 'ring' | 'shade' | 'reflection', name: string, value: string) {
-	const slot = `${part} ${name}`;
+/**
+ * Sets style `name` on `f`'s part `part` to `value`, unless it is that already. A part not made yet
+ * is made only when it shows: `none` is how it looks when it doesn't.
+ */
+function write(f: Flyer, which: 'root' | Part, name: string, value: string, none?: string) {
+	const slot = `${which} ${name}`;
 	if (f.written[slot] === value) return;
+	if (which !== 'root' && !f.parts[which] && value === none) return;
 	f.written[slot] = value;
-	f[part].style.setProperty(name, value);
+	(which === 'root' ? f.root : part(f, which)).style.setProperty(name, value);
 }
 
 const fixed = (n: number, digits = 3) => n.toFixed(digits);
@@ -155,9 +184,11 @@ class Flyers {
 			if (card.base > f.base) resize(f, card.base);
 			// Another cover (taken off again as the last one landed).
 			if (f.img.getAttribute('src') !== card.src) {
-				f.img.src = f.mirror.src = card.src;
+				f.img.src = card.src;
+				if (f.mirror) f.mirror.src = card.src;
 				f.sharp.removeAttribute('src');
 				f.sharp.style.opacity = '0';
+				markDecoded(card.src);
 			}
 			const next: Element | null = previous ? previous.nextElementSibling : layer.firstElementChild;
 			if (next !== f.root) layer.insertBefore(f.root, next);
@@ -205,12 +236,13 @@ class Flyers {
 		write(f, 'root', 'transform', `matrix3d(${cardMatrix(card, f.base).map((n) => fixed(n, 6)).join(',')})`);
 		write(f, 'root', 'opacity', fixed(card.opacity));
 		write(f, 'root', 'border-radius', `${fixed(card.radius * k, 1)}px`);
-		write(f, 'shadow', 'opacity', fixed(Math.min(1, card.shadow)));
-		write(f, 'lifted', 'opacity', fixed(Math.max(0, Math.min(1, card.shadow - 1))));
-		write(f, 'ring', 'opacity', fixed(card.ring));
-		write(f, 'shade', 'opacity', fixed(1 - card.shade));
-		write(f, 'reflection', 'opacity', fixed(Math.min(1, card.reflection / (REFLECTION * card.size))));
-		write(f, 'reflection', 'transform', `translateY(${fixed(GAP * k, 2)}px)`);
+		const none = fixed(0);
+		write(f, 'shadow', 'opacity', fixed(Math.min(1, card.shadow)), none);
+		write(f, 'lifted', 'opacity', fixed(Math.max(0, Math.min(1, card.shadow - 1))), none);
+		write(f, 'ring', 'opacity', fixed(card.ring), none);
+		write(f, 'shade', 'opacity', fixed(1 - card.shade), none);
+		write(f, 'reflection', 'opacity', fixed(Math.min(1, card.reflection / (REFLECTION * card.size))), none);
+		if (f.parts.reflection) write(f, 'reflection', 'transform', `translateY(${fixed(GAP * k, 2)}px)`);
 	}
 }
 

@@ -16,6 +16,7 @@
 	import { library } from '../library.svelte.ts';
 	import { contextMenu } from '../menu.svelte.ts';
 	import type { Album } from '../types/Album.ts';
+	import { Rows } from '../virtual.svelte.ts';
 	import Cover from './Cover.svelte';
 	import Equalizer from './Equalizer.svelte';
 	import Menu from './Menu.svelte';
@@ -24,43 +25,20 @@
 	let { albums, art, wide, reveal = null }: { albums: Album[]; art: boolean; wide: boolean; reveal?: string | null } = $props();
 
 	// Window-scrolled virtual list: only rows near the viewport exist in the DOM.
-	const OVERSCAN = 10;
+	const OVERSCAN = 4;
 
-	let list: HTMLDivElement;
-	let offset = $state(0);
-	let viewport = $state(800);
+	const list = new Rows(() => ({
+		count: albums.length,
+		rowHeight,
+		overscan: OVERSCAN,
+		// Its row in the middle of the screen.
+		reveal: reveal ? { index: untrack(() => albums.findIndex((a) => a.id === reveal)), height: rowHeight } : null
+	}));
 
 	let rowHeight = $derived(art ? 56 : wide ? 40 : 52);
-	let first = $derived(Math.max(0, Math.floor(offset / rowHeight) - OVERSCAN));
-	let last = $derived(Math.min(albums.length, Math.ceil((offset + viewport) / rowHeight) + OVERSCAN));
-	let visible = $derived(albums.slice(first, last));
+	let visible = $derived(list.ready ? albums.slice(list.first, list.last) : []);
 	let playingAlbum = $derived(hub.current?.albumId ?? null);
-
-	// In whole rows: scrolling within a row then changes nothing, and there is nothing to redraw.
-	function measure() {
-		if (list) offset = Math.floor(-list.getBoundingClientRect().top / rowHeight) * rowHeight;
-	}
-
-	$effect(() => {
-		void albums.length;
-		void rowHeight;
-		measure();
-	});
-
-	// Its row in the middle of the screen.
-	let revealed = false;
-	$effect(() => {
-		if (revealed) return;
-		revealed = true;
-		const index = untrack(() => (reveal ? albums.findIndex((a) => a.id === reveal) : -1));
-		if (index < 0) return;
-		const top = list.getBoundingClientRect().top + scrollY + index * rowHeight;
-		scrollTo({ top: Math.max(0, top + rowHeight / 2 - innerHeight / 2), behavior: 'instant' });
-		measure();
-	});
 </script>
-
-<svelte:window onscroll={measure} onresize={measure} bind:innerHeight={viewport} />
 
 {#snippet versionsTag(album: Album)}
 	{@const versions = library.versions(album.id).length}
@@ -80,7 +58,7 @@
 {/snippet}
 
 <div
-	bind:this={list}
+	{@attach list.attach}
 	class="relative"
 	role="table"
 	aria-label="Albums"
@@ -88,7 +66,7 @@
 	style:height="{albums.length * rowHeight}px"
 >
 	{#each visible as album, i (album.id)}
-		{@const index = first + i}
+		{@const index = list.first + i}
 		{@const playing = album.id === playingAlbum}
 		<div
 			role="row"

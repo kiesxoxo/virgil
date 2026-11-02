@@ -7,6 +7,7 @@
 	import { contextMenu, type MenuItem } from '../menu.svelte.ts';
 	import { search } from '../search.svelte.ts';
 	import { isBoolean, isView, store, stored, type View } from '../stored.ts';
+	import { Rows } from '../virtual.svelte.ts';
 	import GroupArt from './GroupArt.svelte';
 	import LibraryTabs from './LibraryTabs.svelte';
 	import Menu from './Menu.svelte';
@@ -73,6 +74,23 @@
 		return [...list, ...last];
 	});
 
+	// Window-scrolled and virtual, as the albums are: only rows near the viewport exist in the DOM.
+	// The grid's columns as Tailwind's breakpoints had them.
+	const GAP_Y = 24;
+	/** The name and count under a card. */
+	const META = 50;
+	const rows: Rows = new Rows(() => ({ count: shown.length, columns: perRow, rowHeight, overscan: view === 'list' ? 4 : 3 }));
+	let screenWidth = $state(typeof window === 'undefined' ? 1024 : innerWidth);
+	let cols = $derived.by(() => {
+		const [xl, lg, sm, xs] = kind === 'artist' ? [8, 6, 4, 3] : [6, 5, 3, 2];
+		return screenWidth >= 1536 ? xl : screenWidth >= 1024 ? lg : screenWidth >= 640 ? sm : xs;
+	});
+	let gapX = $derived(kind === 'artist' ? 16 : 14);
+	let tile = $derived(Math.max(0, (rows.width - gapX * (cols - 1)) / cols));
+	let rowHeight = $derived(view === 'list' ? (listArt ? 56 : wide ? 40 : 52) : tile + META + GAP_Y);
+	let perRow = $derived(view === 'list' ? 1 : cols);
+	let visible = $derived(rows.ready ? shown.slice(rows.first * perRow, rows.last * perRow) : []);
+
 	const href = (g: Group) => `/${kind}/${encodeURIComponent(g.name)}`;
 	const ids = (g: Group) => g.albums.map((a) => a.id);
 	const items = (g: Group): MenuItem[] => [
@@ -84,6 +102,7 @@
 </script>
 
 <svelte:head><title>{title} · Virgil</title></svelte:head>
+<svelte:window bind:innerWidth={screenWidth} />
 
 <div class="pt-safe glass sticky top-0 z-20 border-b border-line lg:border-none lg:bg-bg/80">
 	<div class="mx-auto max-w-[110rem] px-4 pt-4 pb-3 lg:px-8 lg:pt-8">
@@ -180,12 +199,15 @@
 			{search.query ? `No ${title.toLowerCase()} match “${search.query}”.` : `No ${title.toLowerCase()} yet.`}
 		</p>
 	{:else if view === 'list'}
-		<div role="table" aria-label={title}>
-			{#each shown as group (group.key)}
+		<div role="table" aria-label={title} aria-rowcount={shown.length} class="relative" style:height="{shown.length * rowHeight}px" {@attach rows.attach}>
+			{#each visible as group, i (group.key)}
 				{@const none = group.key === NO_GENRE}
 				<div
 					role="row"
-					class="flex items-center rounded-lg hover:bg-fg/4 {listArt ? 'h-14' : wide ? 'h-10' : 'h-[52px]'}"
+					aria-rowindex={rows.first + i + 1}
+					class="absolute inset-x-0 top-0 flex items-center rounded-lg hover:bg-fg/4"
+					style:height="{rowHeight}px"
+					style:transform="translateY({(rows.first + i) * rowHeight}px)"
 					{@attach contextMenu(() => items(group), () => header(group))}
 				>
 					<a
@@ -217,27 +239,29 @@
 				</div>
 			{/each}
 		</div>
-	{:else if kind === 'artist'}
-		<ul class="grid grid-cols-3 gap-x-4 gap-y-6 sm:grid-cols-4 lg:grid-cols-6 2xl:grid-cols-8">
-			{#each shown as group (group.key)}
-				<li {@attach contextMenu(() => items(group), () => header(group))}>
-					<a href={href(group)} class="press block text-center">
-						<GroupArt {group} {kind} class="rounded-full shadow-cover ring-1 ring-line" />
-						<div class="mt-2.5 truncate text-[13px] leading-5 font-semibold">{group.name}</div>
-						<div class="truncate text-xs leading-5 text-muted">{count(group.albums.length, 'album')}</div>
-					</a>
-				</li>
-			{/each}
-		</ul>
 	{:else}
-		<ul class="grid grid-cols-2 gap-x-3.5 gap-y-6 sm:grid-cols-3 lg:grid-cols-5 2xl:grid-cols-6">
-			{#each shown as group (group.key)}
-				<li {@attach contextMenu(() => items(group), () => header(group))}>
-					<a href={href(group)} class="press block">
-						<GroupArt {group} {kind} class="rounded-xl shadow-cover ring-1 ring-line" />
-						<div class="mt-2.5 truncate text-[13px] leading-5 font-semibold {group.key === NO_GENRE ? 'text-muted italic' : ''}">{group.name}</div>
-						<div class="truncate text-[13px] leading-5 text-muted">{count(group.albums.length, 'album')}</div>
-					</a>
+		<ul class="relative" style:height="{Math.max(0, Math.ceil(shown.length / cols) * rowHeight - GAP_Y)}px" {@attach rows.attach}>
+			{#each visible as group, i (group.key)}
+				{@const index = rows.first * cols + i}
+				<li
+					class="absolute top-0 left-0"
+					style:width="{tile}px"
+					style:transform="translate3d({(index % cols) * (tile + gapX)}px, {Math.floor(index / cols) * rowHeight}px, 0)"
+					{@attach contextMenu(() => items(group), () => header(group))}
+				>
+					{#if kind === 'artist'}
+						<a href={href(group)} class="press block text-center">
+							<GroupArt {group} {kind} class="rounded-full shadow-cover ring-1 ring-line" />
+							<div class="mt-2.5 truncate text-[13px] leading-5 font-semibold">{group.name}</div>
+							<div class="truncate text-xs leading-5 text-muted">{count(group.albums.length, 'album')}</div>
+						</a>
+					{:else}
+						<a href={href(group)} class="press block">
+							<GroupArt {group} {kind} class="rounded-xl shadow-cover ring-1 ring-line" />
+							<div class="mt-2.5 truncate text-[13px] leading-5 font-semibold {group.key === NO_GENRE ? 'text-muted italic' : ''}">{group.name}</div>
+							<div class="truncate text-[13px] leading-5 text-muted">{count(group.albums.length, 'album')}</div>
+						</a>
+					{/if}
 				</li>
 			{/each}
 		</ul>
