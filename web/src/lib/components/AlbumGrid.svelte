@@ -1,15 +1,16 @@
 <script lang="ts">
 	import { Layers, Play } from '@lucide/svelte';
+	import { untrack } from 'svelte';
 	import { albumHeader, albumItems } from '../actions.ts';
 	import { queue } from '../api.ts';
 	import { TILE } from '../format.ts';
 	import { library } from '../library.svelte.ts';
-	import { morph } from '../morph.svelte.ts';
 	import { contextMenu } from '../menu.svelte.ts';
 	import type { Album } from '../types/Album.ts';
 	import Cover from './Cover.svelte';
 
-	let { albums }: { albums: Album[] } = $props();
+	/** `reveal`: the album to open on (in the middle of the screen in the view before). */
+	let { albums, reveal = null }: { albums: Album[]; reveal?: string | null } = $props();
 
 	// Window-scrolled virtual grid: only rows near the viewport exist in the DOM.
 	const META = 46;
@@ -42,6 +43,18 @@
 		void width;
 		measure();
 	});
+
+	// Its row in the middle of the screen, once the grid knows its width.
+	let revealed = false;
+	$effect(() => {
+		if (!width || revealed) return;
+		revealed = true;
+		const index = untrack(() => (reveal ? albums.findIndex((a) => a.id === reveal) : -1));
+		if (index < 0) return;
+		const top = grid.getBoundingClientRect().top + scrollY + Math.floor(index / cols) * rowHeight;
+		scrollTo({ top: Math.max(0, top + tile / 2 - innerHeight / 2), behavior: 'instant' });
+		measure();
+	});
 </script>
 
 <svelte:window onscroll={measure} onresize={measure} bind:innerHeight={viewport} />
@@ -61,7 +74,7 @@
 		>
 			<a href="/album/{album.id}" class="block press">
 				<div class="relative">
-					<Cover art={album.art} size={TILE} name={morph.name(album.id)} class="rounded-xl shadow-cover ring-1 ring-line" />
+					<Cover art={album.art} size={TILE} slot="album:{album.id}" class="rounded-xl shadow-cover ring-1 ring-line" />
 					{#if versions > 1}
 						<span
 							class="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white"

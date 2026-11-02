@@ -7,8 +7,10 @@
 	import Menu from '#lib/components/Menu.svelte';
 	import Record from '#lib/components/Record.svelte';
 	import { trackHeader, trackItems } from '#lib/actions.ts';
+	import { ambient } from '#lib/ambient.svelte.ts';
 	import { api, queue } from '#lib/api.ts';
 	import { contextMenu } from '#lib/menu.svelte.ts';
+	import { pullBack } from '#lib/swipeback.ts';
 	import { artUrl, clock, formatLong, formatShort, isHiRes, span } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
@@ -65,6 +67,18 @@
 	});
 
 	let album = $derived(detail?.album ?? library.get(data.id));
+
+	// A wash of the cover's colours behind the top of the page, gone once the tracks are scrolled up.
+	let scrollY = $state(0);
+	$effect(() =>
+		ambient.want({
+			key: `album:${data.id}`,
+			src: artUrl(album?.art, 300),
+			strength: album?.art ? 0.6 * Math.max(0, 1 - scrollY / 400) : 0,
+			reach: 0.7,
+			drift: false
+		})
+	);
 	let versions = $derived(library.versions(data.id));
 	let tracks = $derived(detail?.tracks ?? []);
 	/** The tracks by disc; `start` is the index of the disc's first track in `tracks`. */
@@ -85,7 +99,6 @@
 		return sides;
 	});
 	let multiDisc = $derived(discs.length > 1);
-	let backdrop = $derived(artUrl(album?.art, 300));
 	// Picking tracks to edit, like a selection in foobar2000's playlist.
 	let selecting = $state(false);
 	const selected = new SvelteSet<string>();
@@ -158,6 +171,7 @@
 </script>
 
 <svelte:head><title>{album ? `${album.title} · ${album.artist}` : 'Album'} · Virgil</title></svelte:head>
+<svelte:window bind:scrollY />
 
 {#if missing && !album}
 	<div class="mx-auto mt-24 max-w-sm px-4 text-center">
@@ -167,20 +181,11 @@
 	</div>
 {:else}
 	<!-- clip, not hidden: it can't be scrolled sideways by focus, and the selection bar can stick. -->
-	<div class="relative isolate overflow-clip">
-		{#if backdrop}
-			<img
-				src={backdrop}
-				alt=""
-				aria-hidden="true"
-				class="absolute inset-x-0 top-0 -z-10 h-[30rem] w-full scale-125 object-cover opacity-40 blur-3xl saturate-150 dark:opacity-30"
-				style="mask-image: linear-gradient(to bottom, black 20%, transparent); -webkit-mask-image: linear-gradient(to bottom, black 20%, transparent)"
-			/>
-		{/if}
-
+	<div class="relative isolate overflow-clip" {@attach pullBack}>
 		<div class="pt-safe mx-auto max-w-6xl px-4 lg:px-8">
 			<a
 				href="/"
+				data-back
 				class="-ml-1.5 inline-flex h-11 items-center gap-0.5 text-[15px] font-medium text-accent"
 				onclick={(e) => {
 					if (from !== '/' || e.metaKey || e.ctrlKey || e.shiftKey) return;
@@ -200,7 +205,7 @@
 					title="Back"
 					onclick={back}
 				>
-					<Cover art={album?.art} size={1000} eager name="cover-{data.id}" class="w-full rounded-2xl shadow-cover ring-1 ring-line" />
+					<Cover art={album?.art} size={1000} eager slot="album:{data.id}" class="w-full rounded-2xl shadow-cover ring-1 ring-line" />
 				</button>
 				<div class="min-w-0 flex-1">
 					<h1 class="text-2xl font-bold tracking-tight text-balance md:text-4xl">{album?.title ?? ''}</h1>

@@ -2,7 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { TOP, backToFront, hitTest, layout, place, project, visible } from './coverflow.ts';
+import { TOP, backToFront, hitTest, layout, place, project, spin, visible } from './coverflow.ts';
 
 const phone = layout(390, 640);
 const close = (a: number, b: number) => assert.ok(Math.abs(a - b) < 1e-6, `${a} ≈ ${b}`);
@@ -75,4 +75,55 @@ test('hitTest: the cover in front wins, empty space misses', () => {
 	assert.equal(hitTest(phone, 7, 100, edge + 2, TOP + h), 8);
 	// No cover past the end of the list.
 	assert.equal(hitTest(phone, 99, 100, 390 - 2, TOP + h), -1);
+});
+
+test('project: turned with the phone, the middle cover turns about its centre', () => {
+	const p = place(phone, 7, 7);
+	const h = phone.cover / 2;
+	const centre = TOP + h;
+	assert.deepEqual(project(phone, p, h, h, [0, 0]), project(phone, p, h, h));
+	close(project(phone, p, 0, 0, [1, -1])[0], 195);
+	close(project(phone, p, 0, 0, [1, -1])[1], centre);
+	// Tipped right, as CSS rotateY: the right edge goes back (smaller), the left comes forward.
+	const [right, rightTop] = project(phone, p, h, -h, [1, 0]);
+	const [left, leftTop] = project(phone, p, -h, -h, [1, 0]);
+	assert.ok(right - 195 < 195 - left);
+	assert.ok(rightTop > leftTop);
+	// Tipped towards the viewer, as rotateX(-…): the bottom edge goes back.
+	const [, bottom] = project(phone, p, 0, h, [0, 1]);
+	const [, top] = project(phone, p, 0, -h, [0, 1]);
+	assert.ok(bottom - centre < centre - top);
+});
+
+test('hitTest: taps land on the covers as they are turned', () => {
+	const h = phone.cover / 2;
+	const turn: [number, number] = [1, 0.5];
+	assert.equal(hitTest(phone, 7, 100, 195, TOP + h, turn), 7);
+	const [x, y] = project(phone, place(phone, 8, 7), 0, 0, turn);
+	assert.equal(hitTest(phone, 7, 100, x, y, turn), 8);
+	// The middle cover's right edge has moved in: just inside where it was flat is no longer it.
+	assert.equal(hitTest(phone, 7, 100, 195 + h - 1, TOP + h), 7);
+	assert.notEqual(hitTest(phone, 7, 100, 195 + h - 1, TOP + h, turn), 7);
+});
+
+test('spin: from the cover in the middle to the pick, never past either end', () => {
+	for (const [from, to, count] of [
+		[0, 900, 1000],
+		[999, 3, 1000],
+		[500, 510, 1000],
+		[2, 5, 8],
+		[7, 0, 8],
+		[0, 1, 2],
+		[40, 20, 45]
+	]) {
+		const s = spin(from, to, count);
+		assert.equal(s.at(0), from);
+		assert.equal(s.at(s.duration), to);
+		for (let t = 0; t <= s.duration; t += 1 / 120) {
+			const p = s.at(t);
+			assert.ok(p >= 0 && p <= count - 1, `${from}→${to} of ${count}: ${p} at ${t}`);
+		}
+		// It ends slowly: the last 1/30 s moves less than a tenth of a cover.
+		assert.ok(Math.abs(s.at(s.duration - 1 / 30) - to) < 0.1);
+	}
 });

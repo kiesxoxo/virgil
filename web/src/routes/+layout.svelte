@@ -4,15 +4,18 @@
 	import { onMount, tick, type Snippet } from 'svelte';
 	import { onNavigate } from '$app/navigation';
 	import { page } from '$app/state';
+	import Backdrop from '#lib/components/Backdrop.svelte';
 	import ContextMenu from '#lib/components/ContextMenu.svelte';
 	import PlayerBar from '#lib/components/PlayerBar.svelte';
 	import Shortcuts from '#lib/components/Shortcuts.svelte';
 	import TagEditor from '#lib/components/TagEditor.svelte';
 	import Toaster from '#lib/components/Toaster.svelte';
+	import { ambient } from '#lib/ambient.svelte.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { keyboard } from '#lib/keyboard.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
-	import { morph } from '#lib/morph.svelte.ts';
+	import { flight } from '#lib/flight.svelte.ts';
+	import { swipeBack } from '#lib/swipeback.ts';
 	import { isStream, radio } from '#lib/radio.svelte.ts';
 	import '#lib/theme.svelte.ts';
 
@@ -47,21 +50,34 @@
 	// Give the first connection a moment before complaining.
 	let patient = $state(true);
 
-	// Covers with the same view-transition-name on both pages morph into each other.
-	// Not after a swipe back that the browser already animated itself (iOS, Android).
+	// Page changes cross-fade, and one cover moves from where it was to where the next page shows
+	// it: flying on the stage (lib/flight.svelte.ts), or morphed by the view transition where it
+	// can't fly. Not after a swipe back that the browser already animated itself (iOS, Android).
 	let browserAnimated = false;
 	onNavigate(async (navigation) => {
+		// On the way to Now Playing, its colour grows out of the mini player's cover.
+		ambient.origin = navigation.to?.route.id === '/now' ? flight.centre('now') : null;
 		const skip = navigation.type === 'popstate' && browserAnimated;
 		browserAnimated = false;
 		if (!document.startViewTransition || skip) return;
-		// The album being opened, or the one being left: its cover is the one that moves.
-		const album = [navigation.to, navigation.from].find((target) => target?.route.id === '/album/[id]');
-		morph.album = album?.params?.id ?? null;
+		// Now Playing's cover, coming or going; or the album being opened or left.
+		const ends = [navigation.to, navigation.from];
+		const album = ends.find((target) => target?.route.id === '/album/[id]')?.params?.id;
+		const key = ends.some((target) => target?.route.id === '/now') ? 'now' : album ? `album:${album}` : null;
+		const flying = !!key && flight.lift(key);
+		flight.morphing = flying ? null : key;
 		await tick();
 		return new Promise((resolve) => {
 			document.startViewTransition(async () => {
 				resolve();
-				await navigation.complete;
+				try {
+					await navigation.complete;
+				} finally {
+					if (flying) {
+						await tick();
+						flight.land(key);
+					}
+				}
 			});
 		});
 	});
@@ -72,6 +88,7 @@
 		document.addEventListener('visibilitychange', wake);
 		const timer = setTimeout(() => (patient = false), 1500);
 		const unwatch = keyboard.watch();
+		const unswipe = swipeBack();
 		// Capture: runs before SvelteKit's own popstate listener starts the navigation.
 		const popped = (e: PopStateEvent) => (browserAnimated = e.hasUAVisualTransition);
 		addEventListener('popstate', popped, { capture: true });
@@ -84,6 +101,7 @@
 			document.removeEventListener('visibilitychange', wake);
 			clearTimeout(timer);
 			unwatch();
+			unswipe();
 		};
 	});
 
@@ -145,7 +163,7 @@
 	<PlayerBar />
 
 	<!-- Stays beneath the on-screen keyboard rather than riding up with it. -->
-	<nav class="glass pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line lg:hidden" class:hidden={keyboard.height > 0}>
+	<nav data-bar class="glass pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line lg:hidden" class:hidden={keyboard.height > 0}>
 		<div class="grid h-14 grid-cols-4">
 			{#each tabs as item (item.href)}
 				{@const active = item.active(routeId)}
@@ -162,6 +180,8 @@
 	</nav>
 {/if}
 
+<!-- The colour behind every page (lib/ambient.svelte.ts). -->
+<Backdrop />
 <TagEditor />
 <Shortcuts />
 <ContextMenu />

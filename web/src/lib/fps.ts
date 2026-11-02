@@ -1,10 +1,31 @@
 // A dropped-frame probe for measuring on phones: open any page with ?fps. While something
-// scrolls or a finger moves, it counts frames that came late (a gap of more than 1.5 frames)
-// and shows the share dropped in the last burst and since the page opened. ?fps&blur=0 also
-// turns off every backdrop blur, to see what the frosted bars cost.
+// scrolls or a finger moves, and for a moment after a tap (a page or a view changing, a cover
+// flying), it counts frames that came late (a gap of more than 1.5 frames) and shows the share
+// dropped in the last burst and since the page opened, and the last burst's longest gap: after a
+// tap, mostly the wait before anything moves. Under it, where the burst went (`/ → /album`) and
+// when its frames were dropped, in ms from its start: at once (the next page being made), about
+// 200 ms in (the page transition ending) or later (the cover landing) point to different causes.
+// ?fps&blur=0 also turns off every backdrop blur, to see what the frosted bars cost.
 
 /** A burst of activity ends this long after its last scroll or touch. */
 const QUIET_MS = 400;
+/** What a tap sets off (a cover flying, the page cross-fading) is over by this long after it. */
+const TAP_MS = 1000;
+
+/** The page's first path segment: enough to tell the albums, an album and Now Playing apart. */
+const where = () => '/' + (location.pathname.split('/')[1] ?? '');
+
+interface Burst {
+	frames: number;
+	dropped: number;
+	worst: number;
+	start: number;
+	from: string;
+	/** When each late frame came, in ms from the start. */
+	drops: number[];
+}
+
+const burstAt = (start: number): Burst => ({ frames: 0, dropped: 0, worst: 0, start, from: where(), drops: [] });
 
 export function probe(): () => void {
 	const label = document.createElement('div');
@@ -25,17 +46,17 @@ export function probe(): () => void {
 	let nominal = 1000 / 60;
 	let last = 0;
 	let activeUntil = 0;
-	let burst = { frames: 0, dropped: 0 };
+	let burst = burstAt(0);
 	let total = { frames: 0, dropped: 0 };
 	let shown = '';
 
 	const pct = (c: { frames: number; dropped: number }) =>
 		c.frames ? `${((100 * c.dropped) / (c.frames + c.dropped)).toFixed(1)}% (${c.dropped}/${c.frames + c.dropped})` : '–';
 
-	const active = () => {
+	const active = (e: Event) => {
 		const now = performance.now();
-		if (now > activeUntil) burst = { frames: 0, dropped: 0 };
-		activeUntil = now + QUIET_MS;
+		if (now > activeUntil) burst = burstAt(now);
+		activeUntil = Math.max(activeUntil, now + (e.type === 'click' ? TAP_MS : QUIET_MS));
 	};
 
 	let raf = requestAnimationFrame(function frame(now) {
@@ -50,20 +71,28 @@ export function probe(): () => void {
 				const missed = gap > nominal * 1.5 ? Math.round(gap / nominal) - 1 : 0;
 				burst.frames++;
 				burst.dropped += missed;
+				burst.worst = Math.max(burst.worst, gap);
+				if (missed && burst.drops.length < 8) burst.drops.push(Math.round(now - burst.start));
 				total.frames++;
 				total.dropped += missed;
 			}
 		}
 		last = now;
-		const text = `${Math.round(1000 / nominal)} Hz${blur ? ' · no blur' : ''}\nlast ${pct(burst)}\nall  ${pct(total)}`;
+		const worst = burst.frames ? ` · worst ${Math.round(burst.worst)} ms` : '';
+		const to = where();
+		const route = burst.from === to ? to : `${burst.from} → ${to}`;
+		const drops = burst.drops.length ? ` · drops at ${burst.drops.join(' ')} ms` : '';
+		const detail = burst.frames ? `\n     ${route}${drops}` : '';
+		const text = `${Math.round(1000 / nominal)} Hz${blur ? ' · no blur' : ''}\nlast ${pct(burst)}${worst}${detail}\nall  ${pct(total)}`;
 		if (text !== shown) label.textContent = shown = text;
 	});
 
 	const options = { capture: true, passive: true };
-	for (const type of ['scroll', 'touchmove', 'wheel'] as const) addEventListener(type, active, options);
+	const types = ['scroll', 'touchmove', 'wheel', 'click'] as const;
+	for (const type of types) addEventListener(type, active, options);
 	return () => {
 		cancelAnimationFrame(raf);
-		for (const type of ['scroll', 'touchmove', 'wheel'] as const) removeEventListener(type, active, options);
+		for (const type of types) removeEventListener(type, active, options);
 		label.remove();
 		blur?.remove();
 	};

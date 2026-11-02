@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { Airplay, ChevronDown, Disc3, ExternalLink, ListMusic } from '@lucide/svelte';
-	import Backdrop from '#lib/components/Backdrop.svelte';
 	import Cover from '#lib/components/Cover.svelte';
 	import NowCover from '#lib/components/NowCover.svelte';
 	import OnAir from '#lib/components/OnAir.svelte';
 	import Scrubber from '#lib/components/Scrubber.svelte';
 	import SignalPathCard from '#lib/components/SignalPathCard.svelte';
 	import Transport from '#lib/components/Transport.svelte';
+	import { ambient } from '#lib/ambient.svelte.ts';
 	import { api } from '#lib/api.ts';
 	import { artUrl, hhmm } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
@@ -17,6 +17,10 @@
 	let station = $derived(shown?.station ?? null);
 	let stream = $derived(item ? isStream(item.uri) : false);
 	let backdrop = $derived(hub.external ? null : (shown?.src ?? artUrl(item?.art, 300)));
+	// The colour behind the page, all the way down, drifting while playing. Opened from the mini
+	// player, it grows out of its cover.
+	const from = ambient.origin;
+	$effect(() => ambient.want({ key: 'now', src: backdrop, strength: 1, reach: 1, drift: hub.playing, from }));
 	let upNext = $derived(hub.currentIndex >= 0 ? hub.queue.items.slice(hub.currentIndex + 1, hub.currentIndex + 4) : []);
 
 	function close() {
@@ -26,11 +30,6 @@
 </script>
 
 <svelte:head><title>{shown ? `${shown.title} · ${shown.subtitle}` : 'Now playing'} · Virgil</title></svelte:head>
-
-<div class="fixed inset-0 -z-10 overflow-hidden bg-bg">
-	<Backdrop src={backdrop} playing={hub.playing} />
-	<div class="absolute inset-0 bg-gradient-to-b from-bg/30 via-bg/60 to-bg"></div>
-</div>
 
 <div class="pt-safe pb-safe mx-auto flex min-h-dvh max-w-md flex-col px-6 lg:max-w-5xl lg:px-10">
 	<header class="flex h-14 items-center justify-between">
@@ -56,6 +55,7 @@
 				playing={hub.playing}
 				canPrevious={!stream && hub.currentIndex > 0}
 				canNext={!stream && hub.currentIndex < hub.queue.items.length - 1}
+				onclose={close}
 			/>
 		{:else}
 			<div class="grid aspect-square w-full place-items-center rounded-3xl bg-surface text-faint">

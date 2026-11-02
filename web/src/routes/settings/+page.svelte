@@ -4,6 +4,7 @@
 	import SignalPathCard from '#lib/components/SignalPathCard.svelte';
 	import { api } from '#lib/api.ts';
 	import { hub } from '#lib/hub.svelte.ts';
+	import { motion } from '#lib/motion.svelte.ts';
 	import { theme, type ThemeMode } from '#lib/theme.svelte.ts';
 	import { toasts } from '#lib/toast.svelte.ts';
 	import type { OnlineSettings } from '#lib/types/OnlineSettings.ts';
@@ -85,6 +86,12 @@
 		}
 	}
 
+	async function toggleMotion() {
+		if (motion.enabled) return motion.disable();
+		if (!(await motion.enable()))
+			toasts.show("Motion access wasn't allowed. Turn it on in Settings › Apps › Safari › Motion & Orientation Access.", 'error', 8000);
+	}
+
 	let download = $derived(hub.library.artDownload);
 	let downloading = $derived(!!download && !download.error && download.done < download.total);
 </script>
@@ -114,6 +121,25 @@
 			</button>
 		{/each}
 	</div>
+	{#if motion.supported}
+		<button
+			type="button"
+			role="switch"
+			aria-checked={motion.enabled}
+			class="mt-2 flex w-full items-center justify-between gap-4 rounded-2xl bg-surface px-4 py-3.5 text-left"
+			onclick={toggleMotion}
+		>
+			<span class="min-w-0">
+				<span class="block text-sm font-medium">Motion effects</span>
+				<span class="block text-xs text-muted">Covers move with your phone</span>
+			</span>
+			<span class="relative h-7 w-12 shrink-0 rounded-full transition-colors {motion.enabled ? 'bg-accent' : 'bg-bg ring-1 ring-line'}">
+				<span
+					class="absolute top-0.5 left-0.5 size-6 rounded-full bg-white shadow-sm transition-transform {motion.enabled ? 'translate-x-5' : ''}"
+				></span>
+			</span>
+		</button>
+	{/if}
 
 	{@render section('Output')}
 	{#if outputs.length > 1 || newCards.length}

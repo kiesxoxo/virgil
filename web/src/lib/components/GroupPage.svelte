@@ -33,7 +33,7 @@
 <svelte:head><title>{group?.name ?? name} · Virgil</title></svelte:head>
 
 <div class="pt-safe mx-auto max-w-[110rem] px-4 lg:px-8">
-	<a href={back.href} class="-ml-1.5 inline-flex h-11 items-center gap-0.5 text-[15px] font-medium text-accent lg:hidden">
+	<a href={back.href} data-back class="-ml-1.5 inline-flex h-11 items-center gap-0.5 text-[15px] font-medium text-accent lg:hidden">
 		<ChevronLeft class="size-5" />
 		{back.label}
 	</a>

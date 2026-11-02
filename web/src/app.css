@@ -114,6 +114,20 @@
 		animation-duration: 300ms;
 	}
 }
+/* The page itself doesn't move: its group lasting no longer than the cross-fade ends the transition
+   then, rather than holding the page (untouchable, two pictures of it on the screen) as long as a
+   morphed cover takes. html, or Safari lets the rule above win (it ignores :root here). */
+html::view-transition-group(root) {
+	animation-duration: 150ms;
+}
+/* Flying covers (lib/flyers.ts) move live above the cross-fade, not as pictures of it. */
+::view-transition-group(stage),
+::view-transition-new(stage) {
+	animation: none;
+}
+::view-transition-old(stage) {
+	display: none;
+}
 @media (prefers-reduced-motion: reduce) {
 	::view-transition-group(*),
 	::view-transition-old(*),
@@ -148,9 +162,35 @@ nav a {
 	@apply backdrop-blur-[20px] backdrop-saturate-180;
 }
 
+/* The mini player's glow in the playing cover's colours (PlayerBar). Registered, so a new song's
+   colours blend in rather than switch. */
+@property --glow-a {
+	syntax: '<color>';
+	inherits: false;
+	initial-value: transparent;
+}
+@property --glow-b {
+	syntax: '<color>';
+	inherits: false;
+	initial-value: transparent;
+}
+@utility glow {
+	background-image: linear-gradient(100deg, var(--glow-a), var(--glow-b) 55%, transparent);
+	transition:
+		--glow-a 1.5s,
+		--glow-b 1.5s;
+}
+
 @utility press {
 	transition: transform 120ms ease, background-color 120ms ease, opacity 120ms ease;
 	&:active {
 		transform: scale(0.96);
 	}
+}
+
+/* The cover flow's dice: its rainbow ring turns while it rolls (AlbumFlow). */
+@property --ring-turn {
+	syntax: '<angle>';
+	inherits: false;
+	initial-value: 0deg;
 }

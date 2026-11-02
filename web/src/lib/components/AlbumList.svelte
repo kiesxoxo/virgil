@@ -9,18 +9,19 @@
 </script>
 
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { albumHeader, albumItems } from '../actions.ts';
 	import { clock, formatShort } from '../format.ts';
 	import { hub } from '../hub.svelte.ts';
 	import { library } from '../library.svelte.ts';
 	import { contextMenu } from '../menu.svelte.ts';
-	import { morph } from '../morph.svelte.ts';
 	import type { Album } from '../types/Album.ts';
 	import Cover from './Cover.svelte';
 	import Equalizer from './Equalizer.svelte';
 	import Menu from './Menu.svelte';
 
-	let { albums, art, wide }: { albums: Album[]; art: boolean; wide: boolean } = $props();
+	/** `reveal`: the album to open on (in the middle of the screen in the view before). */
+	let { albums, art, wide, reveal = null }: { albums: Album[]; art: boolean; wide: boolean; reveal?: string | null } = $props();
 
 	// Window-scrolled virtual list: only rows near the viewport exist in the DOM.
 	const OVERSCAN = 10;
@@ -43,6 +44,18 @@
 	$effect(() => {
 		void albums.length;
 		void rowHeight;
+		measure();
+	});
+
+	// Its row in the middle of the screen.
+	let revealed = false;
+	$effect(() => {
+		if (revealed) return;
+		revealed = true;
+		const index = untrack(() => (reveal ? albums.findIndex((a) => a.id === reveal) : -1));
+		if (index < 0) return;
+		const top = list.getBoundingClientRect().top + scrollY + index * rowHeight;
+		scrollTo({ top: Math.max(0, top + rowHeight / 2 - innerHeight / 2), behavior: 'instant' });
 		measure();
 	});
 </script>
@@ -94,7 +107,7 @@
 				style:grid-template-columns={wide ? listColumns(art) : undefined}
 			>
 				{#if art}
-					<Cover art={album.art} name={morph.name(album.id)} class="size-10 shrink-0 rounded-md" />
+					<Cover art={album.art} slot="album:{album.id}" class="size-10 shrink-0 rounded-md" />
 				{/if}
 				{#if wide}
 					<span role="cell" class="flex min-w-0 items-center gap-2 text-sm font-medium {playing ? 'text-accent' : ''}">

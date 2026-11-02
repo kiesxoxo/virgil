@@ -12,7 +12,7 @@
 	import { clock, fold, qualityRank } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
-	import { hasWebGL2 } from '#lib/coverflow-gl.ts';
+	import { flight } from '#lib/flight.svelte.ts';
 	import { contextMenu } from '#lib/menu.svelte.ts';
 	import { search } from '#lib/search.svelte.ts';
 	import { isAlbumView, isBoolean, store, stored, type View } from '#lib/stored.ts';
@@ -57,8 +57,17 @@
 
 	let sort = $state<Sort>(stored('albumSort', isSort, { key: 'artist', desc: false }));
 	// The cover flow needs WebGL2: without it, the grid.
-	let view = $state(stored('albumView', (v): v is View => isAlbumView(v) && (v !== 'flow' || hasWebGL2), 'grid'));
+	let view = $state(stored('albumView', isAlbumView, 'grid'));
 	let listArt = $state(stored('albumListArt', isBoolean, true));
+	/** The album in the middle of the screen as the view last changed: the next view opens on it. */
+	let reveal = $state<string | null>(null);
+
+	// The covers in sight fly to where the next view has them.
+	function switchView(next: View) {
+		if (next === view) return;
+		reveal = flight.nearest();
+		flight.switch(() => (view = next));
+	}
 	let songs = $state<TrackHit[]>([]);
 	let contentWidth = $state(0);
 	let wide = $derived(contentWidth >= LIST_COLUMNS_MIN_WIDTH);
@@ -126,7 +135,7 @@
 
 <svelte:head><title>Albums · Virgil</title></svelte:head>
 
-<div class="pt-safe glass sticky top-0 z-20 border-b border-line lg:border-none lg:bg-bg/80">
+<div data-bar class="pt-safe glass sticky top-0 z-20 border-b border-line lg:border-none lg:bg-bg/80">
 	<div class="mx-auto max-w-[110rem] px-4 pt-4 pb-3 lg:px-8 lg:pt-8">
 		<div class="flex items-center justify-between gap-3">
 			<h1 class="text-[28px] font-bold tracking-tight lg:text-[32px]">Albums</h1>
@@ -136,7 +145,7 @@
 					<span class="mr-1 text-sm text-muted tabular-nums max-sm:hidden">{filtered.length.toLocaleString()}</span>
 				{/if}
 				<LibraryTabs />
-				<ViewToggle bind:view bind:art={listArt} flow={hasWebGL2} />
+				<ViewToggle bind:view={() => view, switchView} bind:art={listArt} flow />
 			</div>
 		</div>
 		<label class="relative mt-3 block max-lg:hidden lg:max-w-md">
@@ -264,10 +273,10 @@
 	{:else if filtered.length === 0}
 		<p class="mt-12 text-center text-sm text-muted">No albums match “{search.query}”.</p>
 	{:else if view === 'list'}
-		<AlbumList albums={filtered} art={listArt} {wide} />
+		<AlbumList albums={filtered} art={listArt} {wide} {reveal} />
 	{:else if view === 'flow'}
-		<AlbumFlow albums={filtered} />
+		<AlbumFlow albums={filtered} {reveal} />
 	{:else}
-		<AlbumGrid albums={filtered} />
+		<AlbumGrid albums={filtered} {reveal} />
 	{/if}
 </div>
