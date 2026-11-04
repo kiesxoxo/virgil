@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { LoaderCircle, RadioTower } from '@lucide/svelte';
+	import { LoaderCircle } from '@lucide/svelte';
 	import { onMount } from 'svelte';
 	import Equalizer from '#lib/components/Equalizer.svelte';
+	import Masthead from '#lib/components/Masthead.svelte';
 	import { api } from '#lib/api.ts';
 	import { hhmm } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
@@ -40,124 +41,114 @@
 
 {#snippet status(station: Station)}
 	{#if pending === station.id}
-		<LoaderCircle class="size-4 " />
+		<LoaderCircle class="size-4" />
 	{:else if on(station)}
-		<!-- On a dark card or an accent tile alike. -->
-		<Equalizer playing={hub.playing} class="text-white!" />
+		<Equalizer playing={hub.playing} />
 	{/if}
 {/snippet}
 
-<div class="pt-safe mx-auto max-w-[110rem] px-4 pt-4 lg:px-8 lg:pt-8">
-	<div class="flex items-baseline justify-between gap-3">
-		<h1 class="text-[28px] font-bold tracking-tight lg:text-[32px]">Radio</h1>
-		<a href="https://www.nts.live" target="_blank" rel="noopener" class="text-sm font-semibold text-muted hover:text-fg">NTS</a>
-	</div>
+<div class="pt-safe">
+	<Masthead word="RADIO" />
 
 	{#if !radio.data}
 		{#if radio.error}
-			<div class="mx-auto mt-16 max-w-sm text-center">
-				<div class="mx-auto grid size-16 place-items-center rounded-2xl bg-surface text-muted"><RadioTower class="size-7" /></div>
-				<h2 class="mt-5 text-lg font-semibold">NTS can't be reached</h2>
-				<p class="mt-1.5 text-sm text-muted">Virgil needs internet access to play radio. {radio.error}</p>
-				<button type="button" class="press mt-5 h-10 rounded-full bg-accent px-5 text-sm font-semibold text-accent-fg" onclick={() => radio.load()}>
-					Try again
-				</button>
+			<div class="border-t border-line px-3 pt-8">
+				<h2 class="wide text-2xl">NTS can't be reached</h2>
+				<p class="mt-2 text-sm text-muted">Virgil needs internet access to play radio. {radio.error}</p>
+				<button type="button" class="press wide mt-5 h-14 w-full bg-accent text-[15px] text-accent-fg uppercase" onclick={() => radio.load()}>Try again</button>
 			</div>
 		{:else}
-			<div class="mt-6 grid grid-cols-2 gap-3 sm:gap-4">
-				<div class="aspect-square rounded-3xl bg-surface sm:aspect-[16/10]"></div>
-				<div class="aspect-square rounded-3xl bg-surface sm:aspect-[16/10]"></div>
+			<div class="grid grid-cols-2 border-t border-line">
+				<div class="aspect-square border-r border-line bg-surface"></div>
+				<div class="aspect-square bg-surface"></div>
 			</div>
 		{/if}
 	{:else}
-		<h2 class="mt-6 mb-3 text-xs font-semibold tracking-wider text-muted uppercase">Live</h2>
+		<div class="flex h-9 items-center justify-between border-y border-line px-3">
+			<h2 class="label flex items-center gap-1.5 text-[11px] text-accent"><span class="size-1.5 rounded-full bg-accent"></span>Live</h2>
+			<a href="https://www.nts.live" target="_blank" rel="noopener" class="label text-[11px] text-muted hover:text-fg">NTS</a>
+		</div>
 		<!-- Side by side even on phones, like the player's two buttons. -->
-		<div class="grid grid-cols-2 gap-x-3 gap-y-5 sm:gap-x-4">
+		<div class="grid grid-cols-2">
 			{#each radio.data.live as station, i (station.id)}
 				{@const show = station.now}
 				{@const progress = radio.progress(station)}
-				<div class="min-w-0">
+				<div class="flex min-w-0 flex-col even:border-l even:border-line">
 					<button
 						type="button"
-						class="press group relative block aspect-square w-full overflow-hidden rounded-3xl sm:aspect-[16/10] bg-surface-2 text-left shadow-cover {on(station)
-							? 'ring-2 ring-accent'
-							: 'ring-1 ring-line'}"
+						class="group relative block aspect-square w-full overflow-hidden bg-surface-2 text-left sm:aspect-[16/10]"
 						aria-label="Play {station.name}{show ? `: ${show.title}` : ''}"
 						onclick={() => tune(station)}
 					>
 						{#if station.art}
-							<img src={station.art} alt="" class="absolute inset-0 size-full object-cover " />
+							<img src={station.art} alt="" class="absolute inset-0 size-full object-cover" />
 						{/if}
-						<div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10"></div>
-						<div class="relative flex h-full flex-col justify-between p-3 text-white sm:p-4 lg:p-5">
-							<div class="flex items-center justify-between">
-								<span class="grid size-9 place-items-center rounded-full bg-white text-lg font-black text-black shadow-float sm:size-11 sm:text-xl">{i + 1}</span>
-								<span class="flex items-center gap-2">
-									{@render status(station)}
-									<span class="inline-flex items-center gap-1.5 rounded-full bg-black/55 px-2 py-1 text-[10px] font-bold tracking-wider sm:px-2.5 sm:text-[11px]">
-										<span class="size-1.5 rounded-full bg-accent"></span>LIVE
-									</span>
-								</span>
-							</div>
-							<div class="min-w-0">
-								{#if show}
-									<div class="truncate text-[10px] font-semibold tracking-wider text-white/75 uppercase sm:text-xs">
-										{[show.location, `${hhmm(show.start)}–${hhmm(show.end)}`].filter(Boolean).join(' · ')}
-									</div>
-									<div class="mt-1 line-clamp-3 text-[15px] leading-tight font-bold sm:line-clamp-2 sm:text-lg sm:leading-snug lg:text-xl">{show.title}</div>
-									{#if progress !== null}
-										<div class="mt-2.5 h-1 overflow-hidden rounded-full bg-white/25 sm:mt-3">
-											<div class="h-full rounded-full bg-white " style:transform="translateX({progress * 100 - 100}%)"></div>
-										</div>
-									{/if}
-								{:else}
-									<div class="text-lg font-bold">{station.name}</div>
-								{/if}
-							</div>
-						</div>
+						<span
+							class="wide absolute top-0 left-0 grid size-[4.5rem] place-items-center text-[52px] leading-none sm:size-24 sm:text-[72px] {on(station)
+								? 'bg-accent text-accent-fg'
+								: 'bg-black text-[#f1efe8] group-active:bg-[#f1efe8] group-active:text-black'}"
+						>
+							{i + 1}
+						</span>
+						<span class="absolute top-0 right-0 flex h-8 items-center gap-2 bg-black px-2 text-[#f1efe8]">
+							{@render status(station)}
+							<span class="label flex items-center gap-1.5 text-[10px]"><span class="size-1.5 rounded-full bg-accent"></span>Live</span>
+						</span>
 					</button>
+					<div class="flex flex-1 flex-col border-t border-line px-2.5 pt-2.5 pb-3">
+						{#if show}
+							<div class="label truncate text-[10px] text-muted">{[show.location, `${hhmm(show.start)}–${hhmm(show.end)}`].filter(Boolean).join(' / ')}</div>
+							<div class="wide mt-1.5 line-clamp-3 text-[13px] leading-[1.15] [overflow-wrap:anywhere] sm:text-lg">{show.title}</div>
+							{#if progress !== null}
+								<div class="mt-auto pt-2.5">
+									<div class="h-2 overflow-hidden border border-accent">
+										<div class="h-full bg-accent" style:transform="translateX({progress * 100 - 100}%)"></div>
+									</div>
+								</div>
+							{/if}
+						{:else}
+							<div class="wide text-[15px]">{station.name}</div>
+						{/if}
+					</div>
 					{#if station.next}
-						<p class="mt-2 truncate px-1 text-[13px] text-muted">
-							<span class="font-semibold text-fg">Next {hhmm(station.next.start)}</span>&ensp;{station.next.title}
+						<p class="truncate border-t border-line px-2.5 py-2 text-xs text-muted">
+							<span class="label text-[10px] text-fg">Next {hhmm(station.next.start)}</span>&ensp;{station.next.title}
 						</p>
 					{/if}
 				</div>
 			{/each}
 		</div>
 
-		<h2 class="mt-9 mb-3 text-xs font-semibold tracking-wider text-muted uppercase">Infinite Mixtapes</h2>
-		<ul class="grid grid-cols-4 gap-x-3 gap-y-5 sm:grid-cols-8 lg:gap-x-5">
-			{#each radio.data.mixtapes as station (station.id)}
+		<h2 class="label flex h-9 items-center border-y border-line px-3 text-[11px] text-muted">Infinite Mixtapes</h2>
+		<!-- A step sequencer's matrix: the keys butt up, and the one playing is lit. -->
+		<ul class="grid grid-cols-4 sm:grid-cols-8">
+			{#each radio.data.mixtapes as station, i (station.id)}
 				{@const active = on(station)}
-				<li>
+				<li class="border-b border-line {(i + 1) % 4 ? 'border-r' : 'max-sm:border-r-0 sm:border-r'} {(i + 1) % 8 ? '' : 'sm:border-r-0'}">
 					<button
 						type="button"
-						class="press group flex w-full flex-col items-center gap-2 text-center"
+						class="flex aspect-square w-full flex-col items-center justify-between px-1 pt-2.5 pb-1.5 text-center {active ? 'press bg-accent text-accent-fg' : 'press'}"
 						title={station.tagline}
 						aria-label="Play {station.name}"
 						onclick={() => tune(station)}
 					>
-						<span
-							class="relative grid aspect-square w-full place-items-center rounded-2xl ring-1 ring-line {active
-								? 'bg-accent text-accent-fg'
-								: 'bg-surface group-hover:bg-surface-2'}"
-						>
+						<span class="relative grid min-h-0 w-full flex-1 place-items-center">
 							{#if active}
-								{#if station.iconWhite}<img src={station.iconWhite} alt="" class="size-1/2" />{/if}
+								{#if station.iconBlack}<img src={station.iconBlack} alt="" class="size-9" />{/if}
 							{:else}
-								{#if station.iconBlack}<img src={station.iconBlack} alt="" class="size-1/2 dark:hidden" />{/if}
-								{#if station.iconWhite}<img src={station.iconWhite} alt="" class="hidden size-1/2 dark:block" />{/if}
+								{#if station.iconBlack}<img src={station.iconBlack} alt="" class="size-9 dark:hidden" />{/if}
+								{#if station.iconWhite}<img src={station.iconWhite} alt="" class="hidden size-9 dark:block" />{/if}
 							{/if}
-							<span class="absolute top-1.5 right-1.5">{@render status(station)}</span>
+							<span class="absolute top-0 right-0.5">{@render status(station)}</span>
 						</span>
-						<span class="w-full truncate text-[12px] leading-4 font-semibold sm:text-[13px]">{station.name}</span>
+						<span class="label line-clamp-2 w-full text-[9px] leading-[11px]">{station.name}</span>
 					</button>
 				</li>
 			{/each}
 		</ul>
 
-		<p class="mt-10 text-xs text-faint">
-			Live radio and Infinite Mixtapes from <a href="https://www.nts.live" target="_blank" rel="noopener" class="underline hover:text-muted">NTS</a>.
+		<p class="label px-3 py-4 text-[10px] text-muted">
+			Live radio and Infinite Mixtapes from <a href="https://www.nts.live" target="_blank" rel="noopener" class="underline hover:text-fg">NTS</a>
 		</p>
 	{/if}
 </div>

@@ -1,15 +1,13 @@
 // A dropped-frame probe for measuring on phones: open any page with ?fps. While something
-// scrolls or a finger moves, and for a moment after a tap (a page or a view changing, a cover
-// flying), it counts frames that came late (a gap of more than 1.5 frames) and shows the share
-// dropped in the last burst and since the page opened, and the last burst's longest gap: after a
-// tap, mostly the wait before anything moves. Under it, where the burst went (`/ → /album`) and
-// when its frames were dropped, in ms from its start: at once (the next page being made), about
-// 200 ms in (the page transition ending) or later (the cover landing) point to different causes.
-// ?fps&blur=0 also turns off every backdrop blur, to see what the frosted bars cost.
+// scrolls or a finger moves, and for a moment after a tap (a page or a view changing), it counts
+// frames that came late (a gap of more than 1.5 frames) and shows the share dropped in the last
+// burst and since the page opened, and the last burst's longest gap: after a tap, mostly the wait
+// before anything shows. Under it, where the burst went (`/ → /album`) and when its frames were
+// dropped, in ms from its start.
 
 /** A burst of activity ends this long after its last scroll or touch. */
 const QUIET_MS = 400;
-/** What a tap sets off (a cover flying, the page cross-fading) is over by this long after it. */
+/** What a tap sets off is over by this long after it. */
 const TAP_MS = 1000;
 
 /** The page's first path segment: enough to tell the albums, an album and Now Playing apart. */
@@ -35,12 +33,6 @@ export function probe(): () => void {
 		'padding:2px 6px;border-radius:6px;background:rgb(0 0 0 / 0.75);color:#fff;font:600 11px/1.4 ui-monospace,monospace;white-space:pre';
 	document.body.append(label);
 
-	let blur: HTMLStyleElement | undefined;
-	if (new URLSearchParams(location.search).get('blur') === '0') {
-		blur = document.createElement('style');
-		blur.textContent = '*{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}';
-		document.head.append(blur);
-	}
 
 	const gaps: number[] = [];
 	let nominal = 1000 / 60;
@@ -83,7 +75,7 @@ export function probe(): () => void {
 		const route = burst.from === to ? to : `${burst.from} → ${to}`;
 		const drops = burst.drops.length ? ` · drops at ${burst.drops.join(' ')} ms` : '';
 		const detail = burst.frames ? `\n     ${route}${drops}` : '';
-		const text = `${Math.round(1000 / nominal)} Hz${blur ? ' · no blur' : ''}\nlast ${pct(burst)}${worst}${detail}\nall  ${pct(total)}`;
+		const text = `${Math.round(1000 / nominal)} Hz\nlast ${pct(burst)}${worst}${detail}\nall  ${pct(total)}`;
 		if (text !== shown) label.textContent = shown = text;
 	});
 
@@ -94,6 +86,5 @@ export function probe(): () => void {
 		cancelAnimationFrame(raf);
 		for (const type of types) removeEventListener(type, active, options);
 		label.remove();
-		blur?.remove();
 	};
 }

@@ -15,7 +15,7 @@
 <button
 	bind:this={button}
 	type="button"
-	class="press grid size-9 shrink-0 place-items-center rounded-full text-muted hover:bg-fg/6 hover:text-fg {className}"
+	class="press grid w-11 shrink-0 place-items-center self-stretch text-muted hover:text-fg {className}"
 	aria-label={label}
 	aria-haspopup="menu"
 	onclick={(e) => {

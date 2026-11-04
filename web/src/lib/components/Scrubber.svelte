@@ -51,7 +51,7 @@
 <div class="w-full">
 	<div
 		bind:this={track}
-		class="group relative flex h-5 touch-none items-center select-none"
+		class="flex touch-none items-center select-none {times ? 'h-11' : 'h-6'}"
 		class:cursor-pointer={active}
 		role="slider"
 		tabindex={active ? 0 : -1}
@@ -66,21 +66,13 @@
 		onpointercancel={() => (dragging = false)}
 		onkeydown={key}
 	>
-		<div class="h-1 w-full overflow-hidden rounded-full bg-fg/12">
-			<div class="h-full rounded-full bg-fg/85" style:transform="translateX({pct - 100}%)"></div>
+		<div class="w-full overflow-hidden border {times ? 'h-3.5' : 'h-2.5'} {active ? 'border-fg' : 'border-line'}">
+			<div class="h-full bg-fg" style:transform="translateX({pct - 100}%)"></div>
 		</div>
-		{#if active}
-			<div
-				class="pointer-events-none absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-fg shadow-md "
-				class:scale-0={!dragging}
-				class:group-hover:scale-100={!dragging}
-				style:left="{pct}%"
-			></div>
-		{/if}
 	</div>
 	{#if times}
-		<div class="mt-1 flex justify-between text-[11px] font-medium text-muted tabular-nums">
-			<span>{clock(shown)}</span>
+		<div class="label -mt-1 flex justify-between text-[11px] text-muted">
+			<span class="text-fg">{clock(shown)}</span>
 			<span>{max > 0 ? `-${clock(max - shown)}` : '--:--'}</span>
 		</div>
 	{/if}

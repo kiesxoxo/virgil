@@ -1,9 +1,10 @@
 <script lang="ts">
 	import '../app.css';
-	import { ListMusic, LibraryBig, LoaderCircle, MicVocal, Radio as RadioIcon, Settings2, Shapes, WifiOff } from '@lucide/svelte';
+	import { WifiOff } from '@lucide/svelte';
 	import { onMount, type Snippet } from 'svelte';
 	import { page } from '$app/state';
 	import ContextMenu from '#lib/components/ContextMenu.svelte';
+	import Logotype from '#lib/components/Logotype.svelte';
 	import PlayerBar from '#lib/components/PlayerBar.svelte';
 	import Shortcuts from '#lib/components/Shortcuts.svelte';
 	import TagEditor from '#lib/components/TagEditor.svelte';
@@ -20,22 +21,22 @@
 	const albums = (id: string) => id === '/' || id.startsWith('/album/');
 	const artists = (id: string) => id === '/artists' || id.startsWith('/artist/');
 	const genres = (id: string) => id === '/genres' || id.startsWith('/genre/');
-	const radioPage = { href: '/radio', label: 'Radio', icon: RadioIcon, active: (id: string) => id === '/radio' };
-	const queuePage = { href: '/queue', label: 'Queue', icon: ListMusic, active: (id: string) => id === '/queue' };
-	const settings = { href: '/settings', label: 'Settings', icon: Settings2, active: (id: string) => id === '/settings' };
+	const radioPage = { href: '/radio', label: 'Radio', active: (id: string) => id === '/radio' };
+	const queuePage = { href: '/queue', label: 'Queue', active: (id: string) => id === '/queue' };
+	const settings = { href: '/settings', label: 'Settings', active: (id: string) => id === '/settings' };
 
 	// Desktop: every view in the sidebar.
 	const nav = [
-		{ href: '/', label: 'Albums', icon: LibraryBig, active: albums },
-		{ href: '/artists', label: 'Artists', icon: MicVocal, active: artists },
-		{ href: '/genres', label: 'Genres', icon: Shapes, active: genres },
+		{ href: '/', label: 'Albums', active: albums },
+		{ href: '/artists', label: 'Artists', active: artists },
+		{ href: '/genres', label: 'Genres', active: genres },
 		radioPage,
 		queuePage,
 		settings
 	];
 	// Phones: one Library tab; its pages switch between albums, artists and genres.
 	const tabs = [
-		{ href: '/', label: 'Library', icon: LibraryBig, active: (id: string) => albums(id) || artists(id) || genres(id) },
+		{ href: '/', label: 'Library', active: (id: string) => albums(id) || artists(id) || genres(id) },
 		radioPage,
 		queuePage,
 		settings
@@ -76,46 +77,41 @@
 </script>
 
 {#if !fullscreen}
-	<aside class="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-line px-3 pt-6 pb-28 lg:flex">
-		<a href="/" class="mb-7 flex items-center gap-2.5 px-3">
-			<img src="/icon.svg" alt="" class="size-7 rounded-lg" />
-			<span class="text-lg font-bold tracking-tight">Virgil</span>
-		</a>
-		<nav class="flex flex-col gap-0.5">
+	<aside class="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-line pb-[72px] lg:flex">
+		<a href="/" class="block border-b border-line p-3"><Logotype class="w-full" /></a>
+		<nav class="flex flex-col">
 			{#each nav as item (item.href)}
 				{@const active = item.active(routeId)}
 				<a
 					href={item.href}
-					class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {active
-						? 'bg-fg/6 text-fg'
-						: 'text-muted hover:bg-fg/4 hover:text-fg'}"
+					class="wide flex h-11 items-center border-b border-line px-3 text-[13px] uppercase {active ? 'bg-fg text-bg' : 'press text-muted hover:text-fg'}"
 					aria-current={active ? 'page' : undefined}
 				>
-					<item.icon class="size-[18px] {active ? 'text-accent' : ''}" />
 					{item.label}
 				</a>
 			{/each}
 		</nav>
-		<div class="mt-auto px-3 text-xs text-faint">
+		<div class="label mt-auto p-3 text-[10px] text-muted">
 			{#if hub.library.scanning}
-				<span class="flex items-center gap-1.5"><LoaderCircle class="size-3 " /> Scanning library…</span>
+				Scanning library…
 			{:else if hub.library.albums}
-				{hub.library.albums.toLocaleString()} albums · {hub.library.tracks.toLocaleString()} songs
+				{hub.library.albums.toLocaleString()} albums<br />{hub.library.tracks.toLocaleString()} songs
 			{/if}
 		</div>
 	</aside>
 {/if}
 
-{#if !patient && (!hub.connected || (hub.ready && !hub.player.online))}
-	<div class="pt-safe fixed inset-x-0 top-0 z-40 flex justify-center px-4">
-		<div class="mt-3 flex items-center gap-2 rounded-full bg-fg px-4 py-2 text-xs font-semibold text-bg shadow-float">
+<!-- Nothing shows through under the status bar. -->
+<div class="pt-safe fixed inset-x-0 top-0 z-40 bg-bg">
+	{#if !patient && (!hub.connected || (hub.ready && !hub.player.online))}
+		<div class="label flex h-8 items-center justify-center gap-2 border-b border-warn text-[11px] text-warn">
 			<WifiOff class="size-3.5" />
 			{hub.connected ? 'MPD is not reachable' : 'Reconnecting to Virgil…'}
 		</div>
-	</div>
-{/if}
+	{/if}
+</div>
 
-<main class={fullscreen ? '' : 'pb-[calc(9rem+env(safe-area-inset-bottom))] lg:pb-32 lg:pl-60'}>
+<main class={fullscreen ? '' : 'pb-[calc(7.5rem+env(safe-area-inset-bottom))] lg:pb-[72px] lg:pl-60'}>
 	{@render children()}
 </main>
 
@@ -123,16 +119,17 @@
 	<PlayerBar />
 
 	<!-- Stays beneath the on-screen keyboard rather than riding up with it. -->
-	<nav data-bar class="glass pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line lg:hidden" class:hidden={keyboard.height > 0}>
+	<nav class="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg lg:hidden" class:hidden={keyboard.height > 0}>
 		<div class="grid h-14 grid-cols-4">
 			{#each tabs as item (item.href)}
 				{@const active = item.active(routeId)}
 				<a
 					href={item.href}
-					class="flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold {active ? 'text-accent' : 'text-muted'}"
+					class="wide grid place-items-center border-l border-line text-[clamp(9px,2.8vw,11px)] uppercase first:border-l-0 {active
+						? 'bg-fg text-bg'
+						: 'press text-muted'}"
 					aria-current={active ? 'page' : undefined}
 				>
-					<item.icon class="size-[22px]" strokeWidth={active ? 2.25 : 1.75} />
 					{item.label}
 				</a>
 			{/each}

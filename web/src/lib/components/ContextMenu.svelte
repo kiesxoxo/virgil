@@ -29,45 +29,32 @@
 
 {#if menu.open}
 	{#if sheet}
-		<div class="fixed inset-0 z-50 bg-black/45" role="presentation" onclick={dismiss}></div>
-		<div
-			class="pb-safe fixed inset-x-0 bottom-0 z-50 rounded-t-3xl bg-bg shadow-float"
-			role="menu"
-			tabindex="-1"
-		>
-			<div class="mx-auto mt-2.5 h-1 w-10 rounded-full bg-fg/15"></div>
+		<div class="fixed inset-0 z-50 bg-black/60" role="presentation" onclick={dismiss}></div>
+		<div class="pb-safe fixed inset-x-0 bottom-0 z-50 border-t border-line bg-bg" role="menu" tabindex="-1">
 			{#if menu.header}
-				<div class="flex items-center gap-3 border-b border-line px-5 pt-3 pb-3.5">
+				<div class="flex items-center border-b border-line">
 					{#if menu.header.art !== undefined || menu.header.src}
-						<Cover art={menu.header.art} src={menu.header.src} class="size-11 shrink-0 rounded-md" />
+						<Cover art={menu.header.art} src={menu.header.src} class="size-14 shrink-0" />
 					{/if}
-					<div class="min-w-0">
-						<div class="truncate font-semibold">{menu.header.title}</div>
-						{#if menu.header.subtitle}<div class="truncate text-sm text-muted">{menu.header.subtitle}</div>{/if}
+					<div class="min-w-0 px-3 py-2">
+						<div class="wide truncate text-[13px] leading-[18px]">{menu.header.title}</div>
+						{#if menu.header.subtitle}<div class="truncate text-xs leading-4 text-muted">{menu.header.subtitle}</div>{/if}
 					</div>
 				</div>
 			{/if}
-			<div class="p-2">
+			<div class="divide-y divide-line">
 				{#each menu.items as item (item.label)}
 					<button
 						type="button"
 						role="menuitem"
-						class="flex h-12 w-full items-center gap-4 rounded-xl px-3 text-left text-[15px] font-medium active:bg-fg/6 {item.danger
-							? 'text-accent'
-							: ''}"
+						class="press flex h-12 w-full items-center gap-3.5 px-3 text-left text-[15px] font-medium {item.danger ? 'text-accent' : ''}"
 						onclick={() => menu.run(item)}
 					>
 						<item.icon class="size-5 {item.danger ? '' : 'text-muted'}" />
 						{item.label}
 					</button>
 				{/each}
-				<button
-					type="button"
-					class="mt-1 h-12 w-full rounded-xl bg-surface text-[15px] font-semibold active:bg-surface-2"
-					onclick={() => menu.close()}
-				>
-					Cancel
-				</button>
+				<button type="button" class="press wide h-14 w-full text-[13px] uppercase" onclick={() => menu.close()}>Cancel</button>
 			</div>
 		</div>
 	{:else}
@@ -83,23 +70,21 @@
 		<div
 			role="menu"
 			tabindex="-1"
-			class="glass fixed z-50 rounded-2xl p-1.5 shadow-float ring-1 ring-line"
+			class="fixed z-50 divide-y divide-line border border-line bg-bg"
 			style:width="{WIDTH}px"
 			style:left="{left}px"
 			style:top="{top}px"
 		>
 			{#if menu.header}
-				<div class="truncate px-3 pt-1.5 pb-2 text-xs font-semibold text-muted">
-					{menu.header.title}{menu.header.subtitle ? ` · ${menu.header.subtitle}` : ''}
+				<div class="label truncate px-3 py-2 text-[10px] text-muted">
+					{menu.header.title}{menu.header.subtitle ? ` / ${menu.header.subtitle}` : ''}
 				</div>
 			{/if}
 			{#each menu.items as item (item.label)}
 				<button
 					type="button"
 					role="menuitem"
-					class="flex h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium hover:bg-fg/6 {item.danger
-						? 'text-accent'
-						: ''}"
+					class="press flex h-10 w-full items-center gap-3 px-3 text-left text-sm font-medium hover:bg-surface {item.danger ? 'text-accent' : ''}"
 					onclick={() => menu.run(item)}
 				>
 					<item.icon class="size-4 {item.danger ? '' : 'text-muted'}" />

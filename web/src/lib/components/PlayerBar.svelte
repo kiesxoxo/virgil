@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Airplay, ListMusic, Maximize2, Pause, Play, SkipForward } from '@lucide/svelte';
+	import { Airplay, ListMusic, Maximize2 } from '@lucide/svelte';
 	import { api } from '../api.ts';
 	import { clock } from '../format.ts';
 	import { hub } from '../hub.svelte.ts';
@@ -7,6 +7,7 @@
 	import { keyboard } from '../keyboard.svelte.ts';
 	import { search } from '../search.svelte.ts';
 	import Cover from './Cover.svelte';
+	import Glyph from './Glyph.svelte';
 	import OnAir from './OnAir.svelte';
 	import MobileSearch from './MobileSearch.svelte';
 	import Scrubber from './Scrubber.svelte';
@@ -21,129 +22,118 @@
 	let progress = $derived(
 		showProgress !== null ? showProgress * 100 : hub.player.duration > 0 ? (hub.elapsed / hub.player.duration) * 100 : 0
 	);
-
 </script>
 
 {#snippet airplayTile(cls: string)}
-	<div class="grid shrink-0 place-items-center bg-info-bg text-info {cls}"><Airplay class="size-1/2" /></div>
+	<div class="grid shrink-0 place-items-center bg-surface text-info {cls}"><Airplay class="size-1/2" /></div>
 {/snippet}
 
-<!-- Phones and tablets: a floating mini player above the tab bar, with search
-     beside it. While the keyboard is up, the row sits on top of it. -->
+<!-- Phones and tablets: a flat bar on top of the tab bar, with search built in. While the keyboard
+     is up, it sits on top of that instead. -->
 <div
-	data-bar
-	class="fixed inset-x-2 z-30 flex gap-2 lg:hidden"
-	style:bottom={keyboard.height > 0 ? `${keyboard.height + 8}px` : 'calc(4rem + env(safe-area-inset-bottom))'}
+	class="fixed inset-x-0 z-30 flex h-16 border-t border-line bg-bg lg:hidden"
+	style:bottom={keyboard.height > 0 ? `${keyboard.height}px` : 'calc(3.5rem + env(safe-area-inset-bottom))'}
 >
-	<div
-		class="glass relative flex h-16 min-w-0 flex-1 items-center gap-3 overflow-hidden rounded-2xl pr-2 pl-2.5 shadow-float ring-1 ring-line"
-		class:hidden={search.open}
-	>
+	<div class="relative flex min-w-0 flex-1" class:hidden={search.open}>
 		{#if hub.external}
-			{@render airplayTile('size-11 rounded-lg')}
-			<div class="min-w-0 flex-1">
-				<div class="truncate text-sm font-semibold">AirPlay</div>
+			{@render airplayTile('size-16')}
+			<div class="min-w-0 flex-1 self-center px-3">
+				<div class="wide truncate text-[13px]">AirPlay</div>
 				<div class="truncate text-xs text-muted">Another device is playing here</div>
 			</div>
-			<button type="button" class="press h-9 rounded-full bg-fg px-4 text-xs font-semibold text-bg" onclick={() => api.play()}>
+			<button type="button" class="press-lit wide shrink-0 bg-fg px-3.5 text-[11px] text-bg uppercase" onclick={() => api.play()}>
 				Play here
 			</button>
 		{:else}
-			<a href="/now" class="touch-menu flex min-w-0 flex-1 items-center gap-3">
-				<Cover art={shown?.art} src={shown?.src} class="size-11 shrink-0 rounded-lg" />
-				<div class="min-w-0">
-					<div class="truncate text-sm font-semibold">{shown?.title ?? 'Not playing'}</div>
-					<div class="truncate text-xs text-muted">{shown ? shown.subtitle : 'Pick an album or a station'}</div>
+			<a href="/now" class="touch-menu flex min-w-0 flex-1 items-center">
+				<Cover art={shown?.art} src={shown?.src} class="size-[62px] shrink-0" />
+				<div class="min-w-0 px-3">
+					<div class="wide truncate text-[13px] leading-4">{shown?.title ?? 'Not playing'}</div>
+					<div class="mt-0.5 truncate text-xs leading-4 text-muted">{shown ? shown.subtitle : 'Pick an album or a station'}</div>
 				</div>
 			</a>
 			<button
 				type="button"
-				class="press grid size-11 place-items-center rounded-full disabled:opacity-35"
+				class="press grid w-14 shrink-0 place-items-center border-l border-line disabled:text-faint"
 				aria-label={hub.playing ? 'Pause' : 'Play'}
 				disabled={!item}
 				onclick={() => hub.toggle()}
 			>
-				{#if hub.playing}
-					<Pause class="size-6" fill="currentColor" strokeWidth={0} />
-				{:else}
-					<Play class="ml-0.5 size-6" fill="currentColor" strokeWidth={0} />
-				{/if}
+				<Glyph name={hub.playing ? 'pause' : 'play'} class="size-6" />
 			</button>
 			<button
 				type="button"
-				class="press grid size-11 place-items-center rounded-full disabled:opacity-35"
+				class="press grid w-14 shrink-0 place-items-center border-l border-line disabled:text-faint"
 				aria-label="Next"
 				disabled={!item}
 				onclick={() => api.next()}
 			>
-				<SkipForward class="size-5" fill="currentColor" />
+				<Glyph name="next" class="size-[22px]" />
 			</button>
-			<div class="absolute inset-x-3 bottom-0 h-[2px] overflow-hidden rounded-full bg-fg/8">
-				<div class="h-full bg-accent" style:transform="translateX({progress - 100}%)"></div>
-			</div>
 		{/if}
 	</div>
 	<MobileSearch />
+	{#if !hub.external && !search.open}
+		<div class="absolute inset-x-0 -top-[1.5px] h-[3px] overflow-hidden">
+			<div class="h-full bg-accent" style:transform="translateX({progress - 100}%)"></div>
+		</div>
+	{/if}
 </div>
 
-<!-- Desktop: a full-width bar. -->
-<div data-bar class="glass fixed inset-x-0 bottom-0 z-30 hidden h-24 grid-cols-[1fr_minmax(0,38rem)_1fr] items-center gap-6 border-t border-line px-5 lg:grid">
-	<div class="flex min-w-0 items-center gap-3.5">
+<!-- Desktop: a full-width bar in ruled segments. -->
+<div class="fixed inset-x-0 bottom-0 z-30 hidden h-[72px] grid-cols-[minmax(0,1fr)_minmax(0,38rem)_minmax(0,1fr)] border-t border-line bg-bg lg:grid">
+	<div class="flex min-w-0 items-center">
 		{#if hub.external}
-			{@render airplayTile('size-14 rounded-lg')}
-			<div class="min-w-0">
-				<div class="truncate text-sm font-semibold">AirPlay</div>
-				<div class="truncate text-[13px] text-muted">Another device is playing here</div>
+			{@render airplayTile('size-[70px]')}
+			<div class="min-w-0 px-3">
+				<div class="wide truncate text-[13px]">AirPlay</div>
+				<div class="truncate text-xs text-muted">Another device is playing here</div>
 			</div>
 		{:else if item && shown}
-			<a href="/now" class="shrink-0"><Cover art={shown.art} src={shown.src} class="size-14 rounded-lg shadow-cover" /></a>
-			<div class="min-w-0">
-				<a href="/now" class="block truncate text-sm font-semibold hover:underline">{shown.title}</a>
+			<a href="/now" class="shrink-0"><Cover art={shown.art} src={shown.src} class="size-[70px]" /></a>
+			<div class="min-w-0 px-3">
+				<a href="/now" class="wide block truncate text-[13px] leading-4 hover:underline">{shown.title}</a>
 				{#if item.albumId}
-					<a href="/album/{item.albumId}" class="block truncate text-[13px] text-muted hover:text-fg">{item.artist} — {item.album}</a>
+					<a href="/album/{item.albumId}" class="mt-0.5 block truncate text-xs leading-4 text-muted hover:text-fg">{item.artist} — {item.album}</a>
 				{:else if shown.station}
-					<a href="/radio" class="block truncate text-[13px] text-muted hover:text-fg">{shown.subtitle}</a>
+					<a href="/radio" class="mt-0.5 block truncate text-xs leading-4 text-muted hover:text-fg">{shown.subtitle}</a>
 				{:else}
-					<div class="truncate text-[13px] text-muted">{shown.subtitle}</div>
+					<div class="mt-0.5 truncate text-xs leading-4 text-muted">{shown.subtitle}</div>
 				{/if}
 			</div>
 		{:else}
-			<div class="text-sm text-muted">Not playing</div>
+			<div class="label px-3 text-[11px] text-muted">Not playing</div>
 		{/if}
 	</div>
 
-	<div class="flex flex-col gap-1">
+	<div class="flex flex-col border-x border-line">
 		{#if hub.external}
-			<div class="flex justify-center">
-				<button type="button" class="press h-10 rounded-full bg-fg px-5 text-sm font-semibold text-bg" onclick={() => api.play()}>
-					Play from library here
-				</button>
-			</div>
+			<button type="button" class="press-lit wide h-full bg-fg text-[13px] text-bg uppercase" onclick={() => api.play()}>Play from library here</button>
 		{:else}
 			<Transport />
-			{#if stream}
-				<OnAir station={shown?.station ?? null} compact />
-			{:else}
-			<div class="flex items-center gap-3 text-[11px] font-medium text-muted tabular-nums">
-				<span class="w-10 text-right">{clock(hub.elapsed)}</span>
-				<div class="flex-1">
-					<Scrubber value={hub.elapsed} max={hub.player.duration} disabled={!item} times={false} onseek={(s) => hub.seek(s)} />
-				</div>
-				<span class="w-10">{clock(hub.player.duration)}</span>
+			<div class="flex h-[30px] items-center gap-3 border-t border-line px-3">
+				{#if stream}
+					<OnAir station={shown?.station ?? null} compact />
+				{:else}
+					<span class="label w-10 text-right text-[11px] text-muted">{clock(hub.elapsed)}</span>
+					<div class="flex-1">
+						<Scrubber value={hub.elapsed} max={hub.player.duration} disabled={!item} times={false} onseek={(s) => hub.seek(s)} />
+					</div>
+					<span class="label w-10 text-[11px] text-muted">{clock(hub.player.duration)}</span>
+				{/if}
 			</div>
-			{/if}
 		{/if}
 	</div>
 
-	<div class="flex items-center justify-end gap-1.5">
+	<div class="flex items-stretch justify-end">
 		{#if hub.signal.verdict !== 'idle'}
-			<a href="/settings" class="mr-2"><SignalBadge signal={hub.signal} /></a>
+			<a href="/settings" class="press flex min-w-0 items-center overflow-hidden px-3"><SignalBadge signal={hub.signal} /></a>
 		{/if}
-		<a href="/queue" class="press grid size-9 place-items-center rounded-full text-muted hover:bg-fg/6 hover:text-fg" aria-label="Queue">
-			<ListMusic class="size-[18px]" />
+		<a href="/queue" class="press grid w-14 shrink-0 place-items-center border-l border-line" aria-label="Queue">
+			<ListMusic class="size-5" />
 		</a>
-		<a href="/now" class="press grid size-9 place-items-center rounded-full text-muted hover:bg-fg/6 hover:text-fg" aria-label="Now playing">
-			<Maximize2 class="size-4" />
+		<a href="/now" class="press grid w-14 shrink-0 place-items-center border-l border-line" aria-label="Now playing">
+			<Maximize2 class="size-[18px]" />
 		</a>
 	</div>
 </div>

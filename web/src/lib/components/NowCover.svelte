@@ -99,6 +99,6 @@
 
 <div class="relative w-full touch-pan-y" data-swipe bind:clientWidth={width} {@attach swipe}>
 	<div style:transform={drag || pull ? `translate(${drag}px, ${pull}px)` : undefined}>
-		<Cover {art} {src} size={1000} eager class="w-full rounded-3xl shadow-cover ring-1 ring-line" />
+		<Cover {art} {src} size={1000} eager class="w-full" />
 	</div>
 </div>

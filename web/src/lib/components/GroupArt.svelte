@@ -2,7 +2,7 @@
 	import { covers, type Group } from '../browse.ts';
 	import Cover from './Cover.svelte';
 
-	// An artist: one round cover. A genre: a 2×2 mosaic of its albums (one
+	// An artist: one cover. A genre: a 2×2 mosaic of its albums (one
 	// cover when it has fewer than four with art).
 	let { group, kind, size = 300, class: className = '' }: { group: Group; kind: 'artist' | 'genre'; size?: 300 | 600; class?: string } =
 		$props();
