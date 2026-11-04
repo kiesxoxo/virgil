@@ -32,11 +32,45 @@ const STEPS: [length: number, size: number][] = [
 const LONGEST = 20;
 const BASE = 366;
 
-/** The font size for `text` on lines `room` px wide, `scale` times the usual and at most `max`. */
-export function fitTitle(text: string, room: number, { scale = 1, max = 88 }: { scale?: number; max?: number } = {}): number {
+/** About how many lines `text` takes, `room` em wide. */
+export function countLines(text: string, room: number): number {
+	let lines = 1;
+	let line = 0;
+	let word = 0;
+	const flush = () => {
+		if (line && line + word > room) {
+			lines++;
+			line = 0;
+		}
+		line += word;
+		word = 0;
+	};
+	for (const ch of text) {
+		if (/\s/.test(ch)) {
+			flush();
+			line += width(' ');
+		} else {
+			word += width(ch);
+			if (ch > '⹿') flush();
+		}
+	}
+	flush();
+	return lines;
+}
+
+const LEADING = 1.03;
+const SMALLEST = 16;
+
+/**
+ * The font size for `text` on lines `room` px wide, `scale` times the usual and at most `max`.
+ * Given `tall`, the px it has going down, it steps down further until its lines fit in that.
+ */
+export function fitTitle(text: string, room: number, { scale = 1, max = 88, tall = 0 }: { scale?: number; max?: number; tall?: number } = {}): number {
 	const length = [...text].length;
 	const step = STEPS.find(([most]) => length <= most)?.[1] ?? LONGEST;
-	const size = Math.min(max, (step * scale * room) / BASE);
+	const wanted = Math.min(max, (step * scale * room) / BASE);
 	const run = longestRun(text);
-	return Math.floor(run > 0 ? Math.min(size, room / run) : size);
+	let size = Math.floor(run > 0 ? Math.min(wanted, room / run) : wanted);
+	if (tall > 0) while (size > SMALLEST && countLines(text, room / size) * size * LEADING > tall) size--;
+	return size;
 }

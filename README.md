@@ -7,7 +7,7 @@ AirPlay 2 (multi-room, no subscription).
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/phones-dark.png">
-    <img src="docs/screenshots/phones-light.png" alt="Virgil on a phone: the album grid, artists, NTS radio with its live channels and mixtapes, and Now Playing">
+    <img src="docs/screenshots/phones-light.png" alt="Virgil on a phone: the album grid, the Tuner, NTS radio with its live channels and mixtapes, and Now Playing">
   </picture>
 </p>
 

@@ -75,7 +75,7 @@
 				<button type="button" class="press-lit wide h-14 bg-fg text-[15px] text-bg uppercase" onclick={() => api.play()}>Play from library here</button>
 			{:else}
 				<div class="px-3 pt-3.5" bind:clientWidth={room}>
-					<h1 class="wide line-clamp-3 leading-[1.03]" style:font-size="{room ? fitTitle(shown?.title ?? 'Not playing', room - 24, { scale: 1.1, max: 72 }) : 24}px">
+					<h1 class="wide -mb-[0.16em] line-clamp-3 pb-[0.16em] leading-[1.03]" style:font-size="{room ? fitTitle(shown?.title ?? 'Not playing', room - 24, { scale: 1.1, max: 72 }) : 24}px">
 						{shown?.title ?? 'Not playing'}
 					</h1>
 					{#if item?.albumId}

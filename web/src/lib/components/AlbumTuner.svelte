@@ -26,6 +26,8 @@
 	const TICK = 22;
 	const READOUT = 92;
 	const TITLE = 112;
+	/** Of the title's block, what isn't the title: its padding and the artist below. */
+	const TITLE_CHROME = 48;
 	const DIAL = 78;
 	const KEYS = 60;
 	/** Segments in the meter. */
@@ -232,9 +234,9 @@
 			</div>
 		</div>
 
-		<a href="/album/{album.id}" class="block min-h-0 flex-1 overflow-hidden px-3 py-2.5">
-			<h2 class="wide line-clamp-3 leading-[1.03]" style:font-size="{fitTitle(album.title, width - 24, { max: 56 })}px">{album.title}</h2>
-			<p class="mt-1.5 truncate text-sm text-muted">{album.artist}</p>
+		<a href="/album/{album.id}" class="flex min-h-0 flex-1 flex-col overflow-hidden px-3 py-2.5">
+			<h2 class="wide -mb-[0.16em] line-clamp-3 min-h-0 pb-[0.16em] leading-[1.03]" style:font-size="{fitTitle(album.title, width - 24, { max: 56, tall: height - size - DIAL - KEYS - TITLE_CHROME })}px">{album.title}</h2>
+			<p class="mt-1.5 shrink-0 truncate text-sm text-muted">{album.artist}</p>
 		</a>
 
 		<div class="relative shrink-0 border-t border-line" style:height="{DIAL}px">
