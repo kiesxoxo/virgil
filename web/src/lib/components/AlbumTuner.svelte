@@ -235,7 +235,7 @@
 		</div>
 
 		<a href="/album/{album.id}" class="flex min-h-0 flex-1 flex-col overflow-hidden px-3 py-2.5">
-			<h2 class="wide -mb-[0.16em] line-clamp-3 min-h-0 pb-[0.16em] leading-[1.03]" style:font-size="{fitTitle(album.title, width - 24, { max: 56, tall: height - size - DIAL - KEYS - TITLE_CHROME })}px">{album.title}</h2>
+			<h2 class="wide -mb-[0.16em] line-clamp-3 min-h-0 pb-[0.16em] leading-[1.03]" style:font-size="{fitTitle(album.title, width - 24, { max: 56, lines: 3, tall: height - size - DIAL - KEYS - TITLE_CHROME })}px">{album.title}</h2>
 			<p class="mt-1.5 shrink-0 truncate text-sm text-muted">{album.artist}</p>
 		</a>
 

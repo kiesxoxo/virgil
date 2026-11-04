@@ -52,6 +52,13 @@ describe('fitTitle', () => {
 		assert.equal(fitTitle('Sonno', 366, { tall: 200 }), fitTitle('Sonno', 366));
 	});
 
+	it('steps down until it takes no more than so many lines', () => {
+		const title = 'The Shape of Punk to Come: A Chimerical Bombination in 12 Bursts';
+		const size = fitTitle(title, 378, { lines: 3 });
+		assert.ok(countLines(title, 378 / size) <= 3);
+		assert.equal(fitTitle('Sonno', 378, { lines: 3 }), fitTitle('Sonno', 378));
+	});
+
 	it('stops at the smallest size that reads', () => {
 		assert.equal(fitTitle('The Shape of Punk to Come: A Chimerical Bombination in 12 Bursts', 366, { tall: 10 }), 16);
 	});

@@ -63,14 +63,23 @@ const SMALLEST = 16;
 
 /**
  * The font size for `text` on lines `room` px wide, `scale` times the usual and at most `max`.
- * Given `tall`, the px it has going down, it steps down further until its lines fit in that.
+ * Given `tall`, the px it has going down, it steps down further until its lines fit in that;
+ * given `lines`, until it takes no more than that many.
  */
-export function fitTitle(text: string, room: number, { scale = 1, max = 88, tall = 0 }: { scale?: number; max?: number; tall?: number } = {}): number {
+export function fitTitle(
+	text: string,
+	room: number,
+	{ scale = 1, max = 88, tall = 0, lines = 0 }: { scale?: number; max?: number; tall?: number; lines?: number } = {}
+): number {
 	const length = [...text].length;
 	const step = STEPS.find(([most]) => length <= most)?.[1] ?? LONGEST;
 	const wanted = Math.min(max, (step * scale * room) / BASE);
 	const run = longestRun(text);
 	let size = Math.floor(run > 0 ? Math.min(wanted, room / run) : wanted);
-	if (tall > 0) while (size > SMALLEST && countLines(text, room / size) * size * LEADING > tall) size--;
+	const fits = () => {
+		const count = countLines(text, room / size);
+		return (!tall || tall < 0 || count * size * LEADING <= tall) && (!lines || count <= lines);
+	};
+	while (size > SMALLEST && !fits()) size--;
 	return size;
 }

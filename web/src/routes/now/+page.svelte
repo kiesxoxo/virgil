@@ -19,6 +19,8 @@
 	let stream = $derived(item ? isStream(item.uri) : false);
 	let upNext = $derived(hub.currentIndex >= 0 ? hub.queue.items.slice(hub.currentIndex + 1, hub.currentIndex + 4) : []);
 	let room = $state(0);
+	let titleHeight = $state(0);
+	let controlsHeight = $state(0);
 
 	function close() {
 		if (history.length > 1) history.back();
@@ -47,23 +49,25 @@
 
 	<div class="flex flex-1 flex-col md:grid md:grid-cols-[minmax(0,min(calc(100dvh-3rem),50vw))_minmax(0,1fr)] md:items-start">
 		<div class="border-b border-line md:border-r md:border-b-0">
-			{#if hub.external}
-				<div class="grid aspect-square w-full place-items-center bg-surface text-info">
-					<Airplay class="size-1/3" strokeWidth={1.25} />
-				</div>
-			{:else if item}
-				<NowCover
-					art={item.art}
-					src={shown?.large ?? null}
-					canPrevious={!stream && hub.currentIndex > 0}
-					canNext={!stream && hub.currentIndex < hub.queue.items.length - 1}
-					onclose={close}
-				/>
-			{:else}
-				<div class="grid aspect-square w-full place-items-center bg-surface text-faint">
-					<Disc3 class="size-1/3" strokeWidth={1} />
-				</div>
-			{/if}
+			<div class="mx-auto" class:fit={!hub.external} style:--below="{titleHeight + controlsHeight}px">
+				{#if hub.external}
+					<div class="grid aspect-square w-full place-items-center bg-surface text-info">
+						<Airplay class="size-1/3" strokeWidth={1.25} />
+					</div>
+				{:else if item}
+					<NowCover
+						art={item.art}
+						src={shown?.large ?? null}
+						canPrevious={!stream && hub.currentIndex > 0}
+						canNext={!stream && hub.currentIndex < hub.queue.items.length - 1}
+						onclose={close}
+					/>
+				{:else}
+					<div class="grid aspect-square w-full place-items-center bg-surface text-faint">
+						<Disc3 class="size-1/3" strokeWidth={1} />
+					</div>
+				{/if}
+			</div>
 		</div>
 
 		<div class="flex min-w-0 flex-1 flex-col self-stretch">
@@ -74,8 +78,8 @@
 				</div>
 				<button type="button" class="press-lit wide h-14 bg-fg text-[15px] text-bg uppercase" onclick={() => api.play()}>Play from library here</button>
 			{:else}
-				<div class="px-3 pt-3.5" bind:clientWidth={room}>
-					<h1 class="wide -mb-[0.16em] line-clamp-3 pb-[0.16em] leading-[1.03]" style:font-size="{room ? fitTitle(shown?.title ?? 'Not playing', room - 24, { scale: 1.1, max: 72 }) : 24}px">
+				<div class="px-3 pt-3.5 pb-3" bind:clientWidth={room} bind:clientHeight={titleHeight}>
+					<h1 class="wide -mb-[0.16em] line-clamp-3 pb-[0.16em] leading-[1.03]" style:font-size="{room ? fitTitle(shown?.title ?? 'Not playing', room - 24, { scale: 1.1, max: 72, lines: 3 }) : 24}px">
 						{shown?.title ?? 'Not playing'}
 					</h1>
 					{#if item?.albumId}
@@ -88,16 +92,9 @@
 						<p class="mt-2 truncate text-[15px] text-muted">{shown?.subtitle ?? 'Pick an album or a station'}</p>
 					{/if}
 				</div>
-				<div class="px-3 pt-1 pb-3">
-					{#if stream}
-						<OnAir {station} />
-					{:else}
-						<Scrubber value={hub.elapsed} max={hub.player.duration} disabled={!item} onseek={(s) => hub.seek(s)} />
-					{/if}
-				</div>
 			{/if}
 
-			<!-- Below on a phone, where the keys stay at the bottom of the screen. -->
+			<!-- Below on a phone, where the scrubber and the keys stay at the bottom of the screen. -->
 			<div class="md:order-3">
 				{#if station}
 					{@const show = station.now}
@@ -153,10 +150,31 @@
 			</div>
 
 			{#if !hub.external}
-				<div class="pb-safe sticky bottom-0 mt-auto border-t border-line bg-bg md:static md:order-2 md:mt-0">
-					<Transport size="lg" />
+				<div class="pb-safe sticky bottom-0 mt-auto border-t border-line bg-bg md:static md:order-2 md:mt-0" bind:clientHeight={controlsHeight}>
+					<div class="px-3 pt-1 pb-3">
+						{#if stream}
+							<OnAir {station} />
+						{:else}
+							<Scrubber value={hub.elapsed} max={hub.player.duration} disabled={!item} onseek={(s) => hub.seek(s)} />
+						{/if}
+					</div>
+					<div class="border-t border-line">
+						<Transport size="lg" />
+					</div>
 				</div>
 			{/if}
 		</div>
 	</div>
 </div>
+
+<style>
+	/*
+	 * On a phone the cover gives way when the screen is short, so the title and the controls both fit.
+	 * It leaves the controls over the title's bottom padding, hiding the rule of what comes next.
+	 */
+	@media (max-width: 767.98px) {
+		.fit {
+			width: min(100%, max(60vw, calc(100dvh - env(safe-area-inset-top) - 3rem - 1px - var(--below))));
+		}
+	}
+</style>
