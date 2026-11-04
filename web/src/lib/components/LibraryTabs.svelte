@@ -16,7 +16,7 @@
 		{@const active = page.url.pathname === view.href}
 		<a
 			href={view.href}
-			class="relative after:absolute after:inset-x-0 after:-inset-y-2 grid size-7 place-items-center rounded-md transition-colors {active
+			class="relative after:absolute after:inset-x-0 after:-inset-y-2 grid size-7 place-items-center rounded-md {active
 				? 'bg-bg text-fg shadow-sm ring-1 ring-line'
 				: 'text-muted hover:text-fg'}"
 			aria-current={active ? 'page' : undefined}

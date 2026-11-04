@@ -19,7 +19,6 @@
 		Wand2,
 		X
 	} from '@lucide/svelte';
-	import { fade, fly } from 'svelte/transition';
 	import { clock, khz } from '../format.ts';
 	import { menu, type MenuItem } from '../menu.svelte.ts';
 	import { LONG, STANDARD, changed, fillFromName, shared, validName, type Row } from '../tagedit.ts';
@@ -146,13 +145,12 @@
 {/snippet}
 
 {#if editor.open}
-	<div class="fixed inset-0 z-40 bg-black/45 max-sm:hidden" role="presentation" transition:fade={{ duration: 150 }} onclick={() => editor.close()}></div>
+	<div class="fixed inset-0 z-40 bg-black/45 max-sm:hidden" role="presentation" onclick={() => editor.close()}></div>
 	<div
 		class="fixed inset-0 z-40 flex flex-col bg-bg sm:inset-x-4 sm:top-[6vh] sm:bottom-auto sm:mx-auto sm:h-[min(88vh,52rem)] sm:max-w-3xl sm:rounded-3xl sm:shadow-float sm:ring-1 sm:ring-line"
 		role="dialog"
 		aria-modal="true"
 		aria-label="Tag editor"
-		transition:fly={{ y: 40, duration: 200 }}
 	>
 		<header class="pt-safe flex items-center gap-2 border-b border-line px-2 sm:px-3">
 			<button type="button" class="press h-11 rounded-full px-3 text-[15px] font-medium text-accent" disabled={editor.saving} onclick={() => editor.close()}>
@@ -169,7 +167,7 @@
 				title={editor.problem ?? undefined}
 				onclick={() => editor.save()}
 			>
-				{#if editor.saving}<LoaderCircle class="size-4 animate-spin" />{/if}
+				{#if editor.saving}<LoaderCircle class="size-4 " />{/if}
 				Save
 			</button>
 		</header>
@@ -201,7 +199,7 @@
 
 		<div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-4">
 			{#if editor.loading}
-				<div class="grid h-40 place-items-center text-muted"><LoaderCircle class="size-6 animate-spin" /></div>
+				<div class="grid h-40 place-items-center text-muted"><LoaderCircle class="size-6 " /></div>
 			{:else}
 				{#if editor.unreadable.length}
 					<div class="mb-3 flex gap-2.5 rounded-2xl bg-warn-bg px-4 py-3 text-[13px] text-warn">
@@ -221,7 +219,7 @@
 				{#if tab === 'metadata' && count}
 					{#if editor.lookup}
 						{@const lookup = editor.lookup}
-						<section class="mb-3 rounded-2xl bg-surface p-3" transition:fly={{ y: -8, duration: 150 }}>
+						<section class="mb-3 rounded-2xl bg-surface p-3">
 							<div class="flex items-center justify-between">
 								<h3 class="text-sm font-semibold">Look up online</h3>
 								<button type="button" class="grid size-8 place-items-center rounded-full text-muted hover:bg-fg/6" aria-label="Close" onclick={() => (editor.lookup = null)}>
@@ -256,7 +254,7 @@
 									class="press inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-fg px-4 text-[13px] font-semibold text-bg disabled:opacity-40"
 									disabled={lookup.searching || !lookup.album.trim()}
 								>
-									{#if lookup.searching}<LoaderCircle class="size-4 animate-spin" />{:else}<Search class="size-4" />{/if}
+									{#if lookup.searching}<LoaderCircle class="size-4 " />{:else}<Search class="size-4" />{/if}
 									Search
 								</button>
 							</form>
@@ -291,7 +289,7 @@
 														</span>
 													</span>
 													{#if lookup.applying === candidate.id}
-														<LoaderCircle class="size-4 shrink-0 animate-spin text-muted" />
+														<LoaderCircle class="size-4 shrink-0 text-muted" />
 													{:else if candidate.tracks !== null}
 														<span class="inline-flex shrink-0 items-center gap-1 text-xs tabular-nums {fits ? 'font-semibold text-good' : 'text-muted'}" title="{candidate.tracks} tracks">
 															{#if fits}<Check class="size-3.5" />{/if}{candidate.tracks}
@@ -331,7 +329,7 @@
 					{/if}
 
 					{#if pattern !== null}
-						<section class="mb-3 rounded-2xl bg-surface p-3" transition:fly={{ y: -8, duration: 150 }}>
+						<section class="mb-3 rounded-2xl bg-surface p-3">
 							<div class="flex items-center justify-between">
 								<h3 class="text-sm font-semibold">Fill from file names</h3>
 								<button type="button" class="grid size-8 place-items-center rounded-full text-muted hover:bg-fg/6" aria-label="Close" onclick={() => (pattern = null)}>

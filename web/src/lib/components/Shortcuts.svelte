@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { flushSync } from 'svelte';
-	import { fade, scale } from 'svelte/transition';
 	import { goto } from '$app/navigation';
 	import { api } from '../api.ts';
 	import { hub } from '../hub.svelte.ts';
@@ -100,12 +99,11 @@
 />
 
 {#if sheet}
-	<div class="pointer-events-none fixed inset-0 z-[60] grid place-items-center bg-black/30" transition:fade={{ duration: 120 }}>
+	<div class="pointer-events-none fixed inset-0 z-[60] grid place-items-center bg-black/30">
 		<div
 			class="glass w-80 rounded-3xl p-5 shadow-float ring-1 ring-line"
 			role="dialog"
 			aria-label="Keyboard shortcuts"
-			transition:scale={{ start: 0.96, duration: 140 }}
 		>
 			<h2 class="text-sm font-semibold">Keyboard shortcuts</h2>
 			<dl class="mt-3 space-y-2">

@@ -1,20 +1,16 @@
 <script lang="ts">
 	import '../app.css';
 	import { ListMusic, LibraryBig, LoaderCircle, MicVocal, Radio as RadioIcon, Settings2, Shapes, WifiOff } from '@lucide/svelte';
-	import { onMount, tick, type Snippet } from 'svelte';
-	import { onNavigate } from '$app/navigation';
+	import { onMount, type Snippet } from 'svelte';
 	import { page } from '$app/state';
-	import Backdrop from '#lib/components/Backdrop.svelte';
 	import ContextMenu from '#lib/components/ContextMenu.svelte';
 	import PlayerBar from '#lib/components/PlayerBar.svelte';
 	import Shortcuts from '#lib/components/Shortcuts.svelte';
 	import TagEditor from '#lib/components/TagEditor.svelte';
 	import Toaster from '#lib/components/Toaster.svelte';
-	import { ambient } from '#lib/ambient.svelte.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { keyboard } from '#lib/keyboard.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
-	import { flight } from '#lib/flight.svelte.ts';
 	import { swipeBack } from '#lib/swipeback.ts';
 	import { isStream, radio } from '#lib/radio.svelte.ts';
 	import '#lib/theme.svelte.ts';
@@ -50,38 +46,6 @@
 	// Give the first connection a moment before complaining.
 	let patient = $state(true);
 
-	// Page changes cross-fade, and one cover moves from where it was to where the next page shows
-	// it: flying on the stage (lib/flight.svelte.ts), or morphed by the view transition where it
-	// can't fly. Not after a swipe back that the browser already animated itself (iOS, Android).
-	let browserAnimated = false;
-	onNavigate(async (navigation) => {
-		// On the way to Now Playing, its colour grows out of the mini player's cover.
-		ambient.origin = navigation.to?.route.id === '/now' ? flight.centre('now') : null;
-		const skip = navigation.type === 'popstate' && browserAnimated;
-		browserAnimated = false;
-		if (!document.startViewTransition || skip) return;
-		// Now Playing's cover, coming or going; or the album being opened or left.
-		const ends = [navigation.to, navigation.from];
-		const album = ends.find((target) => target?.route.id === '/album/[id]')?.params?.id;
-		const key = ends.some((target) => target?.route.id === '/now') ? 'now' : album ? `album:${album}` : null;
-		const flying = !!key && flight.lift(key);
-		flight.morphing = flying ? null : key;
-		await tick();
-		return new Promise((resolve) => {
-			document.startViewTransition(async () => {
-				resolve();
-				try {
-					await navigation.complete;
-				} finally {
-					if (flying) {
-						await tick();
-						flight.land(key);
-					}
-				}
-			});
-		});
-	});
-
 	onMount(() => {
 		hub.connect();
 		const wake = () => document.visibilityState === 'visible' && hub.wake();
@@ -89,15 +53,11 @@
 		const timer = setTimeout(() => (patient = false), 1500);
 		const unwatch = keyboard.watch();
 		const unswipe = swipeBack();
-		// Capture: runs before SvelteKit's own popstate listener starts the navigation.
-		const popped = (e: PopStateEvent) => (browserAnimated = e.hasUAVisualTransition);
-		addEventListener('popstate', popped, { capture: true });
 		// Measuring on a phone: ?fps shows dropped frames (lib/fps.ts).
 		let stopProbe: (() => void) | undefined;
 		if (new URLSearchParams(location.search).has('fps')) import('#lib/fps.ts').then((m) => (stopProbe = m.probe()));
 		return () => {
 			stopProbe?.();
-			removeEventListener('popstate', popped, { capture: true });
 			document.removeEventListener('visibilitychange', wake);
 			clearTimeout(timer);
 			unwatch();
@@ -126,7 +86,7 @@
 				{@const active = item.active(routeId)}
 				<a
 					href={item.href}
-					class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors {active
+					class="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium {active
 						? 'bg-fg/6 text-fg'
 						: 'text-muted hover:bg-fg/4 hover:text-fg'}"
 					aria-current={active ? 'page' : undefined}
@@ -138,7 +98,7 @@
 		</nav>
 		<div class="mt-auto px-3 text-xs text-faint">
 			{#if hub.library.scanning}
-				<span class="flex items-center gap-1.5"><LoaderCircle class="size-3 animate-spin" /> Scanning library…</span>
+				<span class="flex items-center gap-1.5"><LoaderCircle class="size-3 " /> Scanning library…</span>
 			{:else if hub.library.albums}
 				{hub.library.albums.toLocaleString()} albums · {hub.library.tracks.toLocaleString()} songs
 			{/if}
@@ -180,8 +140,6 @@
 	</nav>
 {/if}
 
-<!-- The colour behind every page (lib/ambient.svelte.ts). -->
-<Backdrop />
 <TagEditor />
 <Shortcuts />
 <ContextMenu />

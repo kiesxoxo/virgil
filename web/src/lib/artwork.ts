@@ -1,7 +1,6 @@
-// Which covers the browser has decoded lately, whoever decoded them: a cover on the page, the cover
-// flow's renderer (lib/stage-gl.ts), a cover flying (lib/flyers.ts). A cover coming onto the page
-// shows the sharpest of those at once, while its own size comes in, rather than a placeholder: a
-// cover flying to it lands on a picture, and switching views shows every cover from the start.
+// Which covers the browser has decoded lately. A cover coming onto the page shows the sharpest of
+// those at once, while its own size comes in, rather than a placeholder: switching views shows
+// every cover from the start.
 
 import { artUrl, type ArtSize } from './format.ts';
 

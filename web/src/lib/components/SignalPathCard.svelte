@@ -1,7 +1,5 @@
 <script lang="ts">
 	import { ArrowRight } from '@lucide/svelte';
-	import { cubicOut } from 'svelte/easing';
-	import { slide } from 'svelte/transition';
 	import { alsaFormat, formatLong, khz } from '../format.ts';
 	import type { SignalPath } from '../types/SignalPath.ts';
 	import SignalBadge from './SignalBadge.svelte';
@@ -18,10 +16,6 @@
 		idle: 'The output is closed.'
 	} as const;
 
-	// The way from source to DAC opens and closes with playback: the card grows and shrinks, and
-	// what is below it moves, rather than jumping.
-	const still = matchMedia('(prefers-reduced-motion: reduce)');
-	const open = () => ({ duration: still.matches ? 0 : 260, easing: cubicOut });
 </script>
 
 <div class="rounded-2xl bg-surface p-4">
@@ -33,7 +27,7 @@
 		<p class="mt-2 text-sm text-muted">{signal.note && signal.verdict !== 'external' ? `${explain[signal.verdict]} ${signal.note}.` : explain[signal.verdict]}</p>
 	{/if}
 	{#if signal.source || signal.output}
-		<div class="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-xs" transition:slide={open()}>
+		<div class="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-xs">
 			<div class="rounded-xl bg-bg px-3 py-2">
 				<div class="text-faint">Source</div>
 				<div class="mt-0.5 font-medium tabular-nums">{signal.source ? formatLong(signal.source) : '—'}</div>

@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { Check, CircleAlert } from '@lucide/svelte';
-	import { fly } from 'svelte/transition';
 	import { toasts } from '../toast.svelte.ts';
 </script>
 
@@ -11,7 +10,6 @@
 	{#each toasts.items as toast (toast.id)}
 		<button
 			type="button"
-			transition:fly={{ y: 12, duration: 180 }}
 			class="pointer-events-auto flex max-w-sm items-center gap-2.5 rounded-full bg-fg py-2.5 pr-4 pl-3 text-sm font-medium text-bg shadow-float"
 			onclick={() => toasts.dismiss(toast.id)}
 		>

@@ -16,13 +16,6 @@
 	let shown = $derived(dragging ? dragValue : value);
 	let pct = $derived(max > 0 ? Math.min(100, Math.max(0, (shown / max) * 100)) : 0);
 	let active = $derived(!disabled && max > 0);
-	// Playback moves the value once a second, and the bar glides to it; a drag or a jump back is followed at once.
-	let last = 0;
-	let glide = $derived.by(() => {
-		const forward = !dragging && pct >= last;
-		last = pct;
-		return forward;
-	});
 
 	function at(e: PointerEvent) {
 		const r = track.getBoundingClientRect();
@@ -73,12 +66,12 @@
 		onpointercancel={() => (dragging = false)}
 		onkeydown={key}
 	>
-		<div class="h-1 w-full overflow-hidden rounded-full bg-fg/12 transition-[height] group-hover:h-1.5" class:h-1.5={dragging}>
-			<div class="h-full rounded-full bg-fg/85 {glide ? 'transition-transform duration-1000 ease-linear' : ''}" style:transform="translateX({pct - 100}%)"></div>
+		<div class="h-1 w-full overflow-hidden rounded-full bg-fg/12">
+			<div class="h-full rounded-full bg-fg/85" style:transform="translateX({pct - 100}%)"></div>
 		</div>
 		{#if active}
 			<div
-				class="pointer-events-none absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-fg shadow-md transition-transform duration-150"
+				class="pointer-events-none absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-fg shadow-md "
 				class:scale-0={!dragging}
 				class:group-hover:scale-100={!dragging}
 				style:left="{pct}%"

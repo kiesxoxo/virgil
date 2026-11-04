@@ -40,7 +40,7 @@
 
 {#snippet status(station: Station)}
 	{#if pending === station.id}
-		<LoaderCircle class="size-4 animate-spin" />
+		<LoaderCircle class="size-4 " />
 	{:else if on(station)}
 		<!-- On a dark card or an accent tile alike. -->
 		<Equalizer playing={hub.playing} class="text-white!" />
@@ -64,7 +64,7 @@
 				</button>
 			</div>
 		{:else}
-			<div class="mt-6 grid animate-pulse grid-cols-2 gap-3 sm:gap-4">
+			<div class="mt-6 grid grid-cols-2 gap-3 sm:gap-4">
 				<div class="aspect-square rounded-3xl bg-surface sm:aspect-[16/10]"></div>
 				<div class="aspect-square rounded-3xl bg-surface sm:aspect-[16/10]"></div>
 			</div>
@@ -86,7 +86,7 @@
 						onclick={() => tune(station)}
 					>
 						{#if station.art}
-							<img src={station.art} alt="" class="absolute inset-0 size-full object-cover transition-transform duration-700 group-hover:scale-[1.03]" />
+							<img src={station.art} alt="" class="absolute inset-0 size-full object-cover " />
 						{/if}
 						<div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10"></div>
 						<div class="relative flex h-full flex-col justify-between p-3 text-white sm:p-4 lg:p-5">
@@ -95,7 +95,7 @@
 								<span class="flex items-center gap-2">
 									{@render status(station)}
 									<span class="inline-flex items-center gap-1.5 rounded-full bg-black/55 px-2 py-1 text-[10px] font-bold tracking-wider sm:px-2.5 sm:text-[11px]">
-										<span class="size-1.5 animate-pulse rounded-full bg-accent"></span>LIVE
+										<span class="size-1.5 rounded-full bg-accent"></span>LIVE
 									</span>
 								</span>
 							</div>
@@ -107,7 +107,7 @@
 									<div class="mt-1 line-clamp-3 text-[15px] leading-tight font-bold sm:line-clamp-2 sm:text-lg sm:leading-snug lg:text-xl">{show.title}</div>
 									{#if progress !== null}
 										<div class="mt-2.5 h-1 overflow-hidden rounded-full bg-white/25 sm:mt-3">
-											<div class="h-full rounded-full bg-white transition-transform duration-1000" style:transform="translateX({progress * 100 - 100}%)"></div>
+											<div class="h-full rounded-full bg-white " style:transform="translateX({progress * 100 - 100}%)"></div>
 										</div>
 									{/if}
 								{:else}
@@ -138,7 +138,7 @@
 						onclick={() => tune(station)}
 					>
 						<span
-							class="relative grid aspect-square w-full place-items-center rounded-2xl ring-1 ring-line transition-colors {active
+							class="relative grid aspect-square w-full place-items-center rounded-2xl ring-1 ring-line {active
 								? 'bg-accent text-accent-fg'
 								: 'bg-surface group-hover:bg-surface-2'}"
 						>

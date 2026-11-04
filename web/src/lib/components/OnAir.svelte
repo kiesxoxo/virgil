@@ -14,7 +14,7 @@
 
 {#snippet live()}
 	<span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent px-1.5 py-px text-[10px] font-bold tracking-wider text-accent-fg">
-		<span class="size-1.5 animate-pulse rounded-full bg-white"></span>LIVE
+		<span class="size-1.5 rounded-full bg-white"></span>LIVE
 	</span>
 {/snippet}
 
@@ -25,7 +25,7 @@
 			{#if compact}<span class="shrink-0 text-right font-medium whitespace-nowrap text-muted tabular-nums">{hhmm(show.start)}</span>{/if}
 			<div class="flex h-5 flex-1 items-center" role="progressbar" aria-label="{show.title}, on air" aria-valuenow={Math.round(progress * 100)}>
 				<div class="h-1 w-full overflow-hidden rounded-full bg-fg/12">
-					<div class="h-full rounded-full bg-accent transition-transform duration-1000" style:transform="translateX({progress * 100 - 100}%)"></div>
+					<div class="h-full rounded-full bg-accent " style:transform="translateX({progress * 100 - 100}%)"></div>
 				</div>
 			</div>
 			{#if compact}<span class="shrink-0 font-medium whitespace-nowrap text-muted tabular-nums">{hhmm(show.end)}</span>{/if}

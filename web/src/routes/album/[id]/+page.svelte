@@ -5,13 +5,11 @@
 	import Cover from '#lib/components/Cover.svelte';
 	import Equalizer from '#lib/components/Equalizer.svelte';
 	import Menu from '#lib/components/Menu.svelte';
-	import Record from '#lib/components/Record.svelte';
 	import { trackHeader, trackItems } from '#lib/actions.ts';
-	import { ambient } from '#lib/ambient.svelte.ts';
 	import { api, queue } from '#lib/api.ts';
 	import { contextMenu } from '#lib/menu.svelte.ts';
 	import { pullBack } from '#lib/swipeback.ts';
-	import { artUrl, clock, formatLong, formatShort, isHiRes, span } from '#lib/format.ts';
+	import { clock, formatLong, formatShort, isHiRes, span } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
 	import { tagEditor } from '#lib/tageditor.svelte.ts';
@@ -27,7 +25,7 @@
 		if (navigation.type !== 'popstate') from = navigation.from?.route.id ?? null;
 	});
 
-	/** Back to where the album was opened from, as it was left (the cover flow on this album, the grid scrolled); else to the albums. */
+	/** Back to where the album was opened from, as it was left (the grid scrolled); else to the albums. */
 	function back() {
 		if (from) history.back();
 		else goto('/');
@@ -68,17 +66,6 @@
 
 	let album = $derived(detail?.album ?? library.get(data.id));
 
-	// A wash of the cover's colours behind the top of the page, gone once the tracks are scrolled up.
-	let scrollY = $state(0);
-	$effect(() =>
-		ambient.want({
-			key: `album:${data.id}`,
-			src: artUrl(album?.art, 300),
-			strength: album?.art ? 0.6 * Math.max(0, 1 - scrollY / 400) : 0,
-			reach: 0.7,
-			drift: false
-		})
-	);
 	let versions = $derived(library.versions(data.id));
 	let tracks = $derived(detail?.tracks ?? []);
 	/** The tracks by disc; `start` is the index of the disc's first track in `tracks`. */
@@ -171,7 +158,6 @@
 </script>
 
 <svelte:head><title>{album ? `${album.title} · ${album.artist}` : 'Album'} · Virgil</title></svelte:head>
-<svelte:window bind:scrollY />
 
 {#if missing && !album}
 	<div class="mx-auto mt-24 max-w-sm px-4 text-center">
@@ -197,15 +183,15 @@
 			</a>
 
 			<header class="flex flex-col items-center gap-6 pt-2 text-center md:flex-row md:items-end md:gap-8 md:pt-10 md:text-left">
-				<!-- The cover, and a margin around it, goes back: the cover flies home to the list. -->
+				<!-- The cover, and a margin around it, goes back. -->
 				<button
 					type="button"
-					class="relative w-[min(68vw,18rem)] shrink-0 cursor-pointer rounded-2xl transition-transform duration-200 ease-out after:absolute after:-inset-4 hover:scale-[1.015] active:scale-[0.97] active:duration-100 md:w-60"
+					class="relative w-[min(68vw,18rem)] shrink-0 cursor-pointer rounded-2xl after:absolute after:-inset-4 md:w-60"
 					aria-label="Back"
 					title="Back"
 					onclick={back}
 				>
-					<Cover art={album?.art} size={1000} eager slot="album:{data.id}" class="w-full rounded-2xl shadow-cover ring-1 ring-line" />
+					<Cover art={album?.art} size={1000} eager class="w-full rounded-2xl shadow-cover ring-1 ring-line" />
 				</button>
 				<div class="min-w-0 flex-1">
 					<h1 class="text-2xl font-bold tracking-tight text-balance md:text-4xl">{album?.title ?? ''}</h1>
@@ -330,7 +316,7 @@
 			<ol class={selecting ? "mt-2" : "mt-8 md:mt-10"}>
 				{#if !detail}
 					{#each { length: Math.min(album?.tracks ?? 8, 12) } as _, i (i)}
-						<li class="flex h-14 animate-pulse items-center gap-4 px-3">
+						<li class="flex h-14 items-center gap-4 px-3">
 							<div class="h-3 w-4 rounded bg-surface"></div>
 							<div class="h-3 flex-1 rounded bg-surface"></div>
 						</li>
@@ -354,7 +340,6 @@
 	{@const label = `Disc ${side.number}`}
 	{@const allPicked = side.tracks.every((t) => selected.has(t.uri))}
 	<li class="flex items-center gap-3.5 px-3 pb-2 {side.start === 0 ? 'pt-1' : 'mt-5 border-t border-line pt-6'}">
-		<Record spinning={onDisc} paused={!hub.playing} class="size-9 shrink-0 drop-shadow-sm" />
 		<div class="min-w-0 flex-1">
 			<h2 class="truncate text-[15px] font-semibold {onDisc ? 'text-accent' : ''}" title={side.title ?? undefined}>{side.title ?? label}</h2>
 			<p class="truncate text-[13px] text-muted tabular-nums">

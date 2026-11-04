@@ -1,16 +1,15 @@
 <script lang="ts">
-	import { GalleryHorizontal, Image, ImageOff, LayoutGrid, List } from '@lucide/svelte';
+	import { Image, ImageOff, LayoutGrid, List } from '@lucide/svelte';
 	import type { View } from '../stored.ts';
 
 	// Grid or list, plus artwork on or off while it's a list. Shared by the
-	// Albums, Artists and Genres pages; Albums also has the cover flow. Each button reaches 44px
+	// Albums, Artists and Genres pages. Each button reaches 44px
 	// tall for a finger.
-	let { view = $bindable(), art = $bindable(), flow = false }: { view: View; art: boolean; flow?: boolean } = $props();
+	let { view = $bindable(), art = $bindable() }: { view: View; art: boolean } = $props();
 
 	const options = [
 		{ id: 'grid', label: 'Grid', icon: LayoutGrid },
-		{ id: 'list', label: 'List', icon: List },
-		{ id: 'flow', label: 'Cover flow', icon: GalleryHorizontal }
+		{ id: 'list', label: 'List', icon: List }
 	] as const;
 </script>
 
@@ -27,10 +26,10 @@
 	</button>
 {/if}
 <div class="flex rounded-lg bg-surface p-0.5" role="group" aria-label="Layout">
-	{#each flow ? options : options.slice(0, 2) as option (option.id)}
+	{#each options as option (option.id)}
 		<button
 			type="button"
-			class="relative after:absolute after:inset-x-0 after:-inset-y-2 grid size-7 place-items-center rounded-md transition-colors {view === option.id
+			class="relative after:absolute after:inset-x-0 after:-inset-y-2 grid size-7 place-items-center rounded-md {view === option.id
 				? 'bg-bg text-fg shadow-sm ring-1 ring-line'
 				: 'text-muted hover:text-fg'}"
 			aria-pressed={view === option.id}

@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { Disc3 } from '@lucide/svelte';
 	import { isDecoded, markDecoded, standIn } from '../artwork.ts';
-	import { flight } from '../flight.svelte.ts';
 	import { TILE, artUrl, type ArtSize } from '../format.ts';
 
 	let {
@@ -9,8 +8,7 @@
 		src: image = null,
 		size = 300,
 		class: className = '',
-		eager = false,
-		slot
+		eager = false
 	}: {
 		art: string | null | undefined;
 		/** A full image URL (radio artwork), used instead of `art`. */
@@ -18,11 +16,6 @@
 		size?: ArtSize;
 		class?: string;
 		eager?: boolean;
-		/**
-		 * The same slot on two pages (`album:<id>`, `now`): the cover flies from one to the other as
-		 * the page changes (lib/flight.svelte.ts), hidden here while it is in the air.
-		 */
-		slot?: string;
 	} = $props();
 
 	/** The image that has come in and is ready to show, and the one standing in. */
@@ -35,10 +28,10 @@
 		if (image) return null;
 		return standIn(art, src) ?? (size > TILE ? artUrl(art, TILE) : null);
 	});
-	/** Decoded lately (a page coming back, the view switching): up at once, with no placeholder and no fade. */
+	/** Decoded lately (a page coming back, the view switching): up at once, with no placeholder. */
 	let known = $derived(isDecoded(src));
 	let shown = $derived((!!src && loaded === src) || known);
-	/** Something stands in: the image takes its place at once when ready, rather than fading in over the placeholder. */
+	/** Something stands in, in place of the placeholder. */
 	let covered = $derived(!!thumb && thumbLoaded === thumb);
 
 	/** `url` came in, in `img`: ready to show once decoded, so that swapping it in for a stand-in leaves no frame with neither. */
@@ -54,7 +47,7 @@
 		);
 	}
 
-	/** `img` is in already (cached): shown at once, instead of fading in again. */
+	/** `img` is in already (cached): shown at once. */
 	function cached(img: HTMLImageElement, url: string | null, then: (url: string) => void) {
 		if (!url || !img.complete || !img.naturalWidth) return;
 		markDecoded(url);
@@ -62,15 +55,7 @@
 	}
 </script>
 
-<div
-	class="relative aspect-square overflow-hidden bg-surface-2 {className}"
-	style:view-transition-name={slot && flight.name(slot)}
-	style:opacity={slot && flight.hides(slot) ? 0 : undefined}
-	style:transition={slot && flight.appearing.has(slot) ? 'opacity 150ms' : undefined}
-	{@attach (el) => {
-		if (slot) return flight.register(slot, el, () => art ?? image);
-	}}
->
+<div class="relative aspect-square overflow-hidden bg-surface-2 {className}">
 	{#if thumb && !shown}
 		{#key thumb}
 			<img
@@ -93,7 +78,7 @@
 				loading={eager || known ? 'eager' : 'lazy'}
 				decoding={known ? 'sync' : 'async'}
 				draggable="false"
-				class="absolute inset-0 size-full object-cover {covered ? '' : 'transition-opacity duration-300'}"
+				class="absolute inset-0 size-full object-cover"
 				class:opacity-0={!shown}
 				{@attach (img) => cached(img, src, (url) => (loaded = url))}
 				onload={(e) => decoded(e.currentTarget, src, (url) => (loaded = url))}

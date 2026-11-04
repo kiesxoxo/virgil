@@ -143,7 +143,7 @@
 				{@const active = sort.key === chip.key}
 				<button
 					type="button"
-					class="press inline-flex h-8 shrink-0 items-center gap-1 rounded-full px-3.5 text-[13px] font-semibold transition-colors {active
+					class="press inline-flex h-8 shrink-0 items-center gap-1 rounded-full px-3.5 text-[13px] font-semibold {active
 						? 'bg-fg text-bg'
 						: 'bg-surface text-muted hover:text-fg'}"
 					aria-pressed={active}
@@ -188,7 +188,7 @@
 	{#if !library.loaded}
 		<div class="grid gap-x-4 gap-y-6 {kind === 'artist' ? 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 2xl:grid-cols-8' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 2xl:grid-cols-6'}">
 			{#each { length: 12 } as _, i (i)}
-				<div class="animate-pulse">
+				<div class="">
 					<div class="aspect-square bg-surface {kind === 'artist' ? 'rounded-full' : 'rounded-xl'}"></div>
 					<div class="mx-auto mt-3 h-3 w-3/4 rounded bg-surface"></div>
 				</div>

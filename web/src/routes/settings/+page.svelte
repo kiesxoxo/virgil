@@ -3,7 +3,6 @@
 	import SignalPathCard from '#lib/components/SignalPathCard.svelte';
 	import { api } from '#lib/api.ts';
 	import { hub } from '#lib/hub.svelte.ts';
-	import { motion } from '#lib/motion.svelte.ts';
 	import { theme, type ThemeMode } from '#lib/theme.svelte.ts';
 	import { toasts } from '#lib/toast.svelte.ts';
 
@@ -59,11 +58,6 @@
 	});
 
 	let airplay = $derived(hub.source.available.includes('airplay'));
-	async function toggleMotion() {
-		if (motion.enabled) return motion.disable();
-		if (!(await motion.enable()))
-			toasts.show("Motion access wasn't allowed. Turn it on in Settings › Apps › Safari › Motion & Orientation Access.", 'error', 8000);
-	}
 
 	let homekit = $derived(hub.homekit);
 	let confirmReset = $state(false);
@@ -98,7 +92,7 @@
 		{#each modes as mode (mode.id)}
 			<button
 				type="button"
-				class="press flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-colors {theme.mode === mode.id
+				class="press flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold {theme.mode === mode.id
 					? 'bg-bg text-fg shadow-sm ring-1 ring-line'
 					: 'text-muted hover:text-fg'}"
 				aria-pressed={theme.mode === mode.id}
@@ -109,25 +103,6 @@
 			</button>
 		{/each}
 	</div>
-	{#if motion.supported}
-		<button
-			type="button"
-			role="switch"
-			aria-checked={motion.enabled}
-			class="mt-2 flex w-full items-center justify-between gap-4 rounded-2xl bg-surface px-4 py-3.5 text-left"
-			onclick={toggleMotion}
-		>
-			<span class="min-w-0">
-				<span class="block text-sm font-medium">Motion effects</span>
-				<span class="block text-xs text-muted">Covers move with your phone</span>
-			</span>
-			<span class="relative h-7 w-12 shrink-0 rounded-full transition-colors {motion.enabled ? 'bg-accent' : 'bg-bg ring-1 ring-line'}">
-				<span
-					class="absolute top-0.5 left-0.5 size-6 rounded-full bg-white shadow-sm transition-transform {motion.enabled ? 'translate-x-5' : ''}"
-				></span>
-			</span>
-		</button>
-	{/if}
 
 	{@render section('Output')}
 	{#if outputs.length > 1 || newCards.length}
@@ -148,7 +123,7 @@
 						{/if}
 					</span>
 					{#if switching === output.id}
-						<LoaderCircle class="size-4 shrink-0 animate-spin text-muted" />
+						<LoaderCircle class="size-4 shrink-0 text-muted" />
 					{:else if output.enabled}
 						<Check class="size-5 shrink-0 text-accent" />
 					{/if}
@@ -169,7 +144,7 @@
 						disabled={restarting}
 						onclick={restart}
 					>
-						<RotateCw class="size-3.5 {restarting ? 'animate-spin' : ''}" />
+						<RotateCw class="size-3.5" />
 						{restarting ? 'Restarting…' : 'Restart'}
 					</button>
 				</div>
@@ -196,7 +171,7 @@
 			</div>
 			<div class="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
 				{#if hub.library.scanning}
-					<LoaderCircle class="size-3 animate-spin" /> Scanning and fetching artwork…
+					<LoaderCircle class="size-3 " /> Scanning and fetching artwork…
 				{:else}
 					Up to date with MPD's database
 				{/if}
@@ -208,7 +183,7 @@
 			disabled={rescanning || !hub.player.online}
 			onclick={rescan}
 		>
-			<RefreshCw class="size-3.5 {rescanning ? 'animate-spin' : ''}" /> Rescan
+			<RefreshCw class="size-3.5" /> Rescan
 		</button>
 	</div>
 	<div class="flex items-center justify-between gap-4 px-4 py-3.5">
@@ -216,7 +191,7 @@
 			<div class="text-sm font-medium">Album artwork</div>
 			<div class="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
 				{#if downloading && download}
-					<LoaderCircle class="size-3 shrink-0 animate-spin" />
+					<LoaderCircle class="size-3 shrink-0 " />
 					Downloading… {download.done} of {download.total}, {download.saved} saved
 				{:else if download?.error}
 					<span class="text-warn">Stopped: {download.error}</span>

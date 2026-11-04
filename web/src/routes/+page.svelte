@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { ArrowDown, ArrowUp, LibraryBig, Search, X } from '@lucide/svelte';
-	import AlbumFlow from '#lib/components/AlbumFlow.svelte';
 	import AlbumGrid from '#lib/components/AlbumGrid.svelte';
 	import AlbumList, { LIST_COLUMNS_MIN_WIDTH, listColumns } from '#lib/components/AlbumList.svelte';
 	import Cover from '#lib/components/Cover.svelte';
@@ -12,10 +11,9 @@
 	import { clock, fold, qualityRank } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
-	import { flight } from '#lib/flight.svelte.ts';
 	import { contextMenu } from '#lib/menu.svelte.ts';
 	import { search } from '#lib/search.svelte.ts';
-	import { isAlbumView, isBoolean, store, stored, type View } from '#lib/stored.ts';
+	import { isBoolean, isView, store, stored, type View } from '#lib/stored.ts';
 	import type { Album } from '#lib/types/Album.ts';
 	import type { TrackHit } from '#lib/types/TrackHit.ts';
 
@@ -56,17 +54,25 @@
 		typeof v === 'object' && v !== null && (v as Sort).key in startsDesc && typeof (v as Sort).desc === 'boolean';
 
 	let sort = $state<Sort>(stored('albumSort', isSort, { key: 'artist', desc: false }));
-	// The cover flow needs WebGL2: without it, the grid.
-	let view = $state(stored('albumView', isAlbumView, 'grid'));
+	let view = $state(stored('albumView', isView, 'grid'));
 	let listArt = $state(stored('albumListArt', isBoolean, true));
 	/** The album in the middle of the screen as the view last changed: the next view opens on it. */
 	let reveal = $state<string | null>(null);
 
-	// The covers in sight fly to where the next view has them.
+	/** The album at the middle of the screen, or just above or below it where that falls in a gap. */
+	function centredAlbum(): string | null {
+		for (const dy of [0, -80, 80, -160, 160]) {
+			const tile = document.elementFromPoint(innerWidth / 2, innerHeight / 2 + dy)?.closest<HTMLElement>('[data-album]');
+			if (tile) return tile.dataset.album ?? null;
+		}
+		return null;
+	}
+
+	// The next view opens on the album in the middle of this one.
 	function switchView(next: View) {
 		if (next === view) return;
-		reveal = flight.nearest();
-		flight.switch(() => (view = next));
+		reveal = centredAlbum();
+		view = next;
 	}
 	let songs = $state<TrackHit[]>([]);
 	let contentWidth = $state(0);
@@ -145,7 +151,7 @@
 					<span class="mr-1 text-sm text-muted tabular-nums max-sm:hidden">{filtered.length.toLocaleString()}</span>
 				{/if}
 				<LibraryTabs />
-				<ViewToggle bind:view={() => view, switchView} bind:art={listArt} flow />
+				<ViewToggle bind:view={() => view, switchView} bind:art={listArt} />
 			</div>
 		</div>
 		<label class="relative mt-3 block max-lg:hidden lg:max-w-md">
@@ -175,7 +181,7 @@
 				{@const active = sort.key === chip.key}
 				<button
 					type="button"
-					class="press inline-flex h-8 shrink-0 items-center gap-1 rounded-full px-3.5 text-[13px] font-semibold transition-colors {active
+					class="press inline-flex h-8 shrink-0 items-center gap-1 rounded-full px-3.5 text-[13px] font-semibold {active
 						? 'bg-fg text-bg'
 						: 'bg-surface text-muted hover:text-fg'}"
 					aria-pressed={active}
@@ -254,7 +260,7 @@
 	{#if !library.loaded}
 		<div class="grid grid-cols-2 gap-x-3.5 gap-y-6 sm:grid-cols-4 lg:grid-cols-6">
 			{#each { length: 12 } as _, i (i)}
-				<div class="animate-pulse">
+				<div class="">
 					<div class="aspect-square rounded-xl bg-surface"></div>
 					<div class="mt-3 h-3 w-3/4 rounded bg-surface"></div>
 					<div class="mt-2 h-3 w-1/2 rounded bg-surface"></div>
@@ -274,8 +280,6 @@
 		<p class="mt-12 text-center text-sm text-muted">No albums match “{search.query}”.</p>
 	{:else if view === 'list'}
 		<AlbumList albums={filtered} art={listArt} {wide} {reveal} />
-	{:else if view === 'flow'}
-		<AlbumFlow albums={filtered} {reveal} />
 	{:else}
 		<AlbumGrid albums={filtered} {reveal} />
 	{/if}

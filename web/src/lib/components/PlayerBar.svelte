@@ -1,12 +1,10 @@
 <script lang="ts">
 	import { Airplay, ListMusic, Maximize2, Pause, Play, SkipForward } from '@lucide/svelte';
-	import { colorsOf } from '../ambient.svelte.ts';
 	import { api } from '../api.ts';
-	import { artUrl, clock } from '../format.ts';
+	import { clock } from '../format.ts';
 	import { hub } from '../hub.svelte.ts';
 	import { isStream, radio } from '../radio.svelte.ts';
 	import { keyboard } from '../keyboard.svelte.ts';
-	import type { Rgb } from '../palette.ts';
 	import { search } from '../search.svelte.ts';
 	import Cover from './Cover.svelte';
 	import OnAir from './OnAir.svelte';
@@ -23,27 +21,7 @@
 	let progress = $derived(
 		showProgress !== null ? showProgress * 100 : hub.player.duration > 0 ? (hub.elapsed / hub.player.duration) * 100 : 0
 	);
-	// A glow in the playing cover's colours, blending into the next song's (app.css's .glow).
-	let glowSrc = $derived(hub.external ? null : (shown?.src ?? artUrl(item?.art, 300)));
-	let glowColors = $state.raw<Rgb[] | null>(null);
-	$effect(() => {
-		const src = glowSrc;
-		if (!src) return void (glowColors = null);
-		let current = true;
-		colorsOf(src).then((c) => current && (glowColors = c));
-		return () => (current = false);
-	});
-	const glowColor = (c: Rgb | undefined, alpha: number) => (c ? `rgb(${c[0]} ${c[1]} ${c[2]} / ${alpha})` : undefined);
-	let glowA = $derived(glowColor(glowColors?.[0], 0.16));
-	let glowB = $derived(glowColor(glowColors?.[1] ?? glowColors?.[0], 0.08));
 
-	// The position moves once a second, and the bar glides to it; back to the start of a track it jumps.
-	let last = 0;
-	let glide = $derived.by(() => {
-		const forward = progress >= last;
-		last = progress;
-		return forward;
-	});
 </script>
 
 {#snippet airplayTile(cls: string)}
@@ -61,7 +39,6 @@
 		class="glass relative flex h-16 min-w-0 flex-1 items-center gap-3 overflow-hidden rounded-2xl pr-2 pl-2.5 shadow-float ring-1 ring-line"
 		class:hidden={search.open}
 	>
-		<div class="glow pointer-events-none absolute inset-0 -z-10" style:--glow-a={glowA} style:--glow-b={glowB}></div>
 		{#if hub.external}
 			{@render airplayTile('size-11 rounded-lg')}
 			<div class="min-w-0 flex-1">
@@ -73,7 +50,7 @@
 			</button>
 		{:else}
 			<a href="/now" class="touch-menu flex min-w-0 flex-1 items-center gap-3">
-				<Cover art={shown?.art} src={shown?.src} slot="now" class="size-11 shrink-0 rounded-lg" />
+				<Cover art={shown?.art} src={shown?.src} class="size-11 shrink-0 rounded-lg" />
 				<div class="min-w-0">
 					<div class="truncate text-sm font-semibold">{shown?.title ?? 'Not playing'}</div>
 					<div class="truncate text-xs text-muted">{shown ? shown.subtitle : 'Pick an album or a station'}</div>
@@ -102,8 +79,7 @@
 				<SkipForward class="size-5" fill="currentColor" />
 			</button>
 			<div class="absolute inset-x-3 bottom-0 h-[2px] overflow-hidden rounded-full bg-fg/8">
-				<!-- Moved, not resized: a width animating all the time would lay out the page on every frame. -->
-				<div class="h-full bg-accent {glide ? 'transition-transform duration-1000 ease-linear' : ''}" style:transform="translateX({progress - 100}%)"></div>
+				<div class="h-full bg-accent" style:transform="translateX({progress - 100}%)"></div>
 			</div>
 		{/if}
 	</div>
@@ -112,7 +88,6 @@
 
 <!-- Desktop: a full-width bar. -->
 <div data-bar class="glass fixed inset-x-0 bottom-0 z-30 hidden h-24 grid-cols-[1fr_minmax(0,38rem)_1fr] items-center gap-6 border-t border-line px-5 lg:grid">
-	<div class="glow pointer-events-none absolute inset-0 -z-10" style:--glow-a={glowA} style:--glow-b={glowB}></div>
 	<div class="flex min-w-0 items-center gap-3.5">
 		{#if hub.external}
 			{@render airplayTile('size-14 rounded-lg')}
@@ -121,7 +96,7 @@
 				<div class="truncate text-[13px] text-muted">Another device is playing here</div>
 			</div>
 		{:else if item && shown}
-			<a href="/now" class="shrink-0"><Cover art={shown.art} src={shown.src} slot="now" class="size-14 rounded-lg shadow-cover" /></a>
+			<a href="/now" class="shrink-0"><Cover art={shown.art} src={shown.src} class="size-14 rounded-lg shadow-cover" /></a>
 			<div class="min-w-0">
 				<a href="/now" class="block truncate text-sm font-semibold hover:underline">{shown.title}</a>
 				{#if item.albumId}

@@ -1,7 +1,7 @@
 // The rows of a window-scrolled list or grid to have in the DOM (lib/virtual.ts), kept up to date
 // with the page's scroll. A list is laid out where it will be from the start: its width is known on
 // its first render, it opens on its item, and it follows the scroll SvelteKit puts back on the way
-// back to it, before anything looks at it (a cover flying home to it, lib/flight.svelte.ts).
+// back to it.
 
 import { afterNavigate } from '$app/navigation';
 import { untrack } from 'svelte';

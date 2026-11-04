@@ -70,6 +70,7 @@
 		{@const playing = album.id === playingAlbum}
 		<div
 			role="row"
+			data-album={album.id}
 			aria-rowindex={index + 1}
 			class="absolute inset-x-0 top-0 flex items-center rounded-lg hover:bg-fg/4 {playing ? 'bg-accent/6' : ''}"
 			style:height="{rowHeight}px"
@@ -85,7 +86,7 @@
 				style:grid-template-columns={wide ? listColumns(art) : undefined}
 			>
 				{#if art}
-					<Cover art={album.art} slot="album:{album.id}" class="size-10 shrink-0 rounded-md" />
+					<Cover art={album.art} class="size-10 shrink-0 rounded-md" />
 				{/if}
 				{#if wide}
 					<span role="cell" class="flex min-w-0 items-center gap-2 text-sm font-medium {playing ? 'text-accent' : ''}">

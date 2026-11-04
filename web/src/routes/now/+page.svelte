@@ -6,9 +6,8 @@
 	import Scrubber from '#lib/components/Scrubber.svelte';
 	import SignalPathCard from '#lib/components/SignalPathCard.svelte';
 	import Transport from '#lib/components/Transport.svelte';
-	import { ambient } from '#lib/ambient.svelte.ts';
 	import { api } from '#lib/api.ts';
-	import { artUrl, hhmm } from '#lib/format.ts';
+	import { hhmm } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { isStream, radio } from '#lib/radio.svelte.ts';
 
@@ -16,11 +15,6 @@
 	let shown = $derived(item ? radio.show(item) : null);
 	let station = $derived(shown?.station ?? null);
 	let stream = $derived(item ? isStream(item.uri) : false);
-	let backdrop = $derived(hub.external ? null : (shown?.src ?? artUrl(item?.art, 300)));
-	// The colour behind the page, all the way down, drifting while playing. Opened from the mini
-	// player, it grows out of its cover.
-	const from = ambient.origin;
-	$effect(() => ambient.want({ key: 'now', src: backdrop, strength: 1, reach: 1, drift: hub.playing, from }));
 	let upNext = $derived(hub.currentIndex >= 0 ? hub.queue.items.slice(hub.currentIndex + 1, hub.currentIndex + 4) : []);
 
 	function close() {
@@ -49,10 +43,8 @@
 			</div>
 		{:else if item}
 			<NowCover
-				id={item.id}
 				art={item.art}
 				src={shown?.large ?? null}
-				playing={hub.playing}
 				canPrevious={!stream && hub.currentIndex > 0}
 				canNext={!stream && hub.currentIndex < hub.queue.items.length - 1}
 				onclose={close}

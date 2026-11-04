@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { fade, fly } from 'svelte/transition';
 	import { menu } from '../menu.svelte.ts';
 	import Cover from './Cover.svelte';
 
@@ -30,12 +29,11 @@
 
 {#if menu.open}
 	{#if sheet}
-		<div class="fixed inset-0 z-50 bg-black/45" role="presentation" transition:fade={{ duration: 150 }} onclick={dismiss}></div>
+		<div class="fixed inset-0 z-50 bg-black/45" role="presentation" onclick={dismiss}></div>
 		<div
 			class="pb-safe fixed inset-x-0 bottom-0 z-50 rounded-t-3xl bg-bg shadow-float"
 			role="menu"
 			tabindex="-1"
-			transition:fly={{ y: 320, duration: 220, opacity: 1 }}
 		>
 			<div class="mx-auto mt-2.5 h-1 w-10 rounded-full bg-fg/15"></div>
 			{#if menu.header}
@@ -89,7 +87,6 @@
 			style:width="{WIDTH}px"
 			style:left="{left}px"
 			style:top="{top}px"
-			transition:fly={{ y: -4, duration: 120 }}
 		>
 			{#if menu.header}
 				<div class="truncate px-3 pt-1.5 pb-2 text-xs font-semibold text-muted">

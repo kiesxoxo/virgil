@@ -54,7 +54,7 @@
 					class="w-[min(52vw,13rem)] shrink-0 shadow-cover ring-1 ring-line md:w-52 {kind === 'artist' ? 'rounded-full' : 'rounded-2xl'}"
 				/>
 			{:else}
-				<div class="aspect-square w-[min(52vw,13rem)] shrink-0 animate-pulse bg-surface md:w-52 {kind === 'artist' ? 'rounded-full' : 'rounded-2xl'}"></div>
+				<div class="aspect-square w-[min(52vw,13rem)] shrink-0 bg-surface md:w-52 {kind === 'artist' ? 'rounded-full' : 'rounded-2xl'}"></div>
 			{/if}
 			<div class="min-w-0 flex-1">
 				<p class="text-xs font-semibold tracking-wider text-muted uppercase">{kind === 'artist' ? 'Artist' : 'Genre'}</p>

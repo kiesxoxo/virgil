@@ -43,6 +43,7 @@
 		{@const versions = library.versions(album.id).length}
 		<div
 			class="group absolute top-0 left-0"
+			data-album={album.id}
 			style:width="{tile}px"
 			style:transform="translate3d({(index % cols) * (tile + gapX)}px, {Math.floor(index / cols) * rowHeight}px, 0)"
 			{@attach contextMenu(
@@ -52,7 +53,7 @@
 		>
 			<a href="/album/{album.id}" class="block press">
 				<div class="relative">
-					<Cover art={album.art} size={TILE} slot="album:{album.id}" class="rounded-xl shadow-cover ring-1 ring-line" />
+					<Cover art={album.art} size={TILE} class="rounded-xl shadow-cover ring-1 ring-line" />
 					{#if versions > 1}
 						<span
 							class="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white"
@@ -67,7 +68,7 @@
 			</a>
 			<button
 				type="button"
-				class="absolute right-2.5 grid size-11 place-items-center rounded-full bg-accent text-accent-fg opacity-0 shadow-float transition duration-200 group-hover:opacity-100 hover:scale-105 focus-visible:opacity-100 max-lg:hidden"
+				class="absolute right-2.5 grid size-11 place-items-center rounded-full bg-accent text-accent-fg opacity-0 shadow-float group-hover:opacity-100 focus-visible:opacity-100 max-lg:hidden"
 				style:top="{tile - 54}px"
 				aria-label="Play {album.title}"
 				onclick={() => queue.playAlbum(album.id)}
