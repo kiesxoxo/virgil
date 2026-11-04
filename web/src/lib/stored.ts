@@ -22,8 +22,9 @@ export function store(values: Record<string, unknown>) {
 	}
 }
 
-export type View = 'grid' | 'list' | 'flow';
-export const isView = (v: unknown): v is 'grid' | 'list' => v === 'grid' || v === 'list';
-/** Albums also has the cover flow. */
-export const isAlbumView = (v: unknown): v is View => isView(v) || v === 'flow';
+export type View = 'grid' | 'list';
+export const isView = (v: unknown): v is View => v === 'grid' || v === 'list';
+/** The albums have one more. */
+export type AlbumView = View | 'tuner';
+export const isAlbumView = (v: unknown): v is AlbumView => isView(v) || v === 'tuner';
 export const isBoolean = (v: unknown): v is boolean => typeof v === 'boolean';

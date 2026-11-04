@@ -13,25 +13,27 @@
 </script>
 
 {#snippet live()}
-	<span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent px-1.5 py-px text-[10px] font-bold tracking-wider text-accent-fg">
-		<span class="size-1.5 animate-pulse rounded-full bg-white"></span>LIVE
+	<span class="label inline-flex shrink-0 items-center gap-1.5 text-[11px] text-accent">
+		<span class="size-1.5 rounded-full bg-accent"></span>LIVE
 	</span>
 {/snippet}
 
 {#if show && progress !== null}
 	<div class="w-full">
-		<div class="flex items-center gap-3 {compact ? 'text-[11px]' : ''}">
-			{#if compact}{@render live()}{/if}
-			{#if compact}<span class="shrink-0 text-right font-medium whitespace-nowrap text-muted tabular-nums">{hhmm(show.start)}</span>{/if}
-			<div class="flex h-5 flex-1 items-center" role="progressbar" aria-label="{show.title}, on air" aria-valuenow={Math.round(progress * 100)}>
-				<div class="h-1 w-full overflow-hidden rounded-full bg-fg/12">
-					<div class="h-full rounded-full bg-accent transition-transform duration-1000" style:transform="translateX({progress * 100 - 100}%)"></div>
+		<div class="flex items-center gap-3">
+			{#if compact}
+				{@render live()}
+				<span class="label shrink-0 text-[11px] whitespace-nowrap text-muted">{hhmm(show.start)}</span>
+			{/if}
+			<div class="flex flex-1 items-center {compact ? 'h-6' : 'h-11'}" role="progressbar" aria-label="{show.title}, on air" aria-valuenow={Math.round(progress * 100)}>
+				<div class="w-full overflow-hidden border border-accent {compact ? 'h-2.5' : 'h-3.5'}">
+					<div class="h-full bg-accent" style:transform="translateX({progress * 100 - 100}%)"></div>
 				</div>
 			</div>
-			{#if compact}<span class="shrink-0 font-medium whitespace-nowrap text-muted tabular-nums">{hhmm(show.end)}</span>{/if}
+			{#if compact}<span class="label shrink-0 text-[11px] whitespace-nowrap text-muted">{hhmm(show.end)}</span>{/if}
 		</div>
 		{#if !compact}
-			<div class="mt-1 flex items-center justify-between text-[11px] font-medium text-muted tabular-nums">
+			<div class="label -mt-1 flex items-center justify-between text-[11px] text-muted">
 				<span>{hhmm(show.start)}</span>
 				{@render live()}
 				<span>{hhmm(show.end)}</span>
@@ -39,7 +41,7 @@
 		{/if}
 	</div>
 {:else}
-	<div class="flex h-5 w-full items-center justify-center gap-1.5 text-[11px] font-semibold tracking-wider text-muted uppercase {compact ? '' : 'mb-4'}">
+	<div class="label flex w-full items-center justify-center gap-1.5 text-[11px] text-muted {compact ? 'h-6' : 'h-11'}">
 		{#if station && !station.now}
 			<InfinityIcon class="size-3.5" />Infinite Mixtape
 		{:else}

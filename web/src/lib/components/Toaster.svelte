@@ -1,22 +1,20 @@
 <script lang="ts">
 	import { Check, CircleAlert } from '@lucide/svelte';
-	import { fly } from 'svelte/transition';
 	import { toasts } from '../toast.svelte.ts';
 </script>
 
 <div
-	class="pointer-events-none fixed inset-x-0 bottom-[calc(9.5rem+env(safe-area-inset-bottom))] z-[60] flex flex-col items-center gap-2 px-4 lg:bottom-28"
+	class="pointer-events-none fixed inset-x-0 bottom-[calc(7.5rem+env(safe-area-inset-bottom))] z-[60] flex flex-col items-stretch lg:right-auto lg:bottom-[72px] lg:left-60 lg:w-96"
 	aria-live="polite"
 >
 	{#each toasts.items as toast (toast.id)}
 		<button
 			type="button"
-			transition:fly={{ y: 12, duration: 180 }}
-			class="pointer-events-auto flex max-w-sm items-center gap-2.5 rounded-full bg-fg py-2.5 pr-4 pl-3 text-sm font-medium text-bg shadow-float"
+			class="pointer-events-auto flex min-h-11 w-full items-center gap-2.5 border-t border-bg bg-fg px-3 py-2 text-left text-sm font-medium text-bg"
 			onclick={() => toasts.dismiss(toast.id)}
 		>
 			{#if toast.kind === 'done'}
-				<Check class="size-4 shrink-0 text-good" />
+				<Check class="size-4 shrink-0" />
 			{:else}
 				<CircleAlert class="size-4 shrink-0 text-accent" />
 			{/if}

@@ -1,44 +1,40 @@
-<script lang="ts">
-	import { GalleryHorizontal, Image, ImageOff, LayoutGrid, List } from '@lucide/svelte';
-	import type { View } from '../stored.ts';
+<script lang="ts" generics="V extends AlbumView">
+	import { Image, ImageOff, LayoutGrid, List, Radio } from '@lucide/svelte';
+	import type { AlbumView } from '../stored.ts';
 
-	// Grid or list, plus artwork on or off while it's a list. Shared by the
-	// Albums, Artists and Genres pages; Albums also has the cover flow. Each button reaches 44px
-	// tall for a finger.
-	let { view = $bindable(), art = $bindable(), flow = false }: { view: View; art: boolean; flow?: boolean } = $props();
+	// Grid or list (the albums also have the tuner), plus artwork on or off while it's a list. Shared
+	// by the Albums, Artists and Genres pages.
+	let { view = $bindable(), art = $bindable(), tuner = false }: { view: V; art: boolean; tuner?: boolean } = $props();
 
 	const options = [
 		{ id: 'grid', label: 'Grid', icon: LayoutGrid },
 		{ id: 'list', label: 'List', icon: List },
-		{ id: 'flow', label: 'Cover flow', icon: GalleryHorizontal }
+		{ id: 'tuner', label: 'Tuner', icon: Radio }
 	] as const;
+	let shown = $derived(tuner ? options : options.slice(0, 2));
 </script>
 
 {#if view === 'list'}
 	<button
 		type="button"
-		class="press relative grid size-8 after:absolute after:inset-x-0 after:-inset-y-2 place-items-center rounded-lg bg-surface {art ? 'text-fg' : 'text-muted'} hover:text-fg"
+		class="press grid w-11 shrink-0 place-items-center border-l border-line {art ? 'text-fg' : 'text-muted'}"
 		aria-pressed={art}
 		aria-label={art ? 'Hide artwork' : 'Show artwork'}
 		title={art ? 'Hide artwork' : 'Show artwork'}
 		onclick={() => (art = !art)}
 	>
-		{#if art}<Image class="size-4" />{:else}<ImageOff class="size-4" />{/if}
+		{#if art}<Image class="size-[18px]" />{:else}<ImageOff class="size-[18px]" />{/if}
 	</button>
 {/if}
-<div class="flex rounded-lg bg-surface p-0.5" role="group" aria-label="Layout">
-	{#each flow ? options : options.slice(0, 2) as option (option.id)}
-		<button
-			type="button"
-			class="relative after:absolute after:inset-x-0 after:-inset-y-2 grid size-7 place-items-center rounded-md transition-colors {view === option.id
-				? 'bg-bg text-fg shadow-sm ring-1 ring-line'
-				: 'text-muted hover:text-fg'}"
-			aria-pressed={view === option.id}
-			aria-label="{option.label} view"
-			title="{option.label} view"
-			onclick={() => (view = option.id)}
-		>
-			<option.icon class="size-4" />
-		</button>
-	{/each}
-</div>
+{#each shown as option (option.id)}
+	<button
+		type="button"
+		class="press grid w-11 shrink-0 place-items-center border-l border-line {view === option.id ? 'text-accent' : 'text-muted hover:text-fg'}"
+		aria-pressed={view === option.id}
+		aria-label="{option.label} view"
+		title="{option.label} view"
+		onclick={() => (view = option.id as V)}
+	>
+		<option.icon class="size-[18px]" />
+	</button>
+{/each}

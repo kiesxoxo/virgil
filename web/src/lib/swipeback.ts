@@ -1,7 +1,7 @@
 // Swiping right goes back, as in an iOS app: on a page with a back link (marked data-back), a
 // swipe from left to right anywhere on it follows that link, so each page goes back its own way
-// (an album to the list it came from, its cover flying home). Not from something that moves
-// sideways itself: a row that scrolls across, or the cover flow. A page can also be pulled down
+// (an album to the list it came from). Not from something that moves sideways itself: a row that
+// scrolls across, or the tuner's dial. A page can also be pulled down
 // from its top to go back (pullBack), as a sheet is.
 
 /** At least this far across, or flicked this fast (px/ms) at least half as far. */
@@ -61,17 +61,14 @@ const PULL = 120;
 
 /**
  * Pulling `node` (a page) down from the top of the page goes back: the page follows the finger,
- * and let go far enough it follows the back link (the album's cover flies home from where it is);
- * not far enough, it eases back up. Only here, not on the whole window: a touchmove listener that
+ * and let go far enough it follows the back link; not far enough, it is back in place at once. Only here, not on the whole window: a touchmove listener that
  * can stop scrolling makes every scroll it covers wait for it.
  */
 export function pullBack(node: HTMLElement): () => void {
 	let start: { x: number; y: number; t: number } | null = null;
 	let pulling = false;
-	const still = matchMedia('(prefers-reduced-motion: reduce)');
 
-	const place = (y: number, ease = false) => {
-		node.style.transition = ease && !still.matches ? 'transform 300ms cubic-bezier(0.2, 0, 0, 1)' : '';
+	const place = (y: number) => {
 		node.style.transform = y ? `translateY(${y}px)` : '';
 	};
 	const begin = (e: TouchEvent) => {
@@ -105,10 +102,10 @@ export function pullBack(node: HTMLElement): () => void {
 		if (!pulling) return;
 		pulling = false;
 		if (dy > PULL || speed > FLICK) backLink()?.click();
-		else place(0, true);
+		else place(0);
 	};
 	const cancel = () => {
-		if (pulling) place(0, true);
+		if (pulling) place(0);
 		[start, pulling] = [null, false];
 	};
 

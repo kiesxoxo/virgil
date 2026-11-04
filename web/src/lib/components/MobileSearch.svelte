@@ -4,10 +4,10 @@
 	import { page } from '$app/state';
 	import { search } from '../search.svelte.ts';
 
-	// Phones: a search button beside the now-playing bar. Tapping it opens a
-	// field in its place, focused at once so the keyboard comes up. The bar
-	// lifts itself above the keyboard (PlayerBar), so the focus mustn't also
-	// scroll: iOS would pan the whole page up until the next re-render.
+	// Phones: a search key on the now-playing bar. Tapping it opens a field in
+	// the bar's place, focused at once so the keyboard comes up. The bar lifts
+	// itself above the keyboard (PlayerBar), so the focus mustn't also scroll:
+	// iOS would pan the whole page up until the next re-render.
 	let input = $state<HTMLInputElement>();
 
 	const placeholders: Record<string, string> = { '/artists': 'Search artists', '/genres': 'Search genres' };
@@ -29,14 +29,14 @@
 {#if search.open}
 	<form
 		role="search"
-		class="glass flex h-16 min-w-0 flex-1 items-center gap-1 rounded-2xl pr-1.5 pl-4 shadow-float ring-1 ring-line"
+		class="flex min-w-0 flex-1 items-stretch"
 		onsubmit={(e) => {
 			e.preventDefault();
 			// Search on the keyboard: put it away and show the results.
 			input?.blur();
 		}}
 	>
-		<Search class="size-5 shrink-0 text-muted" />
+		<Search class="ml-3 size-5 shrink-0 self-center text-muted" />
 		<input
 			bind:this={input}
 			bind:value={search.query}
@@ -46,14 +46,14 @@
 			autocomplete="off"
 			autocapitalize="off"
 			spellcheck="false"
-			class="h-full min-w-0 flex-1 bg-transparent pl-1.5 text-base outline-none placeholder:text-faint [&::-webkit-search-cancel-button]:hidden"
+			class="min-w-0 flex-1 bg-transparent px-2.5 text-base outline-none placeholder:text-muted [&::-webkit-search-cancel-button]:hidden"
 			oninput={() => search.showResults(true)}
 			{@attach (node) => node.focus({ preventScroll: true })}
 		/>
 		{#if search.query}
 			<button
 				type="button"
-				class="grid size-9 shrink-0 place-items-center rounded-full text-muted"
+				class="press grid w-11 shrink-0 place-items-center border-l border-line text-muted"
 				aria-label="Clear search"
 				onclick={() => {
 					search.clear();
@@ -63,15 +63,10 @@
 				<X class="size-4" />
 			</button>
 		{/if}
-		<button type="button" class="h-10 shrink-0 rounded-full px-3 text-[15px] font-medium text-accent" onclick={close}>Cancel</button>
+		<button type="button" class="press wide shrink-0 border-l border-line px-3.5 text-[11px] uppercase" onclick={close}>Cancel</button>
 	</form>
 {:else}
-	<button
-		type="button"
-		class="glass press grid size-16 shrink-0 place-items-center rounded-2xl text-fg shadow-float ring-1 ring-line"
-		aria-label="Search"
-		onclick={open}
-	>
-		<Search class="size-6" />
+	<button type="button" class="press grid w-14 shrink-0 place-items-center border-l border-line" aria-label="Search" onclick={open}>
+		<Search class="size-[22px]" />
 	</button>
 {/if}

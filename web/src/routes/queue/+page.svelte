@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { ListMusic, Radio as RadioIcon, Trash } from '@lucide/svelte';
+	import { Radio as RadioIcon } from '@lucide/svelte';
 	import Cover from '#lib/components/Cover.svelte';
 	import Equalizer from '#lib/components/Equalizer.svelte';
+	import Masthead from '#lib/components/Masthead.svelte';
 	import Menu from '#lib/components/Menu.svelte';
 	import { queueHeader, queueItems } from '#lib/actions.ts';
 	import { api } from '#lib/api.ts';
@@ -42,92 +43,77 @@
 {#snippet row(item: QueueItem, dim: boolean)}
 	{@const shown = radio.show(item)}
 	<li
-		class="group flex items-center rounded-xl hover:bg-fg/4 [contain-intrinsic-size:auto_60px] [content-visibility:auto] {dim
-			? 'opacity-55 hover:opacity-100'
-			: ''}"
+		class="flex items-stretch border-b border-line hover:bg-surface [contain-intrinsic-size:auto_56px] [content-visibility:auto] {dim ? 'opacity-55 hover:opacity-100' : ''}"
 		{@attach contextMenu(
 			() => actions(item),
 			() => queueHeader(item)
 		)}
 	>
-		<button type="button" class="flex min-w-0 flex-1 items-center gap-3 py-2 pl-2 text-left" onclick={() => api.playItem(item.id)}>
-			<Cover art={shown.art} src={shown.src} class="size-11 shrink-0 rounded-md" />
+		<button type="button" class="flex min-w-0 flex-1 items-center gap-3 text-left" onclick={() => api.playItem(item.id)}>
+			<Cover art={shown.art} src={shown.src} class="size-14 shrink-0" />
 			<span class="min-w-0 flex-1">
-				<span class="block truncate text-[15px] font-medium">{shown.title}</span>
-				<span class="block truncate text-[13px] text-muted">{subtitle(item)}</span>
+				<span class="wide block truncate text-[13px] leading-[18px]">{shown.title}</span>
+				<span class="block truncate text-xs leading-4 text-muted">{subtitle(item)}</span>
 			</span>
 			{#if isStream(item.uri)}
-				<RadioIcon class="size-4 text-faint" aria-label="Radio" />
+				<RadioIcon class="size-4 text-muted" aria-label="Radio" />
 			{:else}
-				<span class="text-xs text-faint tabular-nums">{clock(item.duration)}</span>
+				<span class="label text-[11px] text-muted">{clock(item.duration)}</span>
 			{/if}
 		</button>
-		<Menu class="mx-1" items={() => actions(item)} header={queueHeader(item)} />
+		<Menu items={() => actions(item)} header={queueHeader(item)} />
 	</li>
 {/snippet}
 
-<div class="pt-safe mx-auto max-w-3xl px-4 pt-4 lg:px-8 lg:pt-8">
-	<div class="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
-		<div>
-			<h1 class="text-[28px] font-bold tracking-tight lg:text-[32px]">Queue</h1>
-			{#if items.length}
-				<p class="mt-0.5 text-sm whitespace-nowrap text-muted">
-					{items.length} {items.length === 1 ? 'song' : 'songs'}{#if remaining > 0}&ensp;·&ensp;{span(remaining)} left{/if}
-				</p>
-			{/if}
-		</div>
-		{#if items.length}
-			<div class="flex gap-2">
-				<button
-					type="button"
-					class="press h-9 rounded-full px-3.5 text-[13px] font-semibold whitespace-nowrap {hub.player.consume
-						? 'bg-fg text-bg'
-						: 'bg-surface text-muted hover:text-fg'}"
-					aria-pressed={hub.player.consume}
-					title="Remove songs from the queue once played"
-					onclick={() => api.modes({ consume: !hub.player.consume })}
-				>
-					Auto-remove
-				</button>
-				<button
-					type="button"
-					class="press inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold whitespace-nowrap {confirmClear
-						? 'bg-accent text-accent-fg'
-						: 'bg-surface text-muted hover:text-fg'}"
-					title={hub.current ? 'Remove everything except the song that is playing' : 'Remove everything'}
-					onclick={clear}
-				>
-					<Trash class="size-3.5" />
-					{confirmClear ? 'Tap to confirm' : 'Clear'}
-				</button>
-			</div>
-		{/if}
-	</div>
+<div class="pt-safe">
+	<Masthead word="QUEUE" />
 
 	{#if items.length === 0}
-		<div class="mx-auto mt-20 max-w-sm text-center">
-			<div class="mx-auto grid size-16 place-items-center rounded-2xl bg-surface text-muted"><ListMusic class="size-7" /></div>
-			<h2 class="mt-5 text-lg font-semibold">Nothing queued</h2>
-			<p class="mt-1.5 text-sm text-muted">Play an album, or add songs with “Play next”.</p>
-			<a href="/" class="press mt-5 inline-flex h-10 items-center rounded-full bg-accent px-5 text-sm font-semibold text-accent-fg">Browse albums</a>
+		<div class="border-t border-line px-3 pt-8">
+			<h2 class="wide text-2xl">Nothing queued</h2>
+			<p class="mt-2 text-sm text-muted">Play an album, or add songs with “Play next”.</p>
+			<a href="/" class="press wide mt-5 flex h-14 items-center justify-center bg-accent text-[15px] text-accent-fg uppercase">Browse albums</a>
 		</div>
 	{:else}
+		<div class="flex h-11 items-stretch border-y border-line">
+			<p class="label flex min-w-0 flex-1 items-center px-3 text-[10.5px] whitespace-nowrap text-muted">
+				{items.length} {items.length === 1 ? 'song' : 'songs'}{#if remaining > 0}&nbsp;/ {span(remaining)}{/if}
+			</p>
+			<button
+				type="button"
+				class="label border-l border-line px-3 text-[10.5px] whitespace-nowrap {hub.player.consume ? 'press-lit bg-fg text-bg' : 'press text-muted'}"
+				aria-pressed={hub.player.consume}
+				title="Remove songs from the queue once played"
+				onclick={() => api.modes({ consume: !hub.player.consume })}
+			>
+				Auto-remove
+			</button>
+			<button
+				type="button"
+				class="label border-l border-line px-3 text-[10.5px] whitespace-nowrap {confirmClear ? 'press bg-accent text-accent-fg' : 'press text-muted'}"
+				title={hub.current ? 'Remove everything except the song that is playing' : 'Remove everything'}
+				onclick={clear}
+			>
+				{confirmClear ? 'Confirm' : 'Clear'}
+			</button>
+		</div>
+
 		{#if hub.current}
 			{@const item = hub.current}
 			{@const shown = radio.show(item)}
-			<h2 class="mt-7 mb-2 text-xs font-semibold tracking-wider text-muted uppercase">Now playing</h2>
-			<a href="/now" class="flex items-center gap-4 rounded-2xl bg-surface p-3">
-				<Cover art={shown.art} src={shown.src} class="size-16 shrink-0 rounded-lg shadow-cover" />
+			<h2 class="label flex h-9 items-center border-b border-line px-3 text-[11px] text-accent">Now playing</h2>
+			<a href="/now" class="flex items-center gap-3 border-b border-line pr-3">
+				<Cover art={shown.art} src={shown.src} class="size-20 shrink-0" />
 				<span class="min-w-0 flex-1">
-					<span class="block truncate font-semibold">{shown.title}</span>
-					<span class="block truncate text-sm text-muted">{subtitle(item)}</span>
+					<span class="wide line-clamp-2 text-[15px] leading-[18px]">{shown.title}</span>
+					<span class="mt-0.5 block truncate text-xs leading-4 text-muted">{subtitle(item)}</span>
 				</span>
-				<Equalizer playing={hub.playing} class="mr-2" />
+				<Equalizer playing={hub.playing} class="text-accent" />
 			</a>
 		{/if}
 
 		{#if upNext.length}
-			<h2 class="mt-7 mb-1 text-xs font-semibold tracking-wider text-muted uppercase">{cur >= 0 ? 'Up next' : 'Queue'}</h2>
+			<h2 class="label flex h-9 items-center border-b border-line px-3 text-[11px] text-muted">{cur >= 0 ? 'Up next' : 'Queue'}</h2>
 			<ul>
 				{#each upNext as item (item.id)}
 					{@render row(item, false)}
@@ -136,7 +122,7 @@
 		{/if}
 
 		{#if played.length}
-			<h2 class="mt-7 mb-1 text-xs font-semibold tracking-wider text-muted uppercase">Played</h2>
+			<h2 class="label flex h-9 items-center border-b border-line px-3 text-[11px] text-muted">Played</h2>
 			<ul>
 				{#each played as item (item.id)}
 					{@render row(item, true)}

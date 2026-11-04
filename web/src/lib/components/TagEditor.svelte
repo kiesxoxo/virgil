@@ -19,7 +19,6 @@
 		Wand2,
 		X
 	} from '@lucide/svelte';
-	import { fade, fly } from 'svelte/transition';
 	import { clock, khz } from '../format.ts';
 	import { menu, type MenuItem } from '../menu.svelte.ts';
 	import { LONG, STANDARD, changed, fillFromName, shared, validName, type Row } from '../tagedit.ts';
@@ -146,51 +145,46 @@
 {/snippet}
 
 {#if editor.open}
-	<div class="fixed inset-0 z-40 bg-black/45 max-sm:hidden" role="presentation" transition:fade={{ duration: 150 }} onclick={() => editor.close()}></div>
+	<div class="fixed inset-0 z-40 bg-black/60 max-sm:hidden" role="presentation" onclick={() => editor.close()}></div>
 	<div
-		class="fixed inset-0 z-40 flex flex-col bg-bg sm:inset-x-4 sm:top-[6vh] sm:bottom-auto sm:mx-auto sm:h-[min(88vh,52rem)] sm:max-w-3xl sm:rounded-3xl sm:shadow-float sm:ring-1 sm:ring-line"
+		class="fixed inset-0 z-40 flex flex-col bg-bg sm:inset-x-4 sm:top-[6vh] sm:bottom-auto sm:mx-auto sm:h-[min(88vh,52rem)] sm:max-w-3xl sm:border sm:border-line"
 		role="dialog"
 		aria-modal="true"
 		aria-label="Tag editor"
-		transition:fly={{ y: 40, duration: 200 }}
 	>
-		<header class="pt-safe flex items-center gap-2 border-b border-line px-2 sm:px-3">
-			<button type="button" class="press h-11 rounded-full px-3 text-[15px] font-medium text-accent" disabled={editor.saving} onclick={() => editor.close()}>
-				Cancel
-			</button>
-			<div class="min-w-0 flex-1 py-2.5 text-center">
-				<h2 class="font-semibold">Properties</h2>
-				<p class="truncate text-xs text-muted">{subtitle}</p>
+		<header class="pt-safe flex items-stretch border-b border-line">
+			<button type="button" class="press label shrink-0 px-3 text-[11px] disabled:text-faint" disabled={editor.saving} onclick={() => editor.close()}>Cancel</button>
+			<div class="min-w-0 flex-1 border-x border-line px-3 py-2 text-center">
+				<h2 class="wide text-[13px] leading-4">Properties</h2>
+				<p class="truncate text-xs leading-4 text-muted">{subtitle}</p>
 			</div>
 			<button
 				type="button"
-				class="press inline-flex h-9 items-center gap-1.5 rounded-full bg-accent px-4 text-sm font-semibold text-accent-fg disabled:opacity-40"
+				class="press wide inline-flex shrink-0 items-center gap-1.5 bg-accent px-4 text-[13px] text-accent-fg uppercase disabled:bg-surface-2 disabled:text-faint"
 				disabled={!editor.dirty || !!editor.problem || editor.saving}
 				title={editor.problem ?? undefined}
 				onclick={() => editor.save()}
 			>
-				{#if editor.saving}<LoaderCircle class="size-4 animate-spin" />{/if}
+				{#if editor.saving}<LoaderCircle class="size-4" />{/if}
 				Save
 			</button>
 		</header>
 
-		<div class="flex items-center gap-2 px-3 pt-3 sm:px-4">
-			<div class="grid flex-1 grid-cols-2 gap-1 rounded-xl bg-surface p-1 sm:max-w-64">
-				{#each [['metadata', 'Metadata'], ['details', 'Details']] as [id, label] (id)}
-					<button
-						type="button"
-						class="h-8 rounded-lg text-[13px] font-semibold {tab === id ? 'bg-bg text-fg shadow-sm ring-1 ring-line' : 'text-muted'}"
-						aria-pressed={tab === id}
-						onclick={() => (tab = id as typeof tab)}
-					>
-						{label}
-					</button>
-				{/each}
-			</div>
+		<div class="flex h-11 shrink-0 items-stretch border-b border-line">
+			{#each [['metadata', 'Metadata'], ['details', 'Details']] as [id, label] (id)}
+				<button
+					type="button"
+					class="label flex-1 border-r border-line text-[11px] last:border-r-0 sm:max-w-40 {tab === id ? 'press-lit bg-fg text-bg' : 'press text-muted'}"
+					aria-pressed={tab === id}
+					onclick={() => (tab = id as typeof tab)}
+				>
+					{label}
+				</button>
+			{/each}
 			{#if tab === 'metadata'}
 				<button
 					type="button"
-					class="press inline-flex h-10 items-center gap-1.5 rounded-full bg-surface px-3.5 text-[13px] font-semibold disabled:opacity-40"
+					class="press label ml-auto inline-flex items-center gap-1.5 border-l border-line px-3 text-[11px] disabled:text-faint"
 					disabled={!count || editor.saving}
 					onclick={(e) => tools(e.currentTarget)}
 				>
@@ -201,10 +195,10 @@
 
 		<div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:px-4">
 			{#if editor.loading}
-				<div class="grid h-40 place-items-center text-muted"><LoaderCircle class="size-6 animate-spin" /></div>
+				<div class="grid h-40 place-items-center text-muted"><LoaderCircle class="size-6 " /></div>
 			{:else}
 				{#if editor.unreadable.length}
-					<div class="mb-3 flex gap-2.5 rounded-2xl bg-warn-bg px-4 py-3 text-[13px] text-warn">
+					<div class="mb-3 flex gap-2.5 bg-surface px-4 py-3 text-[13px] text-warn">
 						<TriangleAlert class="mt-0.5 size-4 shrink-0" />
 						<div class="min-w-0">
 							<p class="font-semibold">
@@ -221,10 +215,10 @@
 				{#if tab === 'metadata' && count}
 					{#if editor.lookup}
 						{@const lookup = editor.lookup}
-						<section class="mb-3 rounded-2xl bg-surface p-3" transition:fly={{ y: -8, duration: 150 }}>
+						<section class="mb-3 bg-surface p-3">
 							<div class="flex items-center justify-between">
 								<h3 class="text-sm font-semibold">Look up online</h3>
-								<button type="button" class="grid size-8 place-items-center rounded-full text-muted hover:bg-fg/6" aria-label="Close" onclick={() => (editor.lookup = null)}>
+								<button type="button" class="grid size-8 place-items-center text-muted hover:bg-surface-2" aria-label="Close" onclick={() => (editor.lookup = null)}>
 									<X class="size-4" />
 								</button>
 							</div>
@@ -236,7 +230,7 @@
 								}}
 							>
 								<input
-									class="h-10 min-w-0 flex-1 rounded-xl bg-bg px-3 text-base ring-1 ring-line outline-none focus:ring-2 focus:ring-accent sm:text-sm"
+									class="h-10 min-w-0 flex-1 bg-bg px-3 text-base border border-line outline-none focus:border-accent sm:text-sm"
 									placeholder="Artist"
 									aria-label="Artist"
 									bind:value={lookup.artist}
@@ -244,7 +238,7 @@
 									autocomplete="off"
 								/>
 								<input
-									class="h-10 min-w-0 flex-1 rounded-xl bg-bg px-3 text-base ring-1 ring-line outline-none focus:ring-2 focus:ring-accent sm:text-sm"
+									class="h-10 min-w-0 flex-1 bg-bg px-3 text-base border border-line outline-none focus:border-accent sm:text-sm"
 									placeholder="Album"
 									aria-label="Album"
 									bind:value={lookup.album}
@@ -253,10 +247,10 @@
 								/>
 								<button
 									type="submit"
-									class="press inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-fg px-4 text-[13px] font-semibold text-bg disabled:opacity-40"
+									class="press-lit inline-flex h-10 shrink-0 items-center justify-center gap-1.5 bg-fg px-4 text-[13px] font-semibold text-bg disabled:opacity-40"
 									disabled={lookup.searching || !lookup.album.trim()}
 								>
-									{#if lookup.searching}<LoaderCircle class="size-4 animate-spin" />{:else}<Search class="size-4" />{/if}
+									{#if lookup.searching}<LoaderCircle class="size-4" />{:else}<Search class="size-4" />{/if}
 									Search
 								</button>
 							</form>
@@ -268,7 +262,7 @@
 									<ul class="mt-2.5 max-h-80 space-y-1 overflow-y-auto">
 										{#each lookup.results.candidates as candidate (candidate.source + candidate.id)}
 											{@const fits = candidate.tracks === count}
-											<li class="flex items-center gap-1 rounded-xl bg-bg">
+											<li class="flex items-center gap-1 bg-bg">
 												<button
 													type="button"
 													class="press flex min-w-0 flex-1 items-center gap-3 px-3 py-2 text-left disabled:opacity-60"
@@ -276,9 +270,9 @@
 													onclick={() => editor.apply(candidate)}
 												>
 													<span
-														class="w-12 shrink-0 rounded-md py-0.5 text-center text-[10px] font-bold tracking-wide uppercase {candidate.source === 'discogs'
-															? 'bg-fg/8 text-fg'
-															: 'bg-accent/12 text-accent'}"
+														class="w-12 shrink-0 py-0.5 text-center text-[10px] font-bold tracking-wide uppercase {candidate.source === 'discogs'
+															? 'bg-surface-2 text-fg'
+															: 'bg-accent text-accent-fg'}"
 													>
 														{candidate.source === 'discogs' ? 'Discogs' : 'MB'}
 													</span>
@@ -291,7 +285,7 @@
 														</span>
 													</span>
 													{#if lookup.applying === candidate.id}
-														<LoaderCircle class="size-4 shrink-0 animate-spin text-muted" />
+														<LoaderCircle class="size-4 shrink-0 text-muted" />
 													{:else if candidate.tracks !== null}
 														<span class="inline-flex shrink-0 items-center gap-1 text-xs tabular-nums {fits ? 'font-semibold text-good' : 'text-muted'}" title="{candidate.tracks} tracks">
 															{#if fits}<Check class="size-3.5" />{/if}{candidate.tracks}
@@ -302,7 +296,7 @@
 													href={candidate.url}
 													target="_blank"
 													rel="noopener"
-													class="grid size-9 shrink-0 place-items-center rounded-full text-muted hover:bg-fg/6 hover:text-fg"
+													class="grid size-9 shrink-0 place-items-center text-muted hover:bg-surface-2 hover:text-fg"
 													aria-label="Open on {candidate.source === 'discogs' ? 'Discogs' : 'MusicBrainz'}"
 												>
 													<ExternalLink class="size-3.5" />
@@ -319,27 +313,27 @@
 					{/if}
 
 					{#if editor.warnings.length}
-						<div class="mb-3 flex gap-2.5 rounded-2xl bg-warn-bg px-4 py-3 text-[13px] text-warn">
+						<div class="mb-3 flex gap-2.5 bg-surface px-4 py-3 text-[13px] text-warn">
 							<TriangleAlert class="mt-0.5 size-4 shrink-0" />
 							<div class="min-w-0 flex-1">
 								{#each editor.warnings as warning (warning)}<p>{warning}</p>{/each}
 							</div>
-							<button type="button" class="-my-1 -mr-2 grid size-7 shrink-0 place-items-center rounded-full hover:bg-fg/6" aria-label="Dismiss" onclick={() => (editor.warnings = [])}>
+							<button type="button" class="-my-1 -mr-2 grid size-7 shrink-0 place-items-center hover:bg-surface-2" aria-label="Dismiss" onclick={() => (editor.warnings = [])}>
 								<X class="size-3.5" />
 							</button>
 						</div>
 					{/if}
 
 					{#if pattern !== null}
-						<section class="mb-3 rounded-2xl bg-surface p-3" transition:fly={{ y: -8, duration: 150 }}>
+						<section class="mb-3 bg-surface p-3">
 							<div class="flex items-center justify-between">
 								<h3 class="text-sm font-semibold">Fill from file names</h3>
-								<button type="button" class="grid size-8 place-items-center rounded-full text-muted hover:bg-fg/6" aria-label="Close" onclick={() => (pattern = null)}>
+								<button type="button" class="grid size-8 place-items-center text-muted hover:bg-surface-2" aria-label="Close" onclick={() => (pattern = null)}>
 									<X class="size-4" />
 								</button>
 							</div>
 							<input
-								class="mt-2 h-10 w-full rounded-xl bg-bg px-3 font-mono text-base ring-1 ring-line outline-none focus:ring-2 focus:ring-accent sm:text-sm"
+								class="mt-2 h-10 w-full bg-bg px-3 font-mono text-base border border-line outline-none focus:border-accent sm:text-sm"
 								bind:value={pattern}
 								spellcheck="false"
 								autocapitalize="off"
@@ -353,7 +347,7 @@
 							</p>
 							<ul class="mt-2.5 max-h-48 space-y-1 overflow-y-auto text-xs">
 								{#each preview as item (item.uri)}
-									<li class="rounded-lg bg-bg px-2.5 py-1.5">
+									<li class=" bg-bg px-2.5 py-1.5">
 										<div class="truncate text-muted">{fileName(item.uri)}</div>
 										{#if item.fields}
 											<div class="truncate font-medium">
@@ -370,7 +364,7 @@
 							<div class="mt-2.5 flex justify-end">
 								<button
 									type="button"
-									class="press h-9 rounded-full bg-fg px-4 text-[13px] font-semibold text-bg disabled:opacity-40"
+									class="press-lit h-9 bg-fg px-4 text-[13px] font-semibold text-bg disabled:opacity-40"
 									disabled={!preview.some((p) => p.fields)}
 									onclick={applyPattern}
 								>
@@ -380,18 +374,18 @@
 						</section>
 					{/if}
 
-					<ul class="divide-y divide-line rounded-2xl bg-surface">
+					<ul class="divide-y divide-line bg-surface">
 						{#each editor.rows as row (row.id)}
 							{@const value = shared(row)}
 							{@const long = LONG.has(row.name.toUpperCase())}
 							<li class="flex gap-2 py-1.5 pr-1 pl-3 sm:items-start max-sm:flex-col max-sm:gap-1">
 								<div class="flex min-h-9 items-center gap-1.5 sm:w-44 sm:shrink-0">
-									{#if changed(row)}<span class="size-1.5 shrink-0 rounded-full bg-accent" title="Changed"></span>{/if}
+									{#if changed(row)}<span class="size-1.5 shrink-0 bg-accent" title="Changed"></span>{/if}
 									{#if renaming === row.id}
 										<input
-											class="h-8 w-full min-w-0 rounded-lg bg-bg px-2 text-base font-semibold uppercase ring-1 outline-none focus:ring-2 sm:text-[13px] {validName(row.name)
-												? 'ring-line focus:ring-accent'
-												: 'ring-warn focus:ring-warn'}"
+											class="h-8 w-full min-w-0 bg-bg px-2 text-base font-semibold uppercase border outline-none sm:text-[13px] {validName(row.name)
+												? 'border-line focus:border-accent'
+												: 'border-warn'}"
 											placeholder="FIELD NAME"
 											value={row.name}
 											spellcheck="false"
@@ -419,7 +413,7 @@
 								<div class="flex min-w-0 flex-1 items-start gap-1">
 									{#if long}
 										<textarea
-											class="min-h-9 w-full min-w-0 resize-none rounded-lg bg-transparent px-2 py-1.5 text-base outline-none placeholder:text-faint placeholder:italic focus:bg-bg focus:ring-2 focus:ring-accent disabled:opacity-50 sm:text-sm"
+											class="min-h-9 w-full min-w-0 resize-none bg-transparent px-2 py-1.5 text-base outline-none placeholder:text-faint placeholder:italic focus:bg-bg focus:border-accent disabled:opacity-50 sm:text-sm"
 											rows="1"
 											value={value ?? ''}
 											placeholder={value === null ? '<multiple values>' : ''}
@@ -429,7 +423,7 @@
 										></textarea>
 									{:else}
 										<input
-											class="h-9 w-full min-w-0 rounded-lg bg-transparent px-2 text-base outline-none placeholder:text-faint placeholder:italic focus:bg-bg focus:ring-2 focus:ring-accent disabled:opacity-50 sm:text-sm"
+											class="h-9 w-full min-w-0 bg-transparent px-2 text-base outline-none placeholder:text-faint placeholder:italic focus:bg-bg focus:border-accent disabled:opacity-50 sm:text-sm"
 											value={value ?? ''}
 											placeholder={value === null ? '<multiple values>' : ''}
 											disabled={row.removed || editor.saving}
@@ -446,7 +440,7 @@
 
 					<button
 						type="button"
-						class="press mt-3 inline-flex h-10 items-center gap-2 rounded-full bg-surface px-4 text-[13px] font-semibold"
+						class="press mt-3 inline-flex h-10 items-center gap-2 bg-surface px-4 text-[13px] font-semibold"
 						disabled={editor.saving}
 						onclick={addField}
 					>
@@ -457,7 +451,7 @@
 					{/if}
 				{:else if tab === 'details' && count}
 					{@const one = count === 1 ? editor.files[0] : null}
-					<dl class="divide-y divide-line rounded-2xl bg-surface">
+					<dl class="divide-y divide-line bg-surface">
 						{#if one?.info}
 							{@render detail('File', one.uri)}
 							{@render detail('Codec', one.info.codec)}
@@ -477,7 +471,7 @@
 						{/if}
 					</dl>
 					{#if !one}
-						<ul class="mt-3 divide-y divide-line rounded-2xl bg-surface text-[13px]">
+						<ul class="mt-3 divide-y divide-line bg-surface text-[13px]">
 							{#each editor.files as file (file.uri)}
 								<li class="flex justify-between gap-3 px-4 py-2">
 									<span class="min-w-0 truncate">{fileName(file.uri)}</span>

@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { flushSync } from 'svelte';
-	import { fade, scale } from 'svelte/transition';
 	import { goto } from '$app/navigation';
 	import { api } from '../api.ts';
 	import { hub } from '../hub.svelte.ts';
@@ -100,27 +99,22 @@
 />
 
 {#if sheet}
-	<div class="pointer-events-none fixed inset-0 z-[60] grid place-items-center bg-black/30" transition:fade={{ duration: 120 }}>
-		<div
-			class="glass w-80 rounded-3xl p-5 shadow-float ring-1 ring-line"
-			role="dialog"
-			aria-label="Keyboard shortcuts"
-			transition:scale={{ start: 0.96, duration: 140 }}
-		>
-			<h2 class="text-sm font-semibold">Keyboard shortcuts</h2>
-			<dl class="mt-3 space-y-2">
+	<div class="pointer-events-none fixed inset-0 z-[60] grid place-items-center bg-black/60">
+		<div class="w-80 border border-line bg-bg" role="dialog" aria-label="Keyboard shortcuts">
+			<h2 class="label flex h-9 items-center border-b border-line px-3 text-[11px] text-muted">Keyboard shortcuts</h2>
+			<dl class="divide-y divide-line">
 				{#each shortcuts as shortcut (shortcut.label)}
-					<div class="flex items-center justify-between gap-4 text-sm">
-						<dt class="text-muted">{shortcut.label}</dt>
+					<div class="flex h-10 items-center justify-between gap-4 px-3 text-sm">
+						<dt>{shortcut.label}</dt>
 						<dd class="flex gap-1">
 							{#each shortcut.keys as key (key)}
-								<kbd class="min-w-7 rounded-md bg-surface px-2 py-0.5 text-center font-sans text-xs font-semibold ring-1 ring-line">{key}</kbd>
+								<kbd class="label min-w-7 border border-line px-1.5 py-0.5 text-center text-[10.5px]">{key}</kbd>
 							{/each}
 						</dd>
 					</div>
 				{/each}
 			</dl>
-			<p class="mt-4 text-xs text-faint">Release Ctrl to close</p>
+			<p class="label border-t border-line px-3 py-2 text-[10px] text-muted">Release Ctrl to close</p>
 		</div>
 	</div>
 {/if}

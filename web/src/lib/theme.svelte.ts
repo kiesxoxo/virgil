@@ -37,7 +37,7 @@ class Theme {
 		const root = document.documentElement;
 		root.classList.toggle('dark', this.dark);
 		root.style.colorScheme = this.dark ? 'dark' : 'light';
-		document.querySelector('meta[name="theme-color"]')?.setAttribute('content', this.dark ? '#0b0b0d' : '#ffffff');
+		document.querySelector('meta[name="theme-color"]')?.setAttribute('content', this.dark ? '#000000' : '#eceae4');
 	}
 }
 

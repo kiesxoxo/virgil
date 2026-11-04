@@ -1,17 +1,17 @@
 <script lang="ts">
-	import { ChevronLeft, CircleCheck, Circle, Layers, ListChecks, ListEnd, ListPlus, Play, Tags } from '@lucide/svelte';
+	import { ChevronLeft, ListChecks, ListEnd, ListPlus, Square, SquareCheck, Tags } from '@lucide/svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { afterNavigate, goto } from '$app/navigation';
 	import Cover from '#lib/components/Cover.svelte';
 	import Equalizer from '#lib/components/Equalizer.svelte';
+	import Glyph from '#lib/components/Glyph.svelte';
 	import Menu from '#lib/components/Menu.svelte';
-	import Record from '#lib/components/Record.svelte';
 	import { trackHeader, trackItems } from '#lib/actions.ts';
-	import { ambient } from '#lib/ambient.svelte.ts';
 	import { api, queue } from '#lib/api.ts';
 	import { contextMenu } from '#lib/menu.svelte.ts';
 	import { pullBack } from '#lib/swipeback.ts';
-	import { artUrl, clock, formatLong, formatShort, isHiRes, span } from '#lib/format.ts';
+	import { fitTitle } from '#lib/fit.ts';
+	import { clock, formatLong, formatShort, isHiRes, span } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
 	import { tagEditor } from '#lib/tageditor.svelte.ts';
@@ -27,7 +27,7 @@
 		if (navigation.type !== 'popstate') from = navigation.from?.route.id ?? null;
 	});
 
-	/** Back to where the album was opened from, as it was left (the cover flow on this album, the grid scrolled); else to the albums. */
+	/** Back to where the album was opened from, as it was left (the grid scrolled); else to the albums. */
 	function back() {
 		if (from) history.back();
 		else goto('/');
@@ -68,17 +68,6 @@
 
 	let album = $derived(detail?.album ?? library.get(data.id));
 
-	// A wash of the cover's colours behind the top of the page, gone once the tracks are scrolled up.
-	let scrollY = $state(0);
-	$effect(() =>
-		ambient.want({
-			key: `album:${data.id}`,
-			src: artUrl(album?.art, 300),
-			strength: album?.art ? 0.6 * Math.max(0, 1 - scrollY / 400) : 0,
-			reach: 0.7,
-			drift: false
-		})
-	);
 	let versions = $derived(library.versions(data.id));
 	let tracks = $derived(detail?.tracks ?? []);
 	/** The tracks by disc; `start` is the index of the disc's first track in `tracks`. */
@@ -160,191 +149,184 @@
 	let meta = $derived(
 		album
 			? [
-					album.genre,
 					album.year,
 					album.discs > 1 && `${album.discs} discs`,
-					`${album.tracks} ${album.tracks === 1 ? 'song' : 'songs'}`,
-					span(album.duration)
+					`${album.tracks} ${album.tracks === 1 ? 'track' : 'tracks'}`,
+					span(album.duration),
+					album.format && formatShort(album.format)
 				].filter(Boolean)
 			: []
 	);
+	let room = $state(0);
 </script>
 
 <svelte:head><title>{album ? `${album.title} · ${album.artist}` : 'Album'} · Virgil</title></svelte:head>
-<svelte:window bind:scrollY />
 
 {#if missing && !album}
-	<div class="mx-auto mt-24 max-w-sm px-4 text-center">
-		<h1 class="text-lg font-semibold">Album not found</h1>
-		<p class="mt-1 text-sm text-muted">It may have been removed in the last rescan.</p>
-		<a href="/" class="mt-4 inline-block text-sm font-semibold text-accent">Back to albums</a>
+	<div class="pt-safe px-3">
+		<h1 class="wide mt-16 text-2xl">Album not found</h1>
+		<p class="mt-2 text-sm text-muted">It may have been removed in the last rescan.</p>
+		<a href="/" class="label mt-4 inline-block text-[11px] text-accent">Back to albums</a>
 	</div>
 {:else}
 	<!-- clip, not hidden: it can't be scrolled sideways by focus, and the selection bar can stick. -->
-	<div class="relative isolate overflow-clip" {@attach pullBack}>
-		<div class="pt-safe mx-auto max-w-6xl px-4 lg:px-8">
+	<div class="pt-safe relative isolate overflow-clip" {@attach pullBack}>
+		<div class="flex h-11 items-stretch border-b border-line">
 			<a
 				href="/"
 				data-back
-				class="-ml-1.5 inline-flex h-11 items-center gap-0.5 text-[15px] font-medium text-accent"
+				class="press label flex shrink-0 items-center gap-1 pr-4 pl-2 text-[11px]"
 				onclick={(e) => {
 					if (from !== '/' || e.metaKey || e.ctrlKey || e.shiftKey) return;
 					e.preventDefault();
 					back();
 				}}
 			>
-				<ChevronLeft class="size-5" /> Albums
+				<ChevronLeft class="size-4" /> Albums
 			</a>
+			<span class="label ml-auto flex min-w-0 items-center px-3 text-[11px] text-muted"><span class="truncate">{album?.genre ?? ''}</span></span>
+		</div>
 
-			<header class="flex flex-col items-center gap-6 pt-2 text-center md:flex-row md:items-end md:gap-8 md:pt-10 md:text-left">
-				<!-- The cover, and a margin around it, goes back: the cover flies home to the list. -->
-				<button
-					type="button"
-					class="relative w-[min(68vw,18rem)] shrink-0 cursor-pointer rounded-2xl transition-transform duration-200 ease-out after:absolute after:-inset-4 hover:scale-[1.015] active:scale-[0.97] active:duration-100 md:w-60"
-					aria-label="Back"
-					title="Back"
-					onclick={back}
-				>
-					<Cover art={album?.art} size={1000} eager slot="album:{data.id}" class="w-full rounded-2xl shadow-cover ring-1 ring-line" />
+		<div class="md:grid md:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:grid-cols-[minmax(0,32rem)_minmax(0,1fr)]">
+			<header class="top-safe md:sticky md:self-start md:border-r md:border-line">
+				<!-- The cover goes back. -->
+				<button type="button" class="block w-full cursor-pointer" aria-label="Back" title="Back" onclick={back}>
+					<Cover art={album?.art} size={1000} eager class="w-full" />
 				</button>
-				<div class="min-w-0 flex-1">
-					<h1 class="text-2xl font-bold tracking-tight text-balance md:text-4xl">{album?.title ?? ''}</h1>
-					<p class="mt-1 text-lg font-semibold text-accent md:text-xl">
+				<div class="border-t border-line px-3 pt-3 pb-3" bind:clientWidth={room}>
+					<h1 class="wide leading-[1.03] text-balance" style:font-size="{room && album ? fitTitle(album.title, room - 24, { scale: 1.1, max: 56 }) : 32}px">{album?.title ?? ''}</h1>
+					<p class="mt-2 text-base font-semibold">
 						{#if album}<a href="/artist/{encodeURIComponent(album.artist)}" class="hover:underline">{album.artist}</a>{/if}
 					</p>
-					<p class="mt-1.5 text-sm text-muted">{meta.join(' · ')}</p>
-					{#if album?.format}
-						<p class="mt-2.5 flex items-center justify-center gap-2 md:justify-start">
-							{#if isHiRes(album.format)}
-								<span class="rounded-md bg-fg px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-bg">HI-RES</span>
-							{/if}
-							<span class="text-xs font-medium text-muted tabular-nums" title={formatLong(album.format)}>{formatLong(album.format)}</span>
-						</p>
-					{/if}
-					{#if versions.length > 1}
-						<div class="mt-3 flex flex-wrap items-center justify-center gap-1.5 md:justify-start" role="radiogroup" aria-label="Versions">
-							<span class="mr-1 inline-flex items-center gap-1 text-xs font-semibold text-muted"><Layers class="size-3.5" /> Versions</span>
-							{#each versions as version (version.id)}
-								{@const active = version.id === data.id}
-								<a
-									href="/album/{version.id}"
-									data-sveltekit-replacestate
-									role="radio"
-									aria-checked={active}
-									title={version.title}
-									class="press inline-flex h-8 items-center gap-1 rounded-full px-3 text-xs font-semibold whitespace-nowrap tabular-nums {active
-										? 'bg-fg text-bg'
-										: 'bg-surface text-muted hover:text-fg'}"
-								>
-									{version.format ? formatShort(version.format) : 'Mixed'}
-									<span class="font-medium opacity-70">· {version.tracks} {version.tracks === 1 ? 'track' : 'tracks'}</span>
-								</a>
-							{/each}
-						</div>
-					{/if}
-					<div class="mt-5 flex items-center justify-center gap-2.5 md:justify-start">
-						<button
-							type="button"
-							class="press inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-accent px-7 text-[15px] font-semibold text-accent-fg shadow-float sm:flex-none"
-							disabled={!album}
-							onclick={() => album && queue.playAlbum(album.id)}
-						>
-							<Play class="size-[18px]" fill="currentColor" strokeWidth={0} /> Play
-						</button>
-						<button
-							type="button"
-							class="press inline-flex h-11 items-center gap-2 rounded-full bg-surface px-4 text-sm font-semibold hover:bg-surface-2"
-							disabled={!album}
-							onclick={() => album && queue.albumNext(album.id)}
-						>
-							<ListPlus class="size-[18px]" /> <span class="max-sm:hidden">Play next</span>
-						</button>
-						<button
-							type="button"
-							class="press inline-flex h-11 items-center gap-2 rounded-full bg-surface px-4 text-sm font-semibold hover:bg-surface-2"
-							disabled={!album}
-							onclick={() => album && queue.albumLast(album.id)}
-						>
-							<ListEnd class="size-[18px]" /> <span class="max-sm:hidden">Add to queue</span>
-						</button>
-						<button
-							type="button"
-							class="press inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm font-semibold {selecting
-								? 'bg-fg text-bg'
-								: 'bg-surface hover:bg-surface-2'}"
-							disabled={!detail}
-							aria-pressed={selecting}
-							title="Select tracks to queue or edit"
-							onclick={() => (selecting ? stopSelecting() : (selecting = true))}
-						>
-							<ListChecks class="size-[18px]" /> <span class="max-sm:hidden">Select</span>
-						</button>
+					<p class="label mt-1.5 flex flex-wrap items-center gap-x-2 text-[10.5px] leading-4 text-muted" title={album?.format ? formatLong(album.format) : undefined}>
+						{meta.join(' / ')}
+						{#if album?.format && isHiRes(album.format)}<span class="bg-fg px-1 text-bg">Hi-res</span>{/if}
+					</p>
+				</div>
+				{#if versions.length > 1}
+					<div class="flex flex-wrap border-t border-line" role="radiogroup" aria-label="Versions">
+						{#each versions as version (version.id)}
+							{@const active = version.id === data.id}
+							<a
+								href="/album/{version.id}"
+								data-sveltekit-replacestate
+								role="radio"
+								aria-checked={active}
+								title={version.title}
+								class="label flex h-11 flex-1 items-center justify-center gap-1 border-r border-line px-3 text-[10.5px] whitespace-nowrap last:border-r-0 {active
+									? 'bg-fg text-bg'
+									: 'press text-muted'}"
+							>
+								{version.format ? formatShort(version.format) : 'Mixed'} / {version.tracks} tr
+							</a>
+						{/each}
 					</div>
+				{/if}
+				<!-- On a phone the keys wait above the player while the cover and title take the screen. -->
+				<div class="grid h-14 grid-cols-[minmax(0,1fr)_repeat(3,56px)] border-t border-line bg-bg max-md:sticky max-md:bottom-[calc(7.5rem+env(safe-area-inset-bottom))]">
+					<button
+						type="button"
+						class="press wide flex items-center justify-center gap-2.5 bg-accent text-[17px] text-accent-fg disabled:bg-surface-2 disabled:text-faint"
+						disabled={!album}
+						onclick={() => album && queue.playAlbum(album.id)}
+					>
+						<Glyph name="play" class="size-4" /> PLAY
+					</button>
+					<button
+						type="button"
+						class="press grid place-items-center border-l border-line disabled:text-faint"
+						disabled={!album}
+						aria-label="Play next"
+						title="Play next"
+						onclick={() => album && queue.albumNext(album.id)}
+					>
+						<ListPlus class="size-5" />
+					</button>
+					<button
+						type="button"
+						class="press grid place-items-center border-l border-line disabled:text-faint"
+						disabled={!album}
+						aria-label="Add to queue"
+						title="Add to queue"
+						onclick={() => album && queue.albumLast(album.id)}
+					>
+						<ListEnd class="size-5" />
+					</button>
+					<button
+						type="button"
+						class="grid place-items-center border-l border-line disabled:text-faint {selecting ? 'press-lit bg-fg text-bg' : 'press'}"
+						disabled={!detail}
+						aria-pressed={selecting}
+						aria-label="Select tracks"
+						title="Select tracks to queue or edit"
+						onclick={() => (selecting ? stopSelecting() : (selecting = true))}
+					>
+						<ListChecks class="size-5" />
+					</button>
 				</div>
 			</header>
 
-			{#if selecting}
-				<div class="glass pt-safe sticky top-0 z-10 -mx-4 mt-6 flex items-center gap-2 border-b border-line px-4 py-2 lg:-mx-8 lg:px-8">
-					<span class="flex-1 text-sm font-semibold tabular-nums">{selected.size} selected</span>
-					<button
-						type="button"
-						class="press h-9 rounded-full px-3 text-[13px] font-semibold text-accent"
-						onclick={() => (selected.size === tracks.length ? selected.clear() : tracks.forEach((t) => selected.add(t.uri)))}
-					>
-						{selected.size === tracks.length ? 'None' : 'All'}
-					</button>
-					<button
-						type="button"
-						class="press inline-flex h-9 items-center gap-1.5 rounded-full bg-surface px-3 text-[13px] font-semibold disabled:opacity-40"
-						disabled={!selected.size}
-						title="Play next"
-						aria-label="Play next"
-						onclick={() => queue.tracksNext(selectedUris())}
-					>
-						<ListPlus class="size-4" /> <span class="max-md:hidden">Play next</span>
-					</button>
-					<button
-						type="button"
-						class="press inline-flex h-9 items-center gap-1.5 rounded-full bg-surface px-3 text-[13px] font-semibold disabled:opacity-40"
-						disabled={!selected.size}
-						title="Add to end of queue"
-						aria-label="Add to end of queue"
-						onclick={() => queue.tracksLast(selectedUris())}
-					>
-						<ListEnd class="size-4" /> <span class="max-md:hidden">Add to queue</span>
-					</button>
-					<button
-						type="button"
-						class="press inline-flex h-9 items-center gap-1.5 rounded-full bg-accent px-4 text-[13px] font-semibold text-accent-fg disabled:opacity-40"
-						disabled={!selected.size}
-						title="Edit tags"
-						aria-label="Edit tags"
-						onclick={editSelected}
-					>
-						<Tags class="size-4" /> <span class="max-sm:hidden">Edit tags</span>
-					</button>
-					<button type="button" class="press h-9 rounded-full bg-surface px-3.5 text-[13px] font-semibold" onclick={stopSelecting}>Done</button>
-				</div>
-			{/if}
-
-			<ol class={selecting ? "mt-2" : "mt-8 md:mt-10"}>
-				{#if !detail}
-					{#each { length: Math.min(album?.tracks ?? 8, 12) } as _, i (i)}
-						<li class="flex h-14 animate-pulse items-center gap-4 px-3">
-							<div class="h-3 w-4 rounded bg-surface"></div>
-							<div class="h-3 flex-1 rounded bg-surface"></div>
-						</li>
-					{/each}
+			<div class="border-t border-line md:border-t-0">
+				{#if selecting}
+					<div class="top-safe sticky z-10 flex h-11 items-stretch border-b border-line bg-bg">
+						<span class="label flex flex-1 items-center px-3 text-[11px] whitespace-nowrap">{selected.size} selected</span>
+						<button
+							type="button"
+							class="press label border-l border-line px-3 text-[11px]"
+							onclick={() => (selected.size === tracks.length ? selected.clear() : tracks.forEach((t) => selected.add(t.uri)))}
+						>
+							{selected.size === tracks.length ? 'None' : 'All'}
+						</button>
+						<button
+							type="button"
+							class="press grid w-11 place-items-center border-l border-line disabled:text-faint"
+							disabled={!selected.size}
+							title="Play next"
+							aria-label="Play next"
+							onclick={() => queue.tracksNext(selectedUris())}
+						>
+							<ListPlus class="size-[18px]" />
+						</button>
+						<button
+							type="button"
+							class="press grid w-11 place-items-center border-l border-line disabled:text-faint"
+							disabled={!selected.size}
+							title="Add to end of queue"
+							aria-label="Add to end of queue"
+							onclick={() => queue.tracksLast(selectedUris())}
+						>
+							<ListEnd class="size-[18px]" />
+						</button>
+						<button
+							type="button"
+							class="press grid w-11 place-items-center border-l border-line bg-accent text-accent-fg disabled:bg-surface-2 disabled:text-faint"
+							disabled={!selected.size}
+							title="Edit tags"
+							aria-label="Edit tags"
+							onclick={editSelected}
+						>
+							<Tags class="size-[18px]" />
+						</button>
+						<button type="button" class="press label border-l border-line px-3 text-[11px]" onclick={stopSelecting}>Done</button>
+					</div>
 				{/if}
-				{#each discs as side (side.number)}
-					{#if multiDisc}
-						{@render discHeader(side)}
+
+				<ol>
+					{#if !detail}
+						{#each { length: Math.min(album?.tracks ?? 8, 12) } as _, i (i)}
+							<li class="h-[52px] border-b border-line"></li>
+						{/each}
 					{/if}
-					{#each side.tracks as track, j (track.uri)}
-						{@render trackRow(track, side.start + j)}
+					{#each discs as side (side.number)}
+						{#if multiDisc}
+							{@render discHeader(side)}
+						{/if}
+						{#each side.tracks as track, j (track.uri)}
+							{@render trackRow(track, side.start + j)}
+						{/each}
 					{/each}
-				{/each}
-			</ol>
+				</ol>
+			</div>
 		</div>
 	</div>
 {/if}
@@ -353,36 +335,29 @@
 	{@const onDisc = side.tracks.some((t) => t.uri === hub.current?.uri)}
 	{@const label = `Disc ${side.number}`}
 	{@const allPicked = side.tracks.every((t) => selected.has(t.uri))}
-	<li class="flex items-center gap-3.5 px-3 pb-2 {side.start === 0 ? 'pt-1' : 'mt-5 border-t border-line pt-6'}">
-		<Record spinning={onDisc} paused={!hub.playing} class="size-9 shrink-0 drop-shadow-sm" />
-		<div class="min-w-0 flex-1">
-			<h2 class="truncate text-[15px] font-semibold {onDisc ? 'text-accent' : ''}" title={side.title ?? undefined}>{side.title ?? label}</h2>
-			<p class="truncate text-[13px] text-muted tabular-nums">
+	<li class="flex min-h-11 items-stretch border-b border-line bg-surface">
+		<div class="min-w-0 flex-1 self-center px-3 py-1.5">
+			<h2 class="label truncate text-[11px] {onDisc ? 'text-accent' : ''}" title={side.title ?? undefined}>{side.title ?? label}</h2>
+			<p class="label truncate text-[10px] text-muted">
 				{[side.title && label, `${side.tracks.length} ${side.tracks.length === 1 ? 'track' : 'tracks'}`, span(side.duration)]
 					.filter(Boolean)
-					.join(' · ')}
+					.join(' / ')}
 			</p>
 		</div>
 		{#if selecting}
-			<button
-				type="button"
-				class="press inline-flex size-9 shrink-0 items-center justify-center rounded-full hover:bg-fg/6"
-				aria-pressed={allPicked}
-				title="Select {label}"
-				onclick={() => pickDisc(side)}
-			>
-				{#if allPicked}<CircleCheck class="size-5 text-accent" />{:else}<Circle class="size-5 text-faint" />{/if}
+			<button type="button" class="press grid w-11 shrink-0 place-items-center border-l border-line" aria-pressed={allPicked} title="Select {label}" onclick={() => pickDisc(side)}>
+				{#if allPicked}<SquareCheck class="size-5 text-accent" />{:else}<Square class="size-5 text-muted" />{/if}
 			</button>
 		{:else}
 			<button
 				type="button"
-				class="press inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-surface hover:bg-surface-2"
+				class="press grid w-11 shrink-0 place-items-center border-l border-line"
 				disabled={!album}
 				title="Play {label}"
 				aria-label="Play {label}"
 				onclick={() => album && queue.playAlbum(album.id, side.tracks[0].uri)}
 			>
-				<Play class="ml-px size-4" fill="currentColor" strokeWidth={0} />
+				<Glyph name="play" class="size-4" />
 			</button>
 		{/if}
 	</li>
@@ -392,7 +367,7 @@
 	{@const current = hub.current?.uri === track.uri}
 	{@const picked = selecting && selected.has(track.uri)}
 	<li
-		class="group flex items-center rounded-xl hover:bg-fg/4 {picked ? 'bg-accent/10' : current ? 'bg-accent/6' : ''}"
+		class="group flex items-stretch border-b border-line hover:bg-surface {picked ? 'bg-surface-2' : ''}"
 		{@attach contextMenu(
 			() => trackItems(track, data.id),
 			() => trackHeader(track, album?.art)
@@ -400,29 +375,29 @@
 	>
 		<button
 			type="button"
-			class="grid min-w-0 flex-1 grid-cols-[2rem_1fr_auto] items-center gap-3 py-2.5 pl-3 text-left select-none"
+			class="grid min-h-[52px] min-w-0 flex-1 grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center py-2 text-left select-none"
 			aria-pressed={selecting ? picked : undefined}
 			onclick={(e) => trackClick(e, i)}
 		>
-			<span class="flex justify-center text-sm text-muted tabular-nums">
+			<span class="label flex justify-center text-[11px] text-muted">
 				{#if selecting}
-					{#if picked}<CircleCheck class="size-5 text-accent" />{:else}<Circle class="size-5 text-faint" />{/if}
-				{:else if current}<Equalizer playing={hub.playing} />{:else if track.track !== null}{track.track}{/if}
+					{#if picked}<SquareCheck class="size-5 text-accent" />{:else}<Square class="size-5 text-muted" />{/if}
+				{:else if current}<Equalizer playing={hub.playing} class="text-accent" />{:else if track.track !== null}{String(track.track).padStart(2, '0')}{/if}
 				<!-- No track number tag: blank rather than a position, so the gap shows. -->
 			</span>
 			<span class="min-w-0">
-				<span class="block truncate text-[15px] font-medium {current ? 'text-accent' : ''}">{track.title}</span>
+				<span class="wide block text-[13px] leading-[17px] {current ? 'text-accent' : ''}">{track.title}</span>
 				{#if album && track.artist && track.artist !== album.artist}
-					<span class="block truncate text-[13px] text-muted">{track.artist}</span>
+					<span class="mt-0.5 block truncate text-xs text-muted">{track.artist}</span>
 				{/if}
 			</span>
-			<span class="flex items-center gap-3 text-sm text-muted tabular-nums">
+			<span class="label flex items-center gap-3 pl-3 text-[11px] text-muted">
 				{#if track.format && !album?.format}
-					<span class="text-[11px] max-sm:hidden">{formatShort(track.format)}</span>
+					<span class="max-sm:hidden">{formatShort(track.format)}</span>
 				{/if}
 				{clock(track.duration)}
 			</span>
 		</button>
-		<Menu class="mr-1 ml-1" items={() => trackItems(track, data.id)} header={trackHeader(track, album?.art)} />
+		<Menu items={() => trackItems(track, data.id)} header={trackHeader(track, album?.art)} />
 	</li>
 {/snippet}

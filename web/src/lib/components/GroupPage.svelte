@@ -1,12 +1,13 @@
 <script lang="ts">
-	import { ChevronLeft, ListEnd, Play } from '@lucide/svelte';
+	import { ChevronLeft, ListEnd } from '@lucide/svelte';
 	import { queue } from '../api.ts';
 	import type { Group } from '../browse.ts';
+	import { fitTitle } from '../fit.ts';
 	import { span } from '../format.ts';
 	import { library } from '../library.svelte.ts';
 	import type { Album } from '../types/Album.ts';
 	import AlbumGrid from './AlbumGrid.svelte';
-	import GroupArt from './GroupArt.svelte';
+	import Glyph from './Glyph.svelte';
 
 	// One artist's or genre's albums, with Play / Add to queue for all of them.
 	let {
@@ -28,68 +29,61 @@
 	});
 	let ids = $derived(albums.map((a) => a.id));
 	let back = $derived(kind === 'artist' ? { href: '/artists', label: 'Artists' } : { href: '/genres', label: 'Genres' });
+	let room = $state(0);
 </script>
 
 <svelte:head><title>{group?.name ?? name} · Virgil</title></svelte:head>
 
-<div class="pt-safe mx-auto max-w-[110rem] px-4 lg:px-8">
-	<a href={back.href} data-back class="-ml-1.5 inline-flex h-11 items-center gap-0.5 text-[15px] font-medium text-accent lg:hidden">
-		<ChevronLeft class="size-5" />
+<div class="pt-safe">
+	<a href={back.href} data-back class="press label flex h-11 items-center gap-1 border-b border-line pl-2 text-[11px] lg:hidden">
+		<ChevronLeft class="size-4" />
 		{back.label}
 	</a>
 
 	{#if !group && library.loaded}
-		<div class="mx-auto mt-16 max-w-sm text-center">
-			<h1 class="text-lg font-semibold">{kind === 'artist' ? 'Artist' : 'Genre'} not found</h1>
-			<p class="mt-1 text-sm text-muted">Nothing in the library goes by “{name}”.</p>
-			<a href={back.href} class="mt-4 inline-block text-sm font-semibold text-accent">Back to {back.label.toLowerCase()}</a>
+		<div class="px-3">
+			<h1 class="wide mt-16 text-2xl">{kind === 'artist' ? 'Artist' : 'Genre'} not found</h1>
+			<p class="mt-2 text-sm text-muted">Nothing in the library goes by “{name}”.</p>
+			<a href={back.href} class="label mt-4 inline-block text-[11px] text-accent">Back to {back.label.toLowerCase()}</a>
 		</div>
 	{:else}
-		<header class="flex flex-col items-center gap-5 pt-2 text-center md:flex-row md:items-end md:gap-8 md:pt-10 md:text-left">
-			{#if group}
-				<GroupArt
-					{group}
-					{kind}
-					size={600}
-					class="w-[min(52vw,13rem)] shrink-0 shadow-cover ring-1 ring-line md:w-52 {kind === 'artist' ? 'rounded-full' : 'rounded-2xl'}"
-				/>
-			{:else}
-				<div class="aspect-square w-[min(52vw,13rem)] shrink-0 animate-pulse bg-surface md:w-52 {kind === 'artist' ? 'rounded-full' : 'rounded-2xl'}"></div>
-			{/if}
-			<div class="min-w-0 flex-1">
-				<p class="text-xs font-semibold tracking-wider text-muted uppercase">{kind === 'artist' ? 'Artist' : 'Genre'}</p>
-				<h1 class="mt-1 text-2xl font-bold tracking-tight text-balance md:text-4xl">{group?.name ?? name}</h1>
-				<p class="mt-1.5 text-sm text-muted">{meta.join(' · ')}</p>
-				<div class="mt-5 flex items-center justify-center gap-2.5 md:justify-start">
-					<button
-						type="button"
-						class="press inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-accent px-7 text-[15px] font-semibold text-accent-fg shadow-float sm:flex-none"
-						disabled={!ids.length}
-						onclick={() => queue.playAlbums(ids)}
-					>
-						<Play class="size-[18px]" fill="currentColor" strokeWidth={0} /> Play
-					</button>
-					<button
-						type="button"
-						class="press inline-flex h-11 items-center gap-2 rounded-full bg-surface px-4 text-sm font-semibold hover:bg-surface-2"
-						disabled={!ids.length}
-						onclick={() => queue.albumsLast(ids)}
-					>
-						<ListEnd class="size-[18px]" /> <span class="max-sm:hidden">Add to queue</span>
-					</button>
-				</div>
+		<header class="border-b border-line">
+			<div class="px-3 pt-3 pb-3" bind:clientWidth={room}>
+				<p class="label text-[10.5px] text-muted">{kind === 'artist' ? 'Artist' : 'Genre'}</p>
+				<h1 class="wide mt-1.5 leading-[1.03] text-balance" style:font-size="{room ? fitTitle(group?.name ?? name, room - 24, { scale: 1.1, max: 72 }) : 32}px">{group?.name ?? name}</h1>
+				<p class="label mt-2 text-[10.5px] text-muted">{meta.join(' / ')}</p>
+			</div>
+			<div class="grid h-14 grid-cols-[minmax(0,1fr)_56px] border-t border-line md:max-w-md md:border-r">
+				<button
+					type="button"
+					class="press wide flex items-center justify-center gap-2.5 bg-accent text-[17px] text-accent-fg disabled:bg-surface-2 disabled:text-faint"
+					disabled={!ids.length}
+					onclick={() => queue.playAlbums(ids)}
+				>
+					<Glyph name="play" class="size-4" /> PLAY
+				</button>
+				<button
+					type="button"
+					class="press grid place-items-center border-l border-line disabled:text-faint"
+					disabled={!ids.length}
+					aria-label="Add to queue"
+					title="Add to queue"
+					onclick={() => queue.albumsLast(ids)}
+				>
+					<ListEnd class="size-5" />
+				</button>
 			</div>
 		</header>
 
 		{#if albums.length}
-			<section class="mt-8 md:mt-10">
-				{#if appearsOn.length}<h2 class="mb-3 text-lg font-bold tracking-tight">Albums</h2>{/if}
+			<section>
+				{#if appearsOn.length}<h2 class="label flex h-9 items-center border-b border-line px-3 text-[11px] text-muted">Albums</h2>{/if}
 				<AlbumGrid {albums} />
 			</section>
 		{/if}
 		{#if appearsOn.length}
-			<section class="mt-8">
-				<h2 class="mb-3 text-lg font-bold tracking-tight">Appears on</h2>
+			<section>
+				<h2 class="label flex h-9 items-center border-b border-line px-3 text-[11px] text-muted">Appears on</h2>
 				<AlbumGrid albums={appearsOn} />
 			</section>
 		{/if}
