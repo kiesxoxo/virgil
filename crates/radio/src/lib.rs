@@ -103,6 +103,13 @@ fn text(s: Option<String>) -> Option<String> {
     s.map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
 }
 
+/// Text NTS wrote for people. Its API sends it HTML-escaped (`Tim &amp; Barry`)
+/// and the web app shows strings as they are, so entities are decoded here, once.
+/// Not for URLs: `&copy=1` in a query string is not a `©`.
+fn prose(s: &str) -> String {
+    html_escape::decode_html_entities(s).trim().to_string()
+}
+
 /// Days from 1970-01-01 to a date in the proleptic Gregorian calendar.
 fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
     let y = if m <= 2 { y - 1 } else { y };
@@ -140,16 +147,18 @@ fn broadcast(slot: Slot) -> Option<Broadcast> {
         Some(format!("https://www.nts.live/shows/{show}/episodes/{episode}"))
     });
     let (description, location, genres, media) = match details {
-        Some(d) => (text(d.description), text(d.location_long), d.genres, d.media),
+        Some(d) => {
+            (text(d.description.as_deref().map(prose)), text(d.location_long.as_deref().map(prose)), d.genres, d.media)
+        }
         None => (None, None, Vec::new(), Media::default()),
     };
     Some(Broadcast {
-        title: slot.broadcast_title.trim().to_string(),
+        title: prose(&slot.broadcast_title),
         start: unix(&slot.start_timestamp)?,
         end: unix(&slot.end_timestamp)?,
         location,
         description,
-        genres: genres.into_iter().filter_map(|g| text(Some(g.value))).collect(),
+        genres: genres.into_iter().filter_map(|g| text(Some(prose(&g.value)))).collect(),
         art: text(media.picture_medium_large),
         thumb: text(media.picture_small),
         url,
@@ -197,9 +206,9 @@ fn parse_mixtapes(json: &str) -> anyhow::Result<Vec<Station>> {
         .into_iter()
         .map(|m| Station {
             id: m.mixtape_alias,
-            name: m.title.trim().to_string(),
-            tagline: m.subtitle.trim().to_string(),
-            description: text(m.description),
+            name: prose(&m.title),
+            tagline: prose(&m.subtitle),
+            description: text(m.description.as_deref().map(prose)),
             stream: m.audio_stream_endpoint,
             stream_aac: text(m.audio_stream_endpoint_hls_aac),
             art: text(m.media.picture_medium_large),
@@ -394,6 +403,46 @@ mod tests {
         assert_eq!(mixtapes[1].stream_aac, None);
         assert_eq!(mixtapes[1].tagline, "");
         assert_eq!(mixtapes[1].art, None);
+    }
+
+    #[test]
+    fn decodes_entities_in_shows_but_not_urls() {
+        let live = parse_live(
+            r#"{"results": [{"channel_name": "1",
+                "now": {"broadcast_title": " PRECIOUS METALS W/ ENDGAME &amp; DAYOUNG ", "start_timestamp": "2026-10-30T11:00:00Z", "end_timestamp": "2026-10-30T13:00:00Z",
+                        "embeds": {"details": {"description": "It&#39;s &quot;R&B&quot;&#x21;", "location_long": "S&atilde;o Paulo",
+                                               "genres": [{"value": "Drum &amp; Bass"}, {"value": "&nbsp;"}],
+                                               "media": {"picture_small": "https://media/a.jpeg?w=1&amp;copy=2&copy=3"}}}},
+                "next": {"broadcast_title": "Don&#39;t Sleep", "start_timestamp": "2026-10-30T13:00:00Z", "end_timestamp": "2026-10-30T15:00:00Z"}}]}"#,
+        )
+        .unwrap();
+        let now = live[0].now.as_ref().unwrap();
+        assert_eq!(now.title, "PRECIOUS METALS W/ ENDGAME & DAYOUNG");
+        assert_eq!(now.description.as_deref(), Some(r#"It's "R&B"!"#));
+        assert_eq!(now.location.as_deref(), Some("São Paulo"));
+        assert_eq!(now.genres, ["Drum & Bass"], "an entity that decodes to blank is no text");
+        assert_eq!(now.thumb.as_deref(), Some("https://media/a.jpeg?w=1&amp;copy=2&copy=3"));
+        assert_eq!(live[0].next.as_ref().unwrap().title, "Don't Sleep");
+    }
+
+    #[test]
+    fn decodes_entities_once() {
+        assert_eq!(prose("Tom &amp;amp; Jerry"), "Tom &amp; Jerry");
+        assert_eq!(prose("&amp;#39;"), "&#39;");
+        assert_eq!(prose("R&B & AT&T"), "R&B & AT&T");
+    }
+
+    #[test]
+    fn decodes_entities_in_mixtapes() {
+        let mixtapes = parse_mixtapes(
+            r#"{"results": [{"mixtape_alias": "a-b", "title": "Sweat &amp; Tears", "subtitle": "Disco&#39;s best", "description": "Fish &amp; chips.",
+                             "audio_stream_endpoint": "https://stream/a?x=1&amp;y=2"}]}"#,
+        )
+        .unwrap();
+        let m = &mixtapes[0];
+        assert_eq!((m.name.as_str(), m.tagline.as_str()), ("Sweat & Tears", "Disco's best"));
+        assert_eq!(m.description.as_deref(), Some("Fish & chips."));
+        assert_eq!(m.stream, "https://stream/a?x=1&amp;y=2", "a URL is passed on as it came");
     }
 
     #[test]

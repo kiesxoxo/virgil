@@ -8,6 +8,7 @@ rust-version.workspace = true
 [dependencies]
 anyhow.workspace = true
 virgil-core.workspace = true
+html-escape.workspace = true
 reqwest.workspace = true
 rustls.workspace = true
 serde.workspace = true
