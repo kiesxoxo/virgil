@@ -2444,7 +2444,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "virgil-core"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "serde",
  "ts-rs",
@@ -2452,7 +2452,7 @@ dependencies = [
 
 [[package]]
 name = "virgil-engine-mpd"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "thiserror",
  "tokio",
@@ -2462,7 +2462,7 @@ dependencies = [
 
 [[package]]
 name = "virgil-homekit"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -2479,7 +2479,7 @@ dependencies = [
 
 [[package]]
 name = "virgil-library"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "anyhow",
  "image",
@@ -2496,7 +2496,7 @@ dependencies = [
 
 [[package]]
 name = "virgil-radio"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "anyhow",
  "html-escape",
@@ -2511,7 +2511,7 @@ dependencies = [
 
 [[package]]
 name = "virgil-tags"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "anyhow",
  "lofty",
@@ -2520,7 +2520,7 @@ dependencies = [
 
 [[package]]
 name = "virgild"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "anyhow",
  "axum",
