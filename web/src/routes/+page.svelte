@@ -72,10 +72,14 @@
 		return null;
 	}
 
-	// The next view opens on the album in the middle of this one.
+	let masthead: HTMLElement;
+
+	// The next view opens on the album in the middle of this one. Between the grid and the list, with
+	// the masthead still in sight, the page stays where it is: at the top is where the eye was anyway.
 	function switchView(next: AlbumView) {
 		if (next === view) return;
-		reveal = centredAlbum();
+		const stay = view !== 'tuner' && next !== 'tuner' && masthead.getBoundingClientRect().bottom > 0;
+		reveal = stay ? null : centredAlbum();
 		view = next;
 	}
 	let songs = $state<TrackHit[]>([]);
@@ -145,7 +149,7 @@
 
 <svelte:head><title>Albums · Virgil</title></svelte:head>
 
-<div class="pt-safe">
+<div class="pt-safe" bind:this={masthead}>
 	<Masthead word="ALBUMS" />
 </div>
 
