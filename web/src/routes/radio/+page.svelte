@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { LoaderCircle } from '@lucide/svelte';
 	import { onMount } from 'svelte';
-	import Equalizer from '#lib/components/Equalizer.svelte';
 	import Masthead from '#lib/components/Masthead.svelte';
 	import { api } from '#lib/api.ts';
 	import { hhmm } from '#lib/format.ts';
@@ -38,14 +37,6 @@
 </script>
 
 <svelte:head><title>Radio · Virgil</title></svelte:head>
-
-{#snippet status(station: Station)}
-	{#if pending === station.id}
-		<LoaderCircle class="size-4" />
-	{:else if on(station)}
-		<Equalizer playing={hub.playing} />
-	{/if}
-{/snippet}
 
 <div class="pt-safe">
 	<Masthead word="RADIO" />
@@ -91,7 +82,7 @@
 							{i + 1}
 						</span>
 						<span class="absolute top-0 right-0 flex h-8 items-center gap-2 bg-black px-2 text-[#f1efe8]">
-							{@render status(station)}
+							{#if pending === station.id}<LoaderCircle class="size-4" />{/if}
 							<span class="label flex items-center gap-1.5 text-[10px]"><span class="size-1.5 rounded-full bg-accent"></span>Live</span>
 						</span>
 					</button>
@@ -139,7 +130,7 @@
 								{#if station.iconBlack}<img src={station.iconBlack} alt="" class="size-9 dark:hidden" />{/if}
 								{#if station.iconWhite}<img src={station.iconWhite} alt="" class="hidden size-9 dark:block" />{/if}
 							{/if}
-							<span class="absolute top-0 right-0.5">{@render status(station)}</span>
+							{#if pending === station.id}<span class="absolute top-0 right-0.5"><LoaderCircle class="size-4" /></span>{/if}
 						</span>
 						<span class="label line-clamp-2 w-full text-[9px] leading-[11px]">{station.name}</span>
 					</button>

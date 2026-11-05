@@ -23,7 +23,7 @@
 		{/if}
 		{@render controls()}
 	</div>
-	<div class="flex h-9 items-stretch gap-5 border-t border-line px-3">
+	<div class="flex h-9 items-stretch gap-1 border-t border-line px-3">
 		{@render order()}
 	</div>
 	{@render heads?.()}

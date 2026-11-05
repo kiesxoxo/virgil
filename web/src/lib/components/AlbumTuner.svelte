@@ -218,13 +218,14 @@
 			>
 				<Cover art={album.art} size={TILE} eager />
 			</a>
-			<div class="flex min-w-0 flex-1 flex-col justify-between border-l border-line px-2.5 py-3">
-				<div class="flex max-w-40 flex-col-reverse gap-1" role="meter" aria-label="Resolution" aria-valuemin={0} aria-valuemax={LEVELS} aria-valuenow={level}>
+			<div class="flex min-w-0 flex-1 flex-col gap-2 border-l border-line px-2.5 py-3">
+				<!-- The bars give way on a short screen, so the readout under them still fits beside the cover. -->
+				<div class="flex min-h-0 max-w-40 flex-1 flex-col-reverse justify-end gap-1" role="meter" aria-label="Resolution" aria-valuemin={0} aria-valuemax={LEVELS} aria-valuenow={level}>
 					{#each { length: LEVELS } as _, i (i)}
-						<div class="h-[11px] {i < level ? (locked ? 'bg-good' : 'bg-fg') : 'bg-surface-2'}"></div>
+						<div class="max-h-[11px] min-h-0 flex-1 {i < level ? (locked ? 'bg-good' : 'bg-fg') : 'bg-surface-2'}"></div>
 					{/each}
 				</div>
-				<div class="label text-[10px] leading-[17px] text-muted">
+				<div class="label shrink-0 text-[10px] leading-[17px] text-muted">
 					<div class={locked ? 'text-good' : ''}>{locked ? 'Lock' : 'Tuned'}</div>
 					<div class="text-fg">{pad(index + 1)}/{pad(albums.length)}</div>
 					<div>{album.year ?? '—'}</div>
@@ -271,13 +272,18 @@
 {/if}
 
 <style>
-	/* Fits between the controls and the player, so the page doesn't scroll under the dial. */
+	/*
+	 * Fits between the controls and the player, so the page doesn't scroll under the dial.
+	 * --masthead is the masthead's height: its word at 9:1 in the column, plus its padding.
+	 */
 	.tuner {
-		height: max(26rem, calc(100dvh - env(safe-area-inset-top) - 85px - 7.5rem - env(safe-area-inset-bottom)));
+		--masthead: calc((100vw - 24px) / 9 + 22px);
+		height: max(26rem, calc(100dvh - env(safe-area-inset-top) - var(--masthead) - 85px - 7.5rem - env(safe-area-inset-bottom)));
 	}
 	@media (min-width: 1024px) {
 		.tuner {
-			height: max(26rem, calc(100dvh - 85px - 72px));
+			--masthead: calc(min(56rem, 100vw - 15rem - 24px) / 9 + 22px);
+			height: max(26rem, calc(100dvh - var(--masthead) - 85px - 72px));
 		}
 	}
 </style>

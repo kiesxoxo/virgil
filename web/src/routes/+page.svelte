@@ -145,9 +145,8 @@
 
 <svelte:head><title>Albums · Virgil</title></svelte:head>
 
-<!-- The tuner's album title takes the masthead's place. -->
 <div class="pt-safe">
-	{#if view !== 'tuner'}<Masthead word="ALBUMS" />{/if}
+	<Masthead word="ALBUMS" />
 </div>
 
 <LibraryBar placeholder="Albums, artists, songs" count={library.loaded ? filtered.length : null}>

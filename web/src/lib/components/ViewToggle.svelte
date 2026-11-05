@@ -2,8 +2,9 @@
 	import { Image, ImageOff, LayoutGrid, List, Radio } from '@lucide/svelte';
 	import type { AlbumView } from '../stored.ts';
 
-	// Grid or list (the albums also have the tuner), plus artwork on or off while it's a list. Shared
-	// by the Albums, Artists and Genres pages.
+	// Grid or list (the albums also have the tuner), plus artwork on or off, which only a list can do.
+	// Shared by the Albums, Artists and Genres pages. Always four cells, so that the keys stay where
+	// they are and the library tabs beside them keep their width.
 	let { view = $bindable(), art = $bindable(), tuner = false }: { view: V; art: boolean; tuner?: boolean } = $props();
 
 	const options = [
@@ -14,18 +15,6 @@
 	let shown = $derived(tuner ? options : options.slice(0, 2));
 </script>
 
-{#if view === 'list'}
-	<button
-		type="button"
-		class="press grid w-11 shrink-0 place-items-center border-l border-line {art ? 'text-fg' : 'text-muted'}"
-		aria-pressed={art}
-		aria-label={art ? 'Hide artwork' : 'Show artwork'}
-		title={art ? 'Hide artwork' : 'Show artwork'}
-		onclick={() => (art = !art)}
-	>
-		{#if art}<Image class="size-[18px]" />{:else}<ImageOff class="size-[18px]" />{/if}
-	</button>
-{/if}
 {#each shown as option (option.id)}
 	<button
 		type="button"
@@ -38,3 +27,15 @@
 		<option.icon class="size-[18px]" />
 	</button>
 {/each}
+{#if !tuner}<span class="w-11 shrink-0 border-l border-line"></span>{/if}
+<button
+	type="button"
+	class="press grid w-11 shrink-0 place-items-center border-l border-line disabled:text-faint {art ? 'text-fg' : 'text-muted'}"
+	disabled={view !== 'list'}
+	aria-pressed={art}
+	aria-label={art ? 'Hide artwork' : 'Show artwork'}
+	title={art ? 'Hide artwork' : 'Show artwork'}
+	onclick={() => (art = !art)}
+>
+	{#if art}<Image class="size-[18px]" />{:else}<ImageOff class="size-[18px]" />{/if}
+</button>

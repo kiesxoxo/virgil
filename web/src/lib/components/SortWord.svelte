@@ -1,20 +1,19 @@
 <script lang="ts">
 	import { ArrowDown, ArrowUp } from '@lucide/svelte';
 
-	// One word in the sort row. It reaches past the row, to 44px tall for a finger.
+	// One word in the sort row. It reaches past the row, to 44px tall for a finger, and always keeps
+	// the arrow's room, so that the words don't shift when the sort changes.
 	let { label, active, desc, onclick }: { label: string; active: boolean; desc: boolean; onclick: () => void } = $props();
 </script>
 
 <button
 	type="button"
-	class="label relative flex shrink-0 items-center gap-1 text-[10.5px] after:absolute after:-inset-x-2 after:top-0 after:-bottom-2 {active
+	class="label relative flex shrink-0 items-center gap-1 text-[10.5px] after:absolute after:-inset-x-0.5 after:top-0 after:-bottom-2 {active
 		? 'text-accent'
 		: 'text-muted hover:text-fg'}"
 	aria-pressed={active}
 	{onclick}
 >
 	{label}
-	{#if active}
-		{#if desc}<ArrowDown class="size-3" />{:else}<ArrowUp class="size-3" />{/if}
-	{/if}
+	{#if active && desc}<ArrowDown class="size-3" />{:else}<ArrowUp class="size-3 {active ? '' : 'invisible'}" />{/if}
 </button>
