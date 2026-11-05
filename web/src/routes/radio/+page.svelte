@@ -73,7 +73,7 @@
 			{#each radio.data.live as station, i (station.id)}
 				{@const show = station.now}
 				{@const progress = radio.progress(station)}
-				<div class="flex min-w-0 flex-col even:border-l even:border-line">
+				<div class="relative flex min-w-0 flex-col odd:rule-r">
 					<button
 						type="button"
 						class="group relative block aspect-square w-full overflow-hidden bg-surface-2 text-left sm:aspect-[16/10]"
@@ -124,7 +124,7 @@
 		<ul class="grid grid-cols-4 sm:grid-cols-8">
 			{#each radio.data.mixtapes as station, i (station.id)}
 				{@const active = on(station)}
-				<li class="border-b border-line {(i + 1) % 4 ? 'border-r' : 'max-sm:border-r-0 sm:border-r'} {(i + 1) % 8 ? '' : 'sm:border-r-0'}">
+				<li class="relative border-b border-line {(i + 1) % 8 ? ((i + 1) % 4 ? 'rule-r' : 'sm:rule-r') : ''}">
 					<button
 						type="button"
 						class="flex aspect-square w-full flex-col items-center justify-between px-1 pt-2.5 pb-1.5 text-center {active ? 'press bg-accent text-accent-fg' : 'press'}"

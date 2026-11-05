@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Airplay, ChevronDown, Disc3, ExternalLink, ListMusic } from '@lucide/svelte';
+	import { afterNavigate, goto } from '$app/navigation';
 	import Cover from '#lib/components/Cover.svelte';
 	import NowCover from '#lib/components/NowCover.svelte';
 	import OnAir from '#lib/components/OnAir.svelte';
@@ -22,9 +23,16 @@
 	let titleHeight = $state(0);
 	let controlsHeight = $state(0);
 
+	/** Opened by a link in the app, so going back stays in the app; unknown after a reload or a jump through history. */
+	let fromApp = false;
+	afterNavigate((navigation) => {
+		// On the first load `from` is there too, with no route.
+		if (navigation.type !== 'popstate') fromApp = !!navigation.from?.route.id;
+	});
+
 	function close() {
-		if (history.length > 1) history.back();
-		else location.assign('/');
+		if (fromApp) history.back();
+		else goto('/');
 	}
 </script>
 

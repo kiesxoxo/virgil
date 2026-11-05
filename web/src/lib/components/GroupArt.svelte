@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { covers, type Group } from '../browse.ts';
+	import type { ArtSize } from '../format.ts';
 	import Cover from './Cover.svelte';
 
 	// An artist: one cover. A genre: a 2×2 mosaic of its albums (one
 	// cover when it has fewer than four with art).
-	let { group, kind, size = 300, class: className = '' }: { group: Group; kind: 'artist' | 'genre'; size?: 300 | 600; class?: string } =
+	let { group, kind, size = 300, class: className = '' }: { group: Group; kind: 'artist' | 'genre'; size?: ArtSize; class?: string } =
 		$props();
 
 	let arts = $derived(covers(group));

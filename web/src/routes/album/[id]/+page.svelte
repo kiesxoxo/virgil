@@ -24,7 +24,10 @@
 	/** The page this one was opened from, when it was a link in the app; unknown after a reload or a jump through history. */
 	let from = $state<string | null>(null);
 	afterNavigate((navigation) => {
-		if (navigation.type !== 'popstate') from = navigation.from?.route.id ?? null;
+		if (navigation.type === 'popstate') return;
+		// Switching version replaces this page in history, so it was still opened from the same place.
+		if (versions.some((version) => version.id === navigation.from?.params?.id)) return;
+		from = navigation.from?.route.id ?? null;
 	});
 
 	/** Back to where the album was opened from, as it was left (the grid scrolled); else to the albums. */
@@ -177,12 +180,12 @@
 				data-back
 				class="press label flex shrink-0 items-center gap-1 pr-4 pl-2 text-[11px]"
 				onclick={(e) => {
-					if (from !== '/' || e.metaKey || e.ctrlKey || e.shiftKey) return;
+					if (!from || e.metaKey || e.ctrlKey || e.shiftKey) return;
 					e.preventDefault();
 					back();
 				}}
 			>
-				<ChevronLeft class="size-4" /> Albums
+				<ChevronLeft class="size-4" /> {from && from !== '/' ? 'Back' : 'Albums'}
 			</a>
 			<span class="label ml-auto flex min-w-0 items-center px-3 text-[11px] text-muted"><span class="truncate">{album?.genre ?? ''}</span></span>
 		</div>
@@ -375,7 +378,7 @@
 	>
 		<button
 			type="button"
-			class="grid min-h-[52px] min-w-0 flex-1 grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center py-2 text-left select-none"
+			class="press grid min-h-[52px] min-w-0 flex-1 grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center py-2 text-left select-none"
 			aria-pressed={selecting ? picked : undefined}
 			onclick={(e) => trackClick(e, i)}
 		>

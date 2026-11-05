@@ -2,7 +2,7 @@
 	import { ArrowDown, ArrowUp, ListEnd, Play } from '@lucide/svelte';
 	import { queue } from '../api.ts';
 	import { NO_GENRE, type Group } from '../browse.ts';
-	import { fold, span } from '../format.ts';
+	import { TILE, fold, span } from '../format.ts';
 	import { library } from '../library.svelte.ts';
 	import { contextMenu, type MenuItem } from '../menu.svelte.ts';
 	import { search } from '../search.svelte.ts';
@@ -212,7 +212,7 @@
 					{@attach contextMenu(() => items(group), () => header(group))}
 				>
 					<a href={href(group)} class="block">
-						<GroupArt {group} {kind} />
+						<GroupArt {group} {kind} size={TILE} />
 						<div class="px-2 pt-2 {kind === 'artist' ? '' : 'px-2.5'}">
 							<div class="wide line-clamp-2 leading-[15px] [overflow-wrap:anywhere] {kind === 'artist' ? 'text-[11.5px]' : 'text-[12.5px]'} {group.key === NO_GENRE ? 'text-muted' : ''}">{group.name}</div>
 							<div class="label mt-1 truncate text-[10px] leading-3 text-muted">{count(group.albums.length, 'album')}</div>

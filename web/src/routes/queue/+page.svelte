@@ -49,7 +49,7 @@
 			() => queueHeader(item)
 		)}
 	>
-		<button type="button" class="flex min-w-0 flex-1 items-center gap-3 text-left" onclick={() => api.playItem(item.id)}>
+		<button type="button" class="press flex min-w-0 flex-1 items-center gap-3 text-left" onclick={() => api.playItem(item.id)}>
 			<Cover art={shown.art} src={shown.src} class="size-14 shrink-0" />
 			<span class="min-w-0 flex-1">
 				<span class="wide block truncate text-[13px] leading-[18px]">{shown.title}</span>
@@ -77,7 +77,7 @@
 	{:else}
 		<div class="flex h-11 items-stretch border-y border-line">
 			<p class="label flex min-w-0 flex-1 items-center px-3 text-[10.5px] whitespace-nowrap text-muted">
-				{items.length} {items.length === 1 ? 'song' : 'songs'}{#if remaining > 0}&nbsp;/ {span(remaining)}{/if}
+				{cur >= 0 ? `${upNext.length} up next` : `${items.length} ${items.length === 1 ? 'song' : 'songs'}`}{#if remaining > 0}&nbsp;/ {span(remaining)}{/if}
 			</p>
 			<button
 				type="button"
