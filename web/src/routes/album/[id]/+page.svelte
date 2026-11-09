@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ListChecks, ListEnd, ListPlus, Square, SquareCheck } from '@lucide/svelte';
+	import { ChevronLeft, ListChecks, ListEnd, ListPlus, Square, SquareCheck } from '@lucide/svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import BackLink from '#lib/components/BackLink.svelte';
 	import Cover from '#lib/components/Cover.svelte';
@@ -11,7 +11,7 @@
 	import { goBack, swapTo } from '#lib/back.ts';
 	import { splitGenres } from '#lib/browse.ts';
 	import { contextMenu } from '#lib/menu.svelte.ts';
-	import { pullBack } from '#lib/swipeback.ts';
+	import { followBackLink, pullBack } from '#lib/swipeback.ts';
 	import { fitTitle } from '#lib/fit.ts';
 	import { clock, formatLong, formatShort, isHiRes, plural, span } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
@@ -155,7 +155,8 @@
 {:else}
 	<!-- clip, not hidden: it can't be scrolled sideways by focus, and the selection bar can stick. -->
 	<div class="pt-safe relative isolate overflow-clip" {@attach pullBack}>
-		<div class="flex h-11 items-stretch border-b border-line">
+		<!-- One-handed, going back is down by the thumb, but the swipe and the pull still follow this link. -->
+		<div class="flex h-11 items-stretch border-b border-line reach:sr-only">
 			<BackLink href="/" label="Albums" class="shrink-0 pr-4" />
 			<nav class="ml-auto flex min-w-0" aria-label="Genres">
 				{#each splitGenres(album?.genre ?? null) as genre (genre)}
@@ -178,6 +179,7 @@
 					<p class="label mt-1.5 flex flex-wrap items-center gap-x-2 text-[10.5px] leading-4 text-muted" title={album?.format ? formatLong(album.format) : undefined}>
 						{meta.join(' / ')}
 						{#if album?.format && isHiRes(album.format)}<span class="bg-fg px-1 text-bg">Hi-res</span>{/if}
+						{#if album?.genre}<span class="hidden reach:inline">/ {album.genre}</span>{/if}
 					</p>
 				</div>
 				{#if versions.length > 1}
@@ -204,7 +206,10 @@
 					</div>
 				{/if}
 				<!-- On a phone the keys wait above the player while the cover and title take the screen. -->
-				<div class="grid h-14 grid-cols-[minmax(0,1fr)_repeat(3,56px)] border-t border-line bg-bg max-md:sticky max-md:bottom-[calc(7.5rem+env(safe-area-inset-bottom))]">
+				<div class="grid h-14 grid-cols-[minmax(0,1fr)_repeat(3,56px)] border-t border-line bg-bg max-md:sticky max-md:above-player deck:fixed deck:inset-x-0 deck:z-20 deck:grid-cols-[56px_minmax(0,1fr)_repeat(3,56px)]">
+					<button type="button" class="press hidden place-items-center border-r border-line deck:grid" aria-label="Back" onclick={followBackLink}>
+						<ChevronLeft class="size-6" />
+					</button>
 					<button
 						type="button"
 						class="press wide flex items-center justify-center gap-2.5 bg-accent text-[17px] text-accent-fg disabled:bg-surface-2 disabled:text-faint"
@@ -249,7 +254,7 @@
 
 			<div class="border-t border-line md:border-t-0">
 				{#if selecting}
-					<div class="top-safe sticky z-10 flex h-11 items-stretch border-b border-line bg-bg">
+					<div class="top-safe sticky z-10 flex h-11 items-stretch border-b border-line bg-bg reach:fixed reach:top-auto reach:right-[var(--side-r)] reach:bottom-[calc(var(--nav-h)+4rem+var(--reach-row)+env(safe-area-inset-bottom))] reach:left-[var(--side-l)] reach:z-20 reach:border-t reach:border-b-0">
 						<span class="label flex flex-1 items-center px-3 text-[11px] whitespace-nowrap">{selected.size} selected</span>
 						<button
 							type="button"

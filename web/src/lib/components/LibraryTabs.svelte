@@ -9,7 +9,7 @@
 	];
 </script>
 
-<nav class="flex min-w-0 flex-1 lg:hidden" aria-label="Library">
+<nav class="flex min-w-0 flex-1 lg:hidden reach:hidden" aria-label="Library">
 	{#each views as view (view.href)}
 		{@const active = page.url.pathname === view.href}
 		<a

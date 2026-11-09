@@ -3,6 +3,12 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* The one-handed layouts (lib/reach.svelte.ts). */
+@custom-variant reach (&:where([data-reach] *));
+@custom-variant deck (&:where([data-reach='deck'] *));
+@custom-variant rail (&:where([data-reach='rail'] *));
+@custom-variant arc (&:where([data-reach='arc'] *));
+
 /* The display type and the numerals, cut to one static instance each (lib/fonts). Titles outside
    these ranges, like the library's Japanese ones, fall back to the system's heaviest sans. */
 @font-face {
@@ -73,6 +79,38 @@
 	--good: #4ade80;
 	--warn: #fbbf24;
 	--info: #60a5fa;
+}
+
+/*
+ * What the bottom of the screen holds. --nav-h: the tab bar. --reach-row: a row of keys fixed on top
+ * of the player. --side-l/-r: a rail along an edge. --libbar: the library's controls in the page.
+ * --now-head: Now Playing's header above the cover.
+ */
+:root {
+	--nav-h: 3.5rem;
+	--reach-row: 0px;
+	--side-l: 0px;
+	--side-r: 0px;
+	--libbar: 85px;
+	--now-head: 3rem;
+}
+:root[data-reach='deck'] {
+	--reach-row: 56px;
+	--libbar: 44px;
+	--now-head: 0px;
+}
+:root[data-reach='rail'],
+:root[data-reach='arc'] {
+	--nav-h: 0px;
+	--libbar: 0px;
+	--now-head: 0px;
+}
+:root[data-reach='rail'] {
+	--side-r: 56px;
+}
+:root[data-reach='rail'][data-hand='left'] {
+	--side-r: 0px;
+	--side-l: 56px;
 }
 
 @theme inline {
@@ -154,6 +192,11 @@ nav a {
 /* A bar that sticks below the status bar. */
 @utility top-safe {
 	top: var(--top);
+}
+
+/* Sits on top of the player, or on top of the tab bar's place where there is no tab bar. */
+@utility above-player {
+	bottom: calc(var(--nav-h) + 4rem + env(safe-area-inset-bottom));
 }
 
 /* The display type: titles, tabs and keys. */

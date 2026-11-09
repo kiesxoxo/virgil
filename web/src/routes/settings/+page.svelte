@@ -5,9 +5,17 @@
 	import { api } from '#lib/api.ts';
 	import { Confirm } from '#lib/confirm.svelte.ts';
 	import { hub } from '#lib/hub.svelte.ts';
+	import { reach, type Hand, type ReachMode } from '#lib/reach.svelte.ts';
 	import { theme, type ThemeMode } from '#lib/theme.svelte.ts';
 	import { toasts } from '#lib/toast.svelte.ts';
 
+	const reaches: { id: ReachMode; label: string; about: string }[] = [
+		{ id: 'off', label: 'Off', about: 'Tabs at the bottom, controls at the top of each page.' },
+		{ id: 'deck', label: 'Deck', about: 'All six tabs at the bottom, and each page’s controls in a row right above the player.' },
+		{ id: 'rail', label: 'Rail', about: 'A column of keys down the edge of the screen, in place of the tabs.' },
+		{ id: 'arc', label: 'Arc', about: 'A dial in the corner: press it and slide onto a key, in place of the tabs.' }
+	];
+	const hands: Hand[] = ['right', 'left'];
 	const modes: { id: ThemeMode; label: string }[] = [
 		{ id: 'system', label: 'System' },
 		{ id: 'light', label: 'Light' },
@@ -87,6 +95,40 @@
 				{mode.label}
 			</button>
 		{/each}
+	</div>
+
+	<!-- Phones only: a larger screen is held in two hands, or sits on a table. -->
+	<div class="md:hidden">
+		{@render section('One-handed layout')}
+		<div class="grid h-14 grid-cols-4" role="radiogroup" aria-label="One-handed layout">
+			{#each reaches as mode (mode.id)}
+				<button
+					type="button"
+					role="radio"
+					class="wide border-l border-line text-xs uppercase first:border-l-0 {reach.mode === mode.id ? 'press-lit bg-fg text-bg' : 'press text-muted'}"
+					aria-checked={reach.mode === mode.id}
+					onclick={() => reach.set(mode.id)}
+				>
+					{mode.label}
+				</button>
+			{/each}
+		</div>
+		<p class="border-t border-line px-3 py-2.5 text-[13px] text-muted">{reaches.find((m) => m.id === reach.mode)?.about}</p>
+		{#if reach.mode === 'rail' || reach.mode === 'arc'}
+			<div class="grid h-11 grid-cols-2 border-t border-line" role="radiogroup" aria-label="Hand">
+				{#each hands as hand (hand)}
+					<button
+						type="button"
+						role="radio"
+						class="label border-l border-line text-[11px] first:border-l-0 {reach.hand === hand ? 'press-lit bg-fg text-bg' : 'press text-muted'}"
+						aria-checked={reach.hand === hand}
+						onclick={() => reach.setHand(hand)}
+					>
+						{hand} hand
+					</button>
+				{/each}
+			</div>
+		{/if}
 	</div>
 
 	{@render section('Output')}

@@ -22,6 +22,9 @@ function backLink(): HTMLElement | undefined {
 	return [...document.querySelectorAll<HTMLElement>('[data-back]')].find((el) => el.getClientRects().length);
 }
 
+/** Follows the page's back link, for a back key somewhere else than the link. */
+export const followBackLink = () => backLink()?.click();
+
 /** Listens for swipes back until the returned function is called. */
 export function swipeBack(): () => void {
 	let start: { x: number; y: number; t: number } | null = null;

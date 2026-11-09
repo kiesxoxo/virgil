@@ -65,7 +65,7 @@
 			<a href="/" class="press wide mt-5 flex h-14 items-center justify-center bg-accent text-[15px] text-accent-fg uppercase">Browse albums</a>
 		</div>
 	{:else}
-		<div class="flex h-11 items-stretch border-y border-line">
+		<div class="flex h-11 items-stretch border-y border-line bg-bg deck:fixed deck:inset-x-0 deck:z-20 deck:above-player deck:border-b-0">
 			<p class="label flex min-w-0 flex-1 items-center px-3 text-[10.5px] whitespace-nowrap text-muted">
 				{cur >= 0 ? `${upNext.length} up next` : plural(items.length, 'song')}{#if remaining > 0}&nbsp;/ {span(remaining)}{/if}
 			</p>

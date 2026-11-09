@@ -4,7 +4,7 @@
 </script>
 
 <div
-	class="pointer-events-none fixed inset-x-0 bottom-[calc(7.5rem+env(safe-area-inset-bottom))] z-[60] flex flex-col items-stretch lg:right-auto lg:bottom-[72px] lg:left-60 lg:w-96"
+	class="pointer-events-none fixed inset-x-0 above-player z-[60] flex flex-col items-stretch lg:right-auto lg:bottom-[72px] lg:left-60 lg:w-96"
 	aria-live="polite"
 >
 	{#each toasts.items as toast (toast.id)}

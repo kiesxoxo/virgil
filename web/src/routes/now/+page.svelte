@@ -28,21 +28,26 @@
 
 <svelte:head><title>{shown ? `${shown.title} · ${shown.subtitle}` : 'Now playing'} · Virgil</title></svelte:head>
 
+{#snippet head()}
+	<button type="button" class="press grid place-items-center" aria-label="Close" onclick={close}>
+		<ChevronDown class="size-[22px]" />
+	</button>
+	<div class="grid min-w-0 place-items-center border-x border-line px-2">
+		{#if hub.signal.verdict !== 'idle'}
+			<SignalBadge signal={hub.signal} />
+		{:else}
+			<span class="label text-[10px] text-muted">Now playing</span>
+		{/if}
+	</div>
+	<a href="/queue" class="press grid place-items-center" aria-label="Queue">
+		<ListMusic class="size-5" />
+	</a>
+{/snippet}
+
 <div class="pt-safe flex min-h-dvh flex-col">
-	<header class="grid h-12 shrink-0 grid-cols-[56px_minmax(0,1fr)_56px] border-b border-line">
-		<button type="button" class="press grid place-items-center" aria-label="Close" onclick={close}>
-			<ChevronDown class="size-[22px]" />
-		</button>
-		<div class="grid min-w-0 place-items-center border-x border-line px-2">
-			{#if hub.signal.verdict !== 'idle'}
-				<SignalBadge signal={hub.signal} />
-			{:else}
-				<span class="label text-[10px] text-muted">Now playing</span>
-			{/if}
-		</div>
-		<a href="/queue" class="press grid place-items-center" aria-label="Queue">
-			<ListMusic class="size-5" />
-		</a>
+	<!-- One-handed, it goes under the keys, within the thumb's reach. -->
+	<header class="grid h-12 shrink-0 grid-cols-[56px_minmax(0,1fr)_56px] border-b border-line {hub.external ? '' : 'reach:hidden'}">
+		{@render head()}
 	</header>
 
 	<div class="flex flex-1 flex-col md:grid md:grid-cols-[minmax(0,min(calc(100dvh-3rem),50vw))_minmax(0,1fr)] md:items-start">
@@ -159,6 +164,9 @@
 					<div class="border-t border-line">
 						<Transport size="lg" />
 					</div>
+					<header class="hidden h-12 grid-cols-[56px_minmax(0,1fr)_56px] border-t border-line reach:grid">
+						{@render head()}
+					</header>
 				</div>
 			{/if}
 		</div>
@@ -172,7 +180,7 @@
 	 */
 	@media (max-width: 767.98px) {
 		.fit {
-			width: min(100%, max(60vw, calc(100dvh - var(--top) - 3rem - 1px - var(--below))));
+			width: min(100%, max(60vw, calc(100dvh - var(--top) - var(--now-head) - 1px - var(--below))));
 		}
 	}
 </style>

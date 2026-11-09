@@ -5,6 +5,7 @@
 	import { hub } from '../hub.svelte.ts';
 	import { isStream, radio } from '../radio.svelte.ts';
 	import { keyboard } from '../keyboard.svelte.ts';
+	import { reach } from '../reach.svelte.ts';
 	import { search } from '../search.svelte.ts';
 	import Cover from './Cover.svelte';
 	import Glyph from './Glyph.svelte';
@@ -31,8 +32,10 @@
 <!-- Phones and tablets: a flat bar on top of the tab bar, with search built in. While the keyboard
      is up, it sits on top of that instead. -->
 <div
-	class="fixed inset-x-0 z-30 flex h-16 border-t border-line bg-bg lg:hidden"
-	style:bottom={keyboard.height > 0 ? `${keyboard.height}px` : 'calc(3.5rem + env(safe-area-inset-bottom))'}
+	class="fixed z-30 flex h-16 border-t border-line bg-bg lg:hidden"
+	style:bottom={keyboard.height > 0 ? `${keyboard.height}px` : 'calc(var(--nav-h) + env(safe-area-inset-bottom))'}
+	style:left={keyboard.height > 0 ? '0' : 'var(--side-l)'}
+	style:right={keyboard.height > 0 ? '0' : 'var(--side-r)'}
 >
 	<div class="relative flex min-w-0 flex-1" class:hidden={search.open}>
 		{#if hub.external}
@@ -54,7 +57,7 @@
 			</a>
 			<button
 				type="button"
-				class="press grid w-14 shrink-0 place-items-center border-l border-line disabled:text-faint"
+				class="press grid w-14 shrink-0 place-items-center border-l border-line disabled:text-faint rail:hidden"
 				aria-label={hub.playing ? 'Pause' : 'Play'}
 				disabled={!item}
 				onclick={() => hub.toggle()}
@@ -63,7 +66,7 @@
 			</button>
 			<button
 				type="button"
-				class="press grid w-14 shrink-0 place-items-center border-l border-line disabled:text-faint"
+				class="press grid w-14 shrink-0 place-items-center border-l border-line disabled:text-faint rail:hidden"
 				aria-label="Next"
 				disabled={!item}
 				onclick={() => api.next()}
@@ -71,6 +74,8 @@
 				<Glyph name="next" class="size-[22px]" />
 			</button>
 		{/if}
+		<!-- The arc's dial sits here, over the corner. -->
+		<span class="hidden w-[76px] shrink-0 arc:block {reach.hand === 'left' ? 'order-first' : ''}"></span>
 	</div>
 	<MobileSearch />
 	{#if !hub.external && !search.open}

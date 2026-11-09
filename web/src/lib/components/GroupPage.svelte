@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { ListEnd } from '@lucide/svelte';
+	import { ChevronLeft, ListEnd } from '@lucide/svelte';
 	import { queue } from '../api.ts';
 	import { totals, type Group } from '../browse.ts';
 	import { fitTitle } from '../fit.ts';
 	import { plural, span } from '../format.ts';
 	import { library } from '../library.svelte.ts';
+	import { followBackLink } from '../swipeback.ts';
 	import type { Album } from '../types/Album.ts';
 	import AlbumGrid from './AlbumGrid.svelte';
 	import BackLink from './BackLink.svelte';
@@ -31,7 +32,7 @@
 <svelte:head><title>{group?.name ?? name} · Virgil</title></svelte:head>
 
 <div class="pt-safe">
-	<BackLink href={back.href} label={back.label} class="h-11 border-b border-line" />
+	<BackLink href={back.href} label={back.label} class="h-11 border-b border-line reach:sr-only" />
 
 	{#if !group && library.loaded}
 		<div class="px-3">
@@ -46,7 +47,10 @@
 				<h1 class="wide mt-1.5 leading-[1.03] text-balance" style:font-size="{room ? fitTitle(group?.name ?? name, room - 24, { scale: 1.1, max: 72 }) : 32}px">{group?.name ?? name}</h1>
 				<p class="label mt-2 text-[10.5px] text-muted">{meta.join(' / ')}</p>
 			</div>
-			<div class="grid h-14 grid-cols-[minmax(0,1fr)_56px] border-t border-line md:max-w-md md:border-r">
+			<div class="grid h-14 grid-cols-[minmax(0,1fr)_56px] border-t border-line bg-bg md:max-w-md md:border-r deck:fixed deck:inset-x-0 deck:z-20 deck:above-player deck:grid-cols-[56px_minmax(0,1fr)_56px]">
+				<button type="button" class="press hidden place-items-center border-r border-line deck:grid" aria-label="Back" onclick={followBackLink}>
+					<ChevronLeft class="size-6" />
+				</button>
 				<button
 					type="button"
 					class="press wide flex items-center justify-center gap-2.5 bg-accent text-[17px] text-accent-fg disabled:bg-surface-2 disabled:text-faint"

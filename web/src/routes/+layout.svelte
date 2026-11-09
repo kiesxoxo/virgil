@@ -2,16 +2,20 @@
 	import '../app.css';
 	import { WifiOff } from '@lucide/svelte';
 	import { onMount, type Snippet } from 'svelte';
+	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import ContextMenu from '#lib/components/ContextMenu.svelte';
 	import Logotype from '#lib/components/Logotype.svelte';
 	import PlayerBar from '#lib/components/PlayerBar.svelte';
+	import ReachRail from '#lib/components/ReachRail.svelte';
 	import Shortcuts from '#lib/components/Shortcuts.svelte';
+	import ThumbArc from '#lib/components/ThumbArc.svelte';
 	import Toaster from '#lib/components/Toaster.svelte';
 	import { trackOpeners } from '#lib/back.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { keyboard } from '#lib/keyboard.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
+	import { reach } from '#lib/reach.svelte.ts';
 	import { swipeBack } from '#lib/swipeback.ts';
 	import { isStream, radio } from '#lib/radio.svelte.ts';
 	import '#lib/theme.svelte.ts';
@@ -34,6 +38,7 @@
 	const nav = [...shelves, ...pages];
 
 	let routeId = $derived(page.route.id ?? '');
+	afterNavigate(() => (reach.panel = false));
 	let fullscreen = $derived(routeId === '/now');
 
 	/** Which of the library's pages was seen last. */
@@ -113,21 +118,30 @@
 	{/if}
 </div>
 
-<main class={fullscreen ? '' : 'pb-[calc(7.5rem+env(safe-area-inset-bottom))] lg:pb-[72px] lg:pl-60'}>
+<main class={fullscreen ? '' : 'pr-[var(--side-r)] pb-[calc(var(--nav-h)+4rem+var(--reach-row)+env(safe-area-inset-bottom))] pl-[var(--side-l)] lg:pb-[72px] lg:pl-60'}>
 	{@render children()}
 </main>
 
 {#if !fullscreen}
 	<PlayerBar />
 
+	<!-- With no tab bar, the safe area under the player still has to hide the page. -->
+	<div class="fixed inset-x-0 bottom-0 z-30 hidden h-[env(safe-area-inset-bottom)] bg-bg rail:block arc:block"></div>
+
+	{#if reach.active === 'rail'}
+		<ReachRail items={nav} {routeId} />
+	{:else if reach.active === 'arc'}
+		<ThumbArc items={nav} {routeId} />
+	{/if}
+
 	<!-- Stays beneath the on-screen keyboard rather than riding up with it. -->
-	<nav class="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg lg:hidden" class:hidden={keyboard.height > 0}>
-		<div class="grid h-14 grid-cols-4">
-			{#each tabs as item (item.label)}
+	<nav class="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg lg:hidden rail:hidden arc:hidden" class:hidden={keyboard.height > 0}>
+		<div class="grid h-14 {reach.active === 'deck' ? 'grid-cols-6' : 'grid-cols-4'}">
+			{#each reach.active === 'deck' ? nav : tabs as item (item.label)}
 				{@const active = item.active(routeId)}
 				<a
 					href={item.href}
-					class="wide grid place-items-center border-l border-line text-[clamp(9px,2.8vw,11px)] uppercase first:border-l-0 {active
+					class="wide grid place-items-center border-l border-line text-[clamp(9px,2.8vw,11px)] uppercase first:border-l-0 deck:font-mono deck:text-[10px] deck:font-medium deck:tracking-[0.02em] {active
 						? 'bg-fg text-bg'
 						: 'press text-muted'}"
 					aria-current={active ? 'page' : undefined}

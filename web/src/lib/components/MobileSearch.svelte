@@ -66,7 +66,7 @@
 		<button type="button" class="press wide shrink-0 border-l border-line px-3.5 text-[11px] uppercase" onclick={close}>Cancel</button>
 	</form>
 {:else}
-	<button type="button" class="press grid w-14 shrink-0 place-items-center border-l border-line" aria-label="Search" onclick={open}>
+	<button type="button" class="press grid w-14 shrink-0 place-items-center border-l border-line rail:hidden arc:hidden" aria-label="Search" onclick={open}>
 		<Search class="size-[22px]" />
 	</button>
 {/if}
