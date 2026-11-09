@@ -172,7 +172,7 @@
 	 */
 	@media (max-width: 767.98px) {
 		.fit {
-			width: min(100%, max(60vw, calc(100dvh - env(safe-area-inset-top) - 3rem - 1px - var(--below))));
+			width: min(100%, max(60vw, calc(100dvh - var(--top) - 3rem - 1px - var(--below))));
 		}
 	}
 </style>

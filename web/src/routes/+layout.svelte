@@ -79,7 +79,7 @@
 </script>
 
 {#if !fullscreen}
-	<aside class="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-line pb-[72px] lg:flex">
+	<aside class="pt-safe fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-line pb-[72px] lg:flex">
 		<a href="/" class="block border-b border-line p-3"><Logotype class="w-full" /></a>
 		<nav class="flex flex-col">
 			{#each nav as item (item.href)}

@@ -44,6 +44,20 @@
 	--good: #0f7a35;
 	--warn: #9a4a00;
 	--info: #1d4ed8;
+
+	/* How far down the page starts: below the status bar, which the layout covers with a solid bar. */
+	--top: env(safe-area-inset-top);
+}
+
+/*
+ * A Home Screen app on iOS 26 blurs the top of the page into the status bar, over the masthead,
+ * unless a solid fixed bar reaches a few pixels past the status bar (5 is too few, 8 is enough).
+ * So there the cover, and the page under it, start 10px lower.
+ */
+@media (display-mode: standalone) {
+	:root {
+		--top: calc(env(safe-area-inset-top) + 10px);
+	}
 }
 
 .dark {
@@ -134,12 +148,12 @@ nav a {
 }
 
 @utility pt-safe {
-	padding-top: env(safe-area-inset-top);
+	padding-top: var(--top);
 }
 
 /* A bar that sticks below the status bar. */
 @utility top-safe {
-	top: env(safe-area-inset-top);
+	top: var(--top);
 }
 
 /* The display type: titles, tabs and keys. */

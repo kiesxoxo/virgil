@@ -278,7 +278,7 @@
 	 */
 	.tuner {
 		--masthead: calc((100vw - 24px) / 9 + 22px);
-		height: max(26rem, calc(100dvh - env(safe-area-inset-top) - var(--masthead) - 85px - 7.5rem - env(safe-area-inset-bottom)));
+		height: max(26rem, calc(100dvh - var(--top) - var(--masthead) - 85px - 7.5rem - env(safe-area-inset-bottom)));
 	}
 	@media (min-width: 1024px) {
 		.tuner {
