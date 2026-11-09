@@ -239,8 +239,8 @@ impl App {
 
     /// Lets the request line follow the song playing: votes start over, the aircheck logs it.
     fn follow_current(&self) {
-        let playing = self.player().state == PlayState::Play;
-        self.party.now_playing(self.current().as_ref(), playing);
+        let player = self.player();
+        self.party.now_playing(self.current().as_ref(), player.state == PlayState::Play, player.elapsed);
         self.refresh_party();
     }
 

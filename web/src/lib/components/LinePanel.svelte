@@ -133,7 +133,7 @@
 						<span class="label block text-[10px] {here ? 'text-good' : 'text-faint'}">{here ? 'Here' : 'Away'}{person.host ? ' · Host' : ''}</span>
 					</span>
 				</div>
-				{#if line.host && person.id !== line.me?.id}
+				{#if line.self?.host && person.id !== line.me?.id}
 					<button
 						type="button"
 						class="label w-16 border-l border-line text-[10px] {person.host ? 'press-lit bg-fg text-bg' : 'press text-muted'}"

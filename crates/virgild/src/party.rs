@@ -274,15 +274,25 @@ impl PartyStore {
         Some(person)
     }
 
-    /// Makes the device behind `token` one of `id`'s devices. Only a host may become a host this way.
+    /// Makes the device behind `token` one of `id`'s devices. Only a host may become a host this way,
+    /// and the last host's last device can't leave: nobody could close the line.
     pub fn link(&self, token: &str, id: &str, caller: &Caller) -> Result<Person, &'static str> {
         if !valid_token(token) {
             return Err("this device has no token");
         }
         let mut state = self.lock();
         let target = state.person(id).cloned().ok_or("no such person")?;
-        if target.host && !caller.host {
-            return Err("only a host can link a device to a host");
+        if target.host && !caller.person.as_ref().is_some_and(|p| p.host) {
+            return Err("Only a host can link a device to a host");
+        }
+        let hosts_after = state
+            .saved
+            .people
+            .iter()
+            .filter(|m| m.person.host && (m.person.id == id || m.tokens.iter().any(|t| t != token)))
+            .count();
+        if hosts_after == 0 && state.saved.people.iter().any(|m| m.person.host) {
+            return Err("Someone has to stay host");
         }
         for member in &mut state.saved.people {
             member.tokens.retain(|t| t != token);
@@ -437,8 +447,9 @@ impl PartyStore {
     }
 
     /// The song playing changed or started: votes start over, and while the line is open the
-    /// song goes on the aircheck. Returns whether the party changed.
-    pub fn now_playing(&self, current: Option<&QueueItem>, playing: bool) -> bool {
+    /// song goes on the aircheck. `elapsed` is how far into it playback is, so a song already
+    /// logged before virgild restarted isn't logged again. Returns whether the party changed.
+    pub fn now_playing(&self, current: Option<&QueueItem>, playing: bool, elapsed: f64) -> bool {
         let mut state = self.lock();
         let id = current.map(|c| c.id);
         let mut changed = false;
@@ -450,6 +461,17 @@ impl PartyStore {
             && state.logged != Some(item.id)
         {
             state.logged = Some(item.id);
+            // The same playthrough, logged before a restart: it started when that entry says.
+            let started = f64::from(now()) - elapsed;
+            let logged_already = state
+                .saved
+                .aircheck
+                .as_ref()
+                .and_then(|a| a.played.last())
+                .is_some_and(|last| last.uri == item.uri && (f64::from(last.at) - started).abs() < 30.0);
+            if logged_already {
+                return changed;
+            }
             let person = item.pick.as_ref().and_then(|p| state.person(&p.by)).cloned();
             let aircheck =
                 state.saved.aircheck.get_or_insert_with(|| Aircheck { opened: now(), ..Aircheck::default() });
@@ -668,15 +690,15 @@ mod tests {
         let ola = store.register(OLA, &profile("Ola")).unwrap();
         let mut song = item(1, "a");
         song.pick = Some(Pick { by: ola.id.clone(), request: 1, at: 0, note: Some("for Jan".into()) });
-        store.now_playing(Some(&song), true);
+        store.now_playing(Some(&song), true, 0.0);
         assert!(store.aircheck().is_none(), "nothing is logged while the line is closed");
 
         store.set(Some(true), None);
-        store.now_playing(Some(&song), true);
-        store.now_playing(Some(&song), true);
+        store.now_playing(Some(&song), true, 0.0);
+        store.now_playing(Some(&song), true, 0.0);
         store.cheer(&ola.id, 1);
         store.skipping();
-        store.now_playing(Some(&item(2, "b")), false);
+        store.now_playing(Some(&item(2, "b")), false, 0.0);
         store.set(Some(false), None);
 
         let aircheck = store.aircheck().unwrap();
@@ -686,6 +708,51 @@ mod tests {
         let played = &aircheck.played[0];
         assert_eq!((played.cheers, played.skipped), (1, true));
         assert_eq!(played.pick.as_ref().unwrap().note.as_deref(), Some("for Jan"));
+    }
+
+    #[test]
+    fn a_guest_stays_a_guest_after_the_line_closes() {
+        let store = PartyStore::in_memory();
+        let ola = store.register(OLA, &profile("Ola")).unwrap();
+        store.set(Some(true), None);
+        store.register(JAN, &profile("Jan")).unwrap();
+        store.set(Some(false), None);
+        // Closed, Jan may do everything else, but not take Ola's place as a host.
+        let jan = store.caller(Some(JAN)).0;
+        assert!(jan.host);
+        assert!(store.link(JAN, &ola.id, &jan).is_err());
+    }
+
+    #[test]
+    fn the_last_host_cant_link_away() {
+        let store = PartyStore::in_memory();
+        store.register(OLA, &profile("Ola")).unwrap();
+        store.set(Some(true), None);
+        let jan = store.register(JAN, &profile("Jan")).unwrap();
+        let ola = store.caller(Some(OLA)).0;
+        assert_eq!(store.link(OLA, &jan.id, &ola), Err("Someone has to stay host"));
+        // With a second host device, it may.
+        store.register("ola-ipad-token-000003", &profile("Ola's iPad")).unwrap_or_else(|| unreachable!());
+        let ipad = store.caller(Some("ola-ipad-token-000003")).0.person.unwrap();
+        assert!(store.set_host(&ipad.id, true));
+        assert!(store.link(OLA, &jan.id, &ola).is_ok());
+    }
+
+    #[test]
+    fn a_restart_doesnt_log_the_song_playing_twice() {
+        let store = PartyStore::in_memory();
+        store.set(Some(true), None);
+        let song = item(1, "a");
+        store.now_playing(Some(&song), true, 0.0);
+        // virgild restarts 20 s into the song: a new store over the same saved state.
+        let saved = std::mem::take(&mut store.lock().saved);
+        let store = PartyStore::with(None, saved);
+        store.now_playing(Some(&song), true, 20.0);
+        assert_eq!(store.aircheck().unwrap().played.len(), 1);
+        // The same song requested again, starting afresh, is logged.
+        store.now_playing(Some(&item(2, "b")), true, 0.0);
+        store.now_playing(Some(&item(3, "a")), true, 0.0);
+        assert_eq!(store.aircheck().unwrap().played.len(), 3);
     }
 
     #[test]

@@ -49,6 +49,16 @@ fn host_only(caller: &Caller, what: &str) -> ApiResult<()> {
     if caller.host { Ok(()) } else { Err(ApiError::forbidden(format!("Ask the host to {what}"))) }
 }
 
+/// Refuses anyone who isn't a host, even with the line closed: who is a host outlasts the night,
+/// so a guest mustn't be able to promote themselves once everyone may do everything else.
+fn hosts_only(caller: &Caller, what: &str) -> ApiResult<()> {
+    if caller.person.as_ref().is_some_and(|p| p.host) {
+        Ok(())
+    } else {
+        Err(ApiError::forbidden(format!("Only a host can {what}")))
+    }
+}
+
 #[derive(Debug)]
 pub struct ApiError {
     status: StatusCode,
@@ -325,7 +335,7 @@ async fn set_host(
     Path(id): Path<String>,
     Json(req): Json<HostRequest>,
 ) -> ApiResult {
-    host_only(&caller, "choose the hosts")?;
+    hosts_only(&caller, "choose the hosts")?;
     if !req.host {
         keeps_a_host(&app, &id)?;
     }
@@ -337,7 +347,7 @@ async fn set_host(
 }
 
 async fn forget(State(app): State<App>, caller: Caller, Path(id): Path<String>) -> ApiResult {
-    host_only(&caller, "forget people")?;
+    hosts_only(&caller, "forget people")?;
     keeps_a_host(&app, &id)?;
     if !app.party.forget(&id) {
         return Err(ApiError::not_found("no such person"));

@@ -6,8 +6,8 @@
 	import Sign from './Sign.svelte';
 
 	let linking = $state(false);
-	// A guest can't make their phone a host's; with the line closed, everyone is a host.
-	let others = $derived(hub.party.people.filter((p) => p.id !== line.me?.id && (line.host || !p.host)));
+	// Only a host's device can become a host's (virgild says no otherwise, even with the line closed).
+	let others = $derived(hub.party.people.filter((p) => p.id !== line.me?.id && (line.self?.host || !p.host)));
 </script>
 
 {#key line.me?.id}
