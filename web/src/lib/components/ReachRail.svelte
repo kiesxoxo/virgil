@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { ChevronLeft, Search, SlidersHorizontal } from '@lucide/svelte';
 	import { flushSync } from 'svelte';
-	import { api } from '../api.ts';
 	import { hub } from '../hub.svelte.ts';
 	import { keyboard } from '../keyboard.svelte.ts';
+	import { line } from '../party.svelte.ts';
 	import { reach } from '../reach.svelte.ts';
 	import { search } from '../search.svelte.ts';
 	import { followBackLink } from '../swipeback.ts';
@@ -63,14 +63,14 @@
 		<span class={cell}></span>
 	{/if}
 
-	<button type="button" class="{cell} press disabled:text-faint" aria-label="Next" disabled={!hub.current} onclick={() => api.next()}>
+	<button type="button" class="{cell} press disabled:text-faint" aria-label={line.skipKey === 'vote' ? 'Vote to skip' : 'Next'} disabled={!hub.current || line.skipKey === 'none'} onclick={() => line.skip()}>
 		<Glyph name="next" class="size-5" />
 	</button>
 	<button
 		type="button"
 		class="press flex min-h-12 max-h-[72px] flex-[1.4] items-center justify-center border-t border-line bg-accent text-accent-fg disabled:bg-surface-2 disabled:text-faint"
 		aria-label={hub.playing ? 'Pause' : 'Play'}
-		disabled={!hub.current}
+		disabled={!hub.current || !line.canPause}
 		onclick={() => hub.toggle()}
 	>
 		<Glyph name={hub.playing ? 'pause' : 'play'} class="size-6" />

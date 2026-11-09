@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, broadcast};
 use tracing::{info, warn};
 use virgil_core::{
-    AddMode, HomekitStatus, LOCAL_SOURCE, Outputs, PlayState, PlayerState, Queue, QueueItem, ServerEvent, SignalPath,
-    SourceState,
+    AddMode, Added, HomekitStatus, LOCAL_SOURCE, Outputs, Party, PlayState, PlayerState, Queue, QueueItem, ServerEvent,
+    SignalPath, SourceState,
 };
 use virgil_engine_mpd::MpdEngine;
 use virgil_homekit::Switch;
@@ -15,7 +15,9 @@ use virgil_radio::Nts;
 
 use crate::api::ApiError;
 use crate::config::Config;
+use crate::party::{Caller, PartyStore};
 use crate::signal::{Hw, card_label, parse_cards, read_hw};
+use crate::turns;
 
 /// Latest state of everything the UI shows; `hello` sends it whole.
 #[derive(Default)]
@@ -26,6 +28,7 @@ struct Snapshot {
     source: SourceState,
     outputs: Outputs,
     homekit: Option<HomekitStatus>,
+    party: Party,
 }
 
 /// Serializes hand-overs of the DAC between local playback and external sources.
@@ -46,8 +49,26 @@ pub struct Inner {
     /// The HomeKit accessory, when enabled and running.
     pub homekit: Option<Switch>,
     pub events: broadcast::Sender<ServerEvent>,
+    /// The request line: people, who picked what, votes.
+    pub party: PartyStore,
     snapshot: RwLock<Snapshot>,
     arbiter: Mutex<Arbiter>,
+    /// Held across every change to the queue, so requests from several phones at once don't
+    /// work from positions another one just shifted, and picks are recorded before the queue
+    /// is read back.
+    queue_edit: Mutex<()>,
+}
+
+/// Where a request goes.
+#[derive(Clone, Copy, PartialEq)]
+enum Place {
+    /// Instead of everything (the queue is cleared first).
+    Clear,
+    /// Right after the song playing.
+    Next,
+    /// In the requester's turn.
+    Turn,
+    End,
 }
 
 impl Deref for App {
@@ -60,14 +81,18 @@ impl Deref for App {
 impl App {
     pub fn new(config: Config, library: Library, radio: Nts, homekit: Option<Switch>) -> Self {
         let source = SourceState { active: LOCAL_SOURCE.into(), available: config.sources.keys().cloned().collect() };
+        let party = PartyStore::load(config.data_dir.join("party.json"));
+        let snapshot = Snapshot { source, party: party.party(), ..Snapshot::default() };
         App(Arc::new(Inner {
             mpd: MpdEngine::new(&config.mpd),
             library,
             radio,
             homekit,
             events: broadcast::channel(256).0,
-            snapshot: RwLock::new(Snapshot { source, ..Snapshot::default() }),
+            party,
+            snapshot: RwLock::new(snapshot),
             arbiter: Mutex::default(),
+            queue_edit: Mutex::default(),
             config,
         }))
     }
@@ -91,6 +116,7 @@ impl App {
             library: self.library.status(),
             outputs: s.outputs.clone(),
             homekit: s.homekit.clone(),
+            party: s.party.clone(),
         }
     }
 
@@ -186,6 +212,38 @@ impl App {
         self.update(|s| &mut s.signal, signal, ServerEvent::Signal);
     }
 
+    /// Broadcasts the request line if it changed (people, who is here, votes).
+    pub fn refresh_party(&self) {
+        self.update(|s| &mut s.party, self.party.party(), ServerEvent::Party);
+    }
+
+    /// Tells everyone something happened in the room.
+    pub fn shout(&self, text: String) {
+        let _ = self.events.send(ServerEvent::Shout { text });
+    }
+
+    /// Who `token` belongs to, noting they are around.
+    pub fn caller(&self, token: Option<&str>) -> Caller {
+        let (caller, changed) = self.party.caller(token);
+        if changed {
+            self.refresh_party();
+        }
+        caller
+    }
+
+    /// The queue item playing (or paused, or stopped at).
+    pub fn current(&self) -> Option<QueueItem> {
+        let s = self.snapshot.read().expect("snapshot lock");
+        s.queue.items.iter().find(|item| Some(item.id) == s.player.song_id).cloned()
+    }
+
+    /// Lets the request line follow the song playing: votes start over, the aircheck logs it.
+    fn follow_current(&self) {
+        let playing = self.player().state == PlayState::Play;
+        self.party.now_playing(self.current().as_ref(), playing);
+        self.refresh_party();
+    }
+
     pub fn set_homekit(&self, status: HomekitStatus) {
         self.update(|s| &mut s.homekit, Some(status), |s| ServerEvent::Homekit(s.expect("just set")));
     }
@@ -196,6 +254,7 @@ impl App {
         self.update(|s| &mut s.source, source, ServerEvent::Source);
     }
 
+    /// Adds what the library and the request line know: album, artwork, who asked for it.
     fn enrich(&self, mut items: Vec<QueueItem>) -> Vec<QueueItem> {
         for item in &mut items {
             if let Some((album_id, art)) = self.library.lookup(&item.uri) {
@@ -203,6 +262,7 @@ impl App {
                 item.art = art;
             }
         }
+        self.party.annotate(&mut items);
         items
     }
 
@@ -215,11 +275,131 @@ impl App {
         let version = player.queue_version;
         self.set_player(player);
         if queue {
+            let _edit = self.queue_edit.lock().await;
             match self.mpd.queue().await {
-                Ok(items) => self.set_queue(Queue { version, items: self.enrich(items) }),
+                Ok(items) => {
+                    self.party.reconcile(&items);
+                    self.set_queue(Queue { version, items: self.enrich(items) });
+                }
                 Err(e) => warn!("mpd queue: {e}"),
             }
         }
+        self.follow_current();
+    }
+
+    /// Adds `uris` for `caller`. With the request line open nothing replaces the queue: guests'
+    /// requests take their turn, and a host's "play" plays the songs next. `start` is the index
+    /// of the song to play, if `play`.
+    pub async fn request(
+        &self,
+        caller: &Caller,
+        uris: &[String],
+        mode: AddMode,
+        play: bool,
+        start: usize,
+        note: Option<String>,
+    ) -> Result<Added, ApiError> {
+        let place = match (caller.open, caller.host, mode) {
+            (false, _, AddMode::Replace) => Place::Clear,
+            (false, _, AddMode::Next) | (true, true, AddMode::Replace | AddMode::Next) => Place::Next,
+            (false, _, AddMode::Append) => Place::End,
+            (true, _, _) if caller.rules.take_turns => Place::Turn,
+            (true, _, _) => Place::End,
+        };
+        let play = play && caller.host;
+        let start = if play { start } else { 0 };
+        let edit = self.queue_edit.lock().await;
+        let status = self.mpd.status().await?;
+        let items = self.enrich(self.mpd.queue().await?);
+        let current = status.song_pos.map(|p| p as usize).filter(|&p| p < items.len());
+        // The queue played out while the line is open (stopped, nothing after the song MPD stopped
+        // at): a request goes at the end, and the music starts again (unless AirPlay has the DAC).
+        let idle = caller.open && status.state == PlayState::Stop && current.is_none_or(|p| p + 1 == items.len());
+        let (place, play) = if idle && place != Place::Clear {
+            (Place::End, play || self.source().active == LOCAL_SOURCE)
+        } else {
+            (place, play)
+        };
+        let base = if idle { items.len() } else { current.map_or(0, |p| p + 1) };
+        let upcoming = &items[base..];
+        let (at, index) = match place {
+            Place::Clear => (None, 0),
+            Place::Next if current.is_some() => (Some(base as u32), 0),
+            Place::Next | Place::End => (None, upcoming.len()),
+            Place::Turn => {
+                let index = turns::place(upcoming, caller.id().unwrap_or_default());
+                (Some((base + index) as u32), index)
+            }
+        };
+        let ids = self.mpd.add_ids(uris, at, place == Place::Clear).await?;
+        if let Some(person) = &caller.person {
+            self.party.record(&ids, uris, &person.id, note);
+        }
+        drop(edit);
+        self.reenrich_queue();
+
+        let mut ahead: f64 = upcoming[..index].iter().map(|item| item.duration).sum();
+        if current.is_some() && place != Place::Clear {
+            ahead += (status.duration - status.elapsed).max(0.0);
+        }
+        let mut position = if place == Place::Clear { 1 } else { index as u32 + 1 };
+        if play {
+            self.claim_local().await;
+            self.mpd.play_id(ids[start.min(ids.len() - 1)]).await?;
+            (position, ahead) = (0, 0.0);
+        }
+        Ok(Added { ids, position, ahead })
+    }
+
+    /// Removes one queue item; guests may only remove what they asked for.
+    pub async fn remove(&self, caller: &Caller, id: u32) -> Result<(), ApiError> {
+        let _edit = self.queue_edit.lock().await;
+        if !caller.host {
+            let item = self.queue().items.into_iter().find(|i| i.id == id);
+            let item = item.ok_or_else(|| ApiError::not_found("that song isn't in the queue"))?;
+            self.check_owner(caller, &item)?;
+        }
+        Ok(self.mpd.delete_id(id).await?)
+    }
+
+    /// Removes what is left of a request: its songs from the one playing on. Removing the song
+    /// playing skips to the next.
+    pub async fn remove_request(&self, caller: &Caller, request: u32) -> Result<(), ApiError> {
+        let _edit = self.queue_edit.lock().await;
+        let queue = self.queue().items;
+        let from = self.current().and_then(|c| queue.iter().position(|i| i.id == c.id)).unwrap_or(0);
+        let songs: Vec<&QueueItem> =
+            queue[from..].iter().filter(|i| i.pick.as_ref().is_some_and(|p| p.request == request)).collect();
+        let first = songs.first().ok_or_else(|| ApiError::not_found("that request isn't in the queue"))?;
+        if !caller.host {
+            self.check_owner(caller, first)?;
+        }
+        if songs.iter().any(|i| Some(i.id) == self.player().song_id) {
+            self.party.skipping();
+        }
+        for item in songs {
+            self.mpd.delete_id(item.id).await?;
+        }
+        Ok(())
+    }
+
+    fn check_owner(&self, caller: &Caller, item: &QueueItem) -> Result<(), ApiError> {
+        let by = item.pick.as_ref().map(|p| p.by.as_str());
+        if by.is_some() && by == caller.id() {
+            return Ok(());
+        }
+        let whose = by.and_then(|id| self.party.person(id)).map_or("someone else".into(), |p| p.name);
+        Err(ApiError::forbidden(format!("That's {whose}'s request")))
+    }
+
+    pub async fn move_item(&self, id: u32, to: u32) -> Result<(), ApiError> {
+        let _edit = self.queue_edit.lock().await;
+        Ok(self.mpd.move_id(id, to).await?)
+    }
+
+    pub async fn clear(&self) -> Result<(), ApiError> {
+        let _edit = self.queue_edit.lock().await;
+        Ok(self.mpd.clear_except_current().await?)
     }
 
     /// Picks up album ids and artwork the library learned since the queue was read.
@@ -290,8 +470,10 @@ impl App {
             // Already the current item: (re)start it, live.
             return Ok(self.mpd.play_id(current.id).await?);
         }
-        let first = self.mpd.add(&[uri.to_string()], AddMode::Next).await?;
-        self.mpd.play_pos(first).await?;
+        let _edit = self.queue_edit.lock().await;
+        let at = status.song_pos.map(|pos| pos + 1);
+        let ids = self.mpd.add_ids(&[uri.to_string()], at, false).await?;
+        self.mpd.play_id(ids[0]).await?;
         if let Some(previous) = current.filter(|item| is_stream(&item.uri)) {
             self.mpd.delete_id(previous.id).await?;
         }

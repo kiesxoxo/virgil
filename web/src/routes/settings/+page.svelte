@@ -1,10 +1,13 @@
 <script lang="ts">
 	import { Check, House, LoaderCircle, RefreshCw, RotateCw, TriangleAlert, Usb } from '@lucide/svelte';
+	import LinePanel from '#lib/components/LinePanel.svelte';
 	import Masthead from '#lib/components/Masthead.svelte';
+	import YouPanel from '#lib/components/YouPanel.svelte';
 	import SignalPathCard from '#lib/components/SignalPathCard.svelte';
 	import { api } from '#lib/api.ts';
 	import { Confirm } from '#lib/confirm.svelte.ts';
 	import { hub } from '#lib/hub.svelte.ts';
+	import { line } from '#lib/party.svelte.ts';
 	import { reach, type Hand, type ReachMode } from '#lib/reach.svelte.ts';
 	import { theme, type ThemeMode } from '#lib/theme.svelte.ts';
 	import { toasts } from '#lib/toast.svelte.ts';
@@ -131,6 +134,14 @@
 		{/if}
 	</div>
 
+	{@render section('Request line')}
+	<LinePanel />
+
+	{@render section('You')}
+	<YouPanel />
+
+	<!-- Guests on the request line: the rest is the host's. -->
+	{#if line.host}
 	{@render section('Output')}
 	{#if outputs.length > 1 || newCards.length}
 		<div class="divide-y divide-line border-b border-line" role="radiogroup" aria-label="Output device">
@@ -272,5 +283,6 @@
 				</button>
 			</div>
 		{/if}
+	{/if}
 	{/if}
 </div>

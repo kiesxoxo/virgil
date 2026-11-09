@@ -5,9 +5,24 @@ use tokio::sync::broadcast::error::RecvError;
 use virgil_core::ServerEvent;
 
 use crate::app::App;
+use crate::party::Caller;
 
-pub async fn upgrade(ws: WebSocketUpgrade, State(app): State<App>) -> Response {
-    ws.on_upgrade(move |socket| session(socket, app))
+pub async fn upgrade(ws: WebSocketUpgrade, State(app): State<App>, caller: Caller) -> Response {
+    let person = caller.person.map(|p| p.id);
+    ws.on_upgrade(move |socket| async move {
+        // While the page is open, its person is in the room.
+        if let Some(id) = &person
+            && app.party.connect(id)
+        {
+            app.refresh_party();
+        }
+        session(socket, app.clone()).await;
+        if let Some(id) = &person
+            && app.party.disconnect(id)
+        {
+            app.refresh_party();
+        }
+    })
 }
 
 /// Sends the full state, then every change. A client that falls behind gets

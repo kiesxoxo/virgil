@@ -1,5 +1,6 @@
 use axum::body::{Body, Bytes};
-use axum::extract::{Path, Query, State};
+use axum::extract::{FromRequestParts, Path, Query, State};
+use axum::http::request::Parts;
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post};
@@ -10,12 +11,43 @@ use tower_http::compression::CompressionLayer;
 use tower_http::services::ServeDir;
 use tower_http::set_header::SetResponseHeaderLayer;
 use virgil_core::{
-    AddRequest, AlbumDetail, LibraryStatus, ModesRequest, MoveRequest, PlayState, Queue, Radio, SearchResults,
-    SeekRequest, ServerEvent,
+    AddRequest, Added, Aircheck, AlbumDetail, HostRequest, LibraryStatus, LinkRequest, ModesRequest, MoveRequest,
+    PartyRequest, Person, PlayState, ProfileRequest, Queue, Radio, SearchResults, SeekRequest, ServerEvent, SkipRule,
 };
 
 use crate::app::App;
+use crate::party::{Caller, clean_note};
 use crate::{web, ws};
+
+/// The header each device sends its token in (the WebSocket, which can't, uses `?token=`).
+const TOKEN_HEADER: &str = "x-virgil-token";
+
+/// The device's secret token, if it sent one.
+pub struct Token(pub Option<String>);
+
+impl<S: Send + Sync> FromRequestParts<S> for Token {
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, Self::Rejection> {
+        let header = parts.headers.get(TOKEN_HEADER).and_then(|v| v.to_str().ok()).map(str::to_string);
+        let query = || parts.uri.query()?.split('&').find_map(|pair| pair.strip_prefix("token=")).map(str::to_string);
+        Ok(Token(header.or_else(query)))
+    }
+}
+
+impl FromRequestParts<App> for Caller {
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, app: &App) -> Result<Self, Self::Rejection> {
+        let Ok(Token(token)) = Token::from_request_parts(parts, app).await;
+        Ok(app.caller(token.as_deref()))
+    }
+}
+
+/// Refuses guests while the line is open; `what` finishes "Ask the host to …".
+fn host_only(caller: &Caller, what: &str) -> ApiResult<()> {
+    if caller.host { Ok(()) } else { Err(ApiError::forbidden(format!("Ask the host to {what}"))) }
+}
 
 #[derive(Debug)]
 pub struct ApiError {
@@ -30,6 +62,14 @@ impl ApiError {
 
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self { status: StatusCode::BAD_REQUEST, message: message.into() }
+    }
+
+    pub fn conflict(message: impl Into<String>) -> Self {
+        Self { status: StatusCode::CONFLICT, message: message.into() }
+    }
+
+    pub fn forbidden(message: impl Into<String>) -> Self {
+        Self { status: StatusCode::FORBIDDEN, message: message.into() }
     }
 
     /// A service Virgil relies on (NTS, MusicBrainz) didn't answer.
@@ -86,6 +126,15 @@ pub fn router(app: App) -> Router {
         .route("/api/queue/{id}", delete(remove))
         .route("/api/queue/{id}/play", post(play_item))
         .route("/api/queue/{id}/move", post(move_item))
+        .route("/api/queue/requests/{request}", delete(remove_request))
+        .route("/api/people/me", get(me).put(set_me))
+        .route("/api/people/me/link", post(link_me))
+        .route("/api/people/{id}/host", post(set_host))
+        .route("/api/people/{id}", delete(forget))
+        .route("/api/party", post(set_party))
+        .route("/api/party/skip", post(skip))
+        .route("/api/party/cheer", post(cheer))
+        .route("/api/party/aircheck", get(aircheck))
         .route("/api/library", get(library))
         .route("/api/library/albums", get(albums))
         .route("/api/library/albums/{id}", get(album))
@@ -109,17 +158,25 @@ async fn state(State(app): State<App>) -> Json<ServerEvent> {
     Json(app.hello_live().await)
 }
 
-async fn play(State(app): State<App>) -> ApiResult {
+/// Guests may pause and resume when the rules say so.
+fn may_pause(caller: &Caller) -> ApiResult<()> {
+    if caller.rules.guests_pause { Ok(()) } else { host_only(caller, "pause") }
+}
+
+async fn play(State(app): State<App>, caller: Caller) -> ApiResult {
+    may_pause(&caller)?;
     app.play().await?;
     Ok(DONE)
 }
 
-async fn pause(State(app): State<App>) -> ApiResult {
+async fn pause(State(app): State<App>, caller: Caller) -> ApiResult {
+    may_pause(&caller)?;
     app.mpd.pause(true).await?;
     Ok(DONE)
 }
 
-async fn toggle(State(app): State<App>) -> ApiResult {
+async fn toggle(State(app): State<App>, caller: Caller) -> ApiResult {
+    may_pause(&caller)?;
     if app.player().state == PlayState::Play {
         app.pause_local().await?;
     } else {
@@ -128,27 +185,35 @@ async fn toggle(State(app): State<App>) -> ApiResult {
     Ok(DONE)
 }
 
-async fn stop(State(app): State<App>) -> ApiResult {
+async fn stop(State(app): State<App>, caller: Caller) -> ApiResult {
+    may_pause(&caller)?;
     app.mpd.stop().await?;
     Ok(DONE)
 }
 
-async fn next(State(app): State<App>) -> ApiResult {
+async fn next(State(app): State<App>, caller: Caller) -> ApiResult {
+    if caller.rules.skip != SkipRule::Free {
+        host_only(&caller, "skip, or vote to skip")?;
+    }
+    app.party.skipping();
     app.mpd.next().await?;
     Ok(DONE)
 }
 
-async fn previous(State(app): State<App>) -> ApiResult {
+async fn previous(State(app): State<App>, caller: Caller) -> ApiResult {
+    host_only(&caller, "go back")?;
     app.mpd.previous().await?;
     Ok(DONE)
 }
 
-async fn seek(State(app): State<App>, Json(req): Json<SeekRequest>) -> ApiResult {
+async fn seek(State(app): State<App>, caller: Caller, Json(req): Json<SeekRequest>) -> ApiResult {
+    host_only(&caller, "seek")?;
     app.mpd.seek(req.seconds).await?;
     Ok(DONE)
 }
 
-async fn modes(State(app): State<App>, Json(req): Json<ModesRequest>) -> ApiResult {
+async fn modes(State(app): State<App>, caller: Caller, Json(req): Json<ModesRequest>) -> ApiResult {
+    host_only(&caller, "change how the queue plays")?;
     app.mpd.set_modes(&req).await?;
     Ok(DONE)
 }
@@ -157,7 +222,7 @@ async fn queue(State(app): State<App>) -> Json<Queue> {
     Json(app.queue())
 }
 
-async fn add(State(app): State<App>, Json(req): Json<AddRequest>) -> ApiResult {
+async fn add(State(app): State<App>, caller: Caller, Json(req): Json<AddRequest>) -> ApiResult<Json<Added>> {
     let mut uris = req.uris;
     if let Some(album) = req.album {
         let tracks = app.library.album_uris(album).await?;
@@ -173,35 +238,167 @@ async fn add(State(app): State<App>, Json(req): Json<AddRequest>) -> ApiResult {
     if uris.iter().any(|uri| uri.trim().is_empty()) {
         return Err(ApiError::bad_request("empty URI"));
     }
-    let offset = req.start.and_then(|start| uris.iter().position(|uri| *uri == start)).unwrap_or(0);
-    let first = app.mpd.add(&uris, req.mode).await?;
-    if req.play {
-        app.claim_local().await;
-        app.mpd.play_pos(first + offset as u32).await?;
-    }
-    Ok(DONE)
+    let start = req.start.and_then(|start| uris.iter().position(|uri| *uri == start)).unwrap_or(0);
+    let added = app.request(&caller, &uris, req.mode, req.play, start, clean_note(req.note)).await?;
+    Ok(Json(added))
 }
 
 /// Clears the queue but lets the current song finish.
-async fn clear(State(app): State<App>) -> ApiResult {
-    app.mpd.clear_except_current().await?;
+async fn clear(State(app): State<App>, caller: Caller) -> ApiResult {
+    host_only(&caller, "clear the queue")?;
+    app.clear().await?;
     Ok(DONE)
 }
 
-async fn remove(State(app): State<App>, Path(id): Path<u32>) -> ApiResult {
-    app.mpd.delete_id(id).await?;
+async fn remove(State(app): State<App>, caller: Caller, Path(id): Path<u32>) -> ApiResult {
+    app.remove(&caller, id).await?;
     Ok(DONE)
 }
 
-async fn play_item(State(app): State<App>, Path(id): Path<u32>) -> ApiResult {
+async fn remove_request(State(app): State<App>, caller: Caller, Path(request): Path<u32>) -> ApiResult {
+    app.remove_request(&caller, request).await?;
+    Ok(DONE)
+}
+
+async fn play_item(State(app): State<App>, caller: Caller, Path(id): Path<u32>) -> ApiResult {
+    host_only(&caller, "play that now")?;
     app.claim_local().await;
     app.mpd.play_id(id).await?;
     Ok(DONE)
 }
 
-async fn move_item(State(app): State<App>, Path(id): Path<u32>, Json(req): Json<MoveRequest>) -> ApiResult {
-    app.mpd.move_id(id, req.to).await?;
+async fn move_item(
+    State(app): State<App>,
+    caller: Caller,
+    Path(id): Path<u32>,
+    Json(req): Json<MoveRequest>,
+) -> ApiResult {
+    host_only(&caller, "move things around")?;
+    app.move_item(id, req.to).await?;
     Ok(DONE)
+}
+
+async fn me(caller: Caller) -> ApiResult<Json<Person>> {
+    caller.person.map(Json).ok_or_else(|| ApiError::not_found("this device hasn't said who it is"))
+}
+
+async fn set_me(
+    State(app): State<App>,
+    Token(token): Token,
+    Json(req): Json<ProfileRequest>,
+) -> ApiResult<Json<Person>> {
+    let token = token.ok_or_else(|| ApiError::bad_request("no device token"))?;
+    let person = app.party.register(&token, &req).ok_or_else(|| ApiError::bad_request("bad device token"))?;
+    if req.join == Some(true) && app.party.is_open() {
+        app.shout(format!("{} called in", person.name));
+    }
+    app.refresh_party();
+    app.reenrich_queue();
+    Ok(Json(person))
+}
+
+async fn link_me(
+    State(app): State<App>,
+    Token(token): Token,
+    caller: Caller,
+    Json(req): Json<LinkRequest>,
+) -> ApiResult<Json<Person>> {
+    let token = token.ok_or_else(|| ApiError::bad_request("no device token"))?;
+    let person = app.party.link(&token, &req.person, &caller).map_err(ApiError::forbidden)?;
+    app.refresh_party();
+    Ok(Json(person))
+}
+
+/// Refuses to leave the line without a host: someone has to be able to close it.
+fn keeps_a_host(app: &App, id: &str) -> ApiResult<()> {
+    let people = app.party.party().people;
+    let hosts = people.iter().filter(|p| p.host).count();
+    if hosts == 1 && people.iter().any(|p| p.host && p.id == id) {
+        return Err(ApiError::bad_request("Someone has to stay host"));
+    }
+    Ok(())
+}
+
+async fn set_host(
+    State(app): State<App>,
+    caller: Caller,
+    Path(id): Path<String>,
+    Json(req): Json<HostRequest>,
+) -> ApiResult {
+    host_only(&caller, "choose the hosts")?;
+    if !req.host {
+        keeps_a_host(&app, &id)?;
+    }
+    if !app.party.set_host(&id, req.host) {
+        return Err(ApiError::not_found("no such person"));
+    }
+    app.refresh_party();
+    Ok(DONE)
+}
+
+async fn forget(State(app): State<App>, caller: Caller, Path(id): Path<String>) -> ApiResult {
+    host_only(&caller, "forget people")?;
+    keeps_a_host(&app, &id)?;
+    if !app.party.forget(&id) {
+        return Err(ApiError::not_found("no such person"));
+    }
+    app.refresh_party();
+    app.reenrich_queue();
+    Ok(DONE)
+}
+
+async fn set_party(State(app): State<App>, caller: Caller, Json(req): Json<PartyRequest>) -> ApiResult {
+    host_only(&caller, "run the request line")?;
+    let was_open = app.party.is_open();
+    app.party.set(req.open, req.rules);
+    match (was_open, app.party.is_open()) {
+        (false, true) => app.shout("The request line is open".into()),
+        (true, false) => app.shout("The request line is closed".into()),
+        _ => {}
+    }
+    app.refresh_party();
+    Ok(DONE)
+}
+
+/// Skips the song playing for hosts, whoever picked it, and everyone when the rules say so;
+/// otherwise it toggles a vote, and skips once enough people want it gone.
+async fn skip(State(app): State<App>, caller: Caller) -> ApiResult {
+    let current = app.current().ok_or_else(|| ApiError::not_found("nothing is playing"))?;
+    if app.player().state == PlayState::Stop {
+        return Err(ApiError::conflict("Nothing is playing"));
+    }
+    let picked = current.pick.as_ref().is_some_and(|p| Some(p.by.as_str()) == caller.id());
+    if caller.host || picked || caller.rules.skip == SkipRule::Free {
+        app.party.skipping();
+        app.mpd.next().await?;
+        return Ok(DONE);
+    }
+    if caller.rules.skip == SkipRule::Off {
+        return Err(ApiError::forbidden("Skipping is up to the host tonight"));
+    }
+    let who = caller.id().ok_or_else(|| ApiError::bad_request("say who you are to vote"))?;
+    let (votes, need) = app.party.vote_skip(who, current.id);
+    if votes >= need {
+        app.party.skipping();
+        app.mpd.next().await?;
+        let here = app.party.party().here.len().max(votes as usize);
+        app.shout(format!("Skipped by vote ({votes} of {here})"));
+    }
+    app.refresh_party();
+    Ok(DONE)
+}
+
+async fn cheer(State(app): State<App>, caller: Caller) -> ApiResult {
+    let current = app.current().ok_or_else(|| ApiError::not_found("nothing is playing"))?;
+    let who = caller.id().ok_or_else(|| ApiError::bad_request("say who you are to cheer"))?;
+    app.party.cheer(who, current.id);
+    app.refresh_party();
+    Ok(DONE)
+}
+
+/// The night in progress or, with the line closed, the last one.
+async fn aircheck(State(app): State<App>) -> ApiResult<Json<Aircheck>> {
+    app.party.aircheck().map(Json).ok_or_else(|| ApiError::not_found("no nights on the request line yet"))
 }
 
 async fn library(State(app): State<App>) -> Json<LibraryStatus> {
@@ -232,7 +429,8 @@ async fn search(State(app): State<App>, Query(params): Query<SearchParams>) -> A
     Ok(Json(app.library.search(params.q).await?))
 }
 
-async fn rescan(State(app): State<App>) -> ApiResult {
+async fn rescan(State(app): State<App>, caller: Caller) -> ApiResult {
+    host_only(&caller, "rescan the library")?;
     app.mpd.update().await?;
     Ok(StatusCode::ACCEPTED)
 }
@@ -242,7 +440,8 @@ async fn radio(State(app): State<App>) -> ApiResult<Json<Radio>> {
     app.radio.radio().await.map(Json).map_err(ApiError::upstream)
 }
 
-async fn play_station(State(app): State<App>, Path(id): Path<String>) -> ApiResult {
+async fn play_station(State(app): State<App>, caller: Caller, Path(id): Path<String>) -> ApiResult {
+    host_only(&caller, "tune the radio")?;
     let station = app.radio.station(&id).await.map_err(ApiError::upstream)?;
     let station = station.ok_or_else(|| ApiError::not_found("no such station"))?;
     // AAC when there is any (the mixtapes), through this server's relay; else MP3.
@@ -269,14 +468,16 @@ async fn aac_stream(State(app): State<App>, Path(id): Path<String>) -> ApiResult
     Ok(([(header::CONTENT_TYPE, "audio/aac"), (header::CACHE_CONTROL, "no-store")], body).into_response())
 }
 
-async fn select_output(State(app): State<App>, Path(id): Path<u32>) -> ApiResult {
+async fn select_output(State(app): State<App>, caller: Caller, Path(id): Path<u32>) -> ApiResult {
+    host_only(&caller, "change the output")?;
     app.select_output(id).await?;
     Ok(DONE)
 }
 
 /// Restarts Virgil so MPD gets outputs for sound devices connected since it
 /// started: virgild exits and its supervisor (Docker, systemd) brings it back.
-async fn restart() -> ApiResult {
+async fn restart(caller: Caller) -> ApiResult {
+    host_only(&caller, "restart Virgil")?;
     tracing::info!("restart requested from the UI");
     tokio::spawn(async {
         // Let the response go out first.
@@ -299,7 +500,8 @@ async fn release(State(app): State<App>, Path(name): Path<String>) -> ApiResult 
     Ok(DONE)
 }
 
-async fn homekit_reset(State(app): State<App>) -> ApiResult {
+async fn homekit_reset(State(app): State<App>, caller: Caller) -> ApiResult {
+    host_only(&caller, "reset Apple Home")?;
     let homekit = app.homekit.as_ref().ok_or_else(|| ApiError::not_found("HomeKit is off"))?;
     homekit.reset()?;
     Ok(DONE)

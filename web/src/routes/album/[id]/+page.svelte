@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ChevronLeft, ListChecks, ListEnd, ListPlus, Square, SquareCheck } from '@lucide/svelte';
+	import { ChevronLeft, ListChecks, ListEnd, ListPlus, MessageSquareHeart, Phone, Square, SquareCheck } from '@lucide/svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import BackLink from '#lib/components/BackLink.svelte';
 	import Cover from '#lib/components/Cover.svelte';
@@ -7,7 +7,8 @@
 	import Glyph from '#lib/components/Glyph.svelte';
 	import Menu from '#lib/components/Menu.svelte';
 	import { trackHeader, trackItems } from '#lib/actions.ts';
-	import { api, queue } from '#lib/api.ts';
+	import { api } from '#lib/api.ts';
+	import { queue } from '#lib/request.svelte.ts';
 	import { goBack, swapTo } from '#lib/back.ts';
 	import { splitGenres } from '#lib/browse.ts';
 	import { contextMenu } from '#lib/menu.svelte.ts';
@@ -15,6 +16,7 @@
 	import { fitTitle } from '#lib/fit.ts';
 	import { clock, formatLong, formatShort, isHiRes, plural, span } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
+	import { line } from '#lib/party.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
 	import type { AlbumDetail } from '#lib/types/AlbumDetail.ts';
 	import type { Track } from '#lib/types/Track.ts';
@@ -216,27 +218,45 @@
 						disabled={!album}
 						onclick={() => album && queue.playAlbum(album.id)}
 					>
-						<Glyph name="play" class="size-4" /> PLAY
+						{#if line.open}
+							<Phone class="size-4" strokeWidth={2.5} /> REQUEST
+						{:else}
+							<Glyph name="play" class="size-4" /> PLAY
+						{/if}
 					</button>
+					{#if line.open}
+						<!-- The line is open: a dedication, and for hosts Play next. -->
+						<button
+							type="button"
+							class="press grid place-items-center border-l border-line disabled:text-faint"
+							disabled={!album}
+							aria-label="Request with a dedication"
+							title="Request with a dedication"
+							onclick={() => album && line.dedicate({ title: album.title, subtitle: album.artist, send: (note) => queue.request({ album: album.id }, note) })}
+						>
+							<MessageSquareHeart class="size-5" />
+						</button>
+					{:else}
+						<button
+							type="button"
+							class="press grid place-items-center border-l border-line disabled:text-faint"
+							disabled={!album}
+							aria-label="Play next"
+							title="Play next"
+							onclick={() => album && queue.albumNext(album.id)}
+						>
+							<ListPlus class="size-5" />
+						</button>
+					{/if}
 					<button
 						type="button"
 						class="press grid place-items-center border-l border-line disabled:text-faint"
 						disabled={!album}
-						aria-label="Play next"
-						title="Play next"
-						onclick={() => album && queue.albumNext(album.id)}
+						aria-label={line.open && line.host ? 'Play next' : 'Add to queue'}
+						title={line.open && line.host ? 'Play next' : 'Add to queue'}
+						onclick={() => album && (line.open && line.host ? queue.albumNext(album.id) : queue.albumLast(album.id))}
 					>
-						<ListPlus class="size-5" />
-					</button>
-					<button
-						type="button"
-						class="press grid place-items-center border-l border-line disabled:text-faint"
-						disabled={!album}
-						aria-label="Add to queue"
-						title="Add to queue"
-						onclick={() => album && queue.albumLast(album.id)}
-					>
-						<ListEnd class="size-5" />
+						{#if line.open && line.host}<ListPlus class="size-5" />{:else}<ListEnd class="size-5" />{/if}
 					</button>
 					<button
 						type="button"
@@ -267,18 +287,22 @@
 							type="button"
 							class="press grid w-11 place-items-center border-l border-line disabled:text-faint"
 							disabled={!selected.size}
-							title="Play next"
-							aria-label="Play next"
-							onclick={() => queue.tracksNext(selectedUris())}
+							title={line.open ? 'Request with a dedication' : 'Play next'}
+							aria-label={line.open ? 'Request with a dedication' : 'Play next'}
+							onclick={() => {
+								const uris = selectedUris();
+								if (line.open) line.dedicate({ title: plural(uris.length, 'song'), subtitle: album?.title, send: (note) => queue.request({ uris }, note) });
+								else queue.tracksNext(uris);
+							}}
 						>
-							<ListPlus class="size-[18px]" />
+							{#if line.open}<MessageSquareHeart class="size-[18px]" />{:else}<ListPlus class="size-[18px]" />{/if}
 						</button>
 						<button
 							type="button"
 							class="press grid w-11 place-items-center border-l border-line disabled:text-faint"
 							disabled={!selected.size}
-							title="Add to end of queue"
-							aria-label="Add to end of queue"
+							title={line.open ? 'Request' : 'Add to end of queue'}
+							aria-label={line.open ? 'Request' : 'Add to end of queue'}
 							onclick={() => queue.tracksLast(selectedUris())}
 						>
 							<ListEnd class="size-[18px]" />

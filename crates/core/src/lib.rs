@@ -165,6 +165,8 @@ pub struct QueueItem {
     pub format: Option<AudioFormat>,
     pub album_id: Option<String>,
     pub art: Option<String>,
+    /// Who asked for it, when anyone did (virgild remembers; MPD can't).
+    pub pick: Option<Pick>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
@@ -421,6 +423,7 @@ pub enum ServerEvent {
         library: LibraryStatus,
         outputs: Outputs,
         homekit: Option<HomekitStatus>,
+        party: Party,
     },
     Player(PlayerState),
     Outputs(Outputs),
@@ -429,6 +432,11 @@ pub enum ServerEvent {
     Source(SourceState),
     Library(LibraryStatus),
     Homekit(HomekitStatus),
+    Party(Party),
+    /// A moment for everyone in the room: someone called in, the room voted a song off.
+    Shout {
+        text: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -456,6 +464,21 @@ pub struct AddRequest {
     /// One of the added URIs to start playback at (defaults to the first).
     #[ts(optional)]
     pub start: Option<String>,
+    /// A dedication that comes with the request.
+    #[ts(optional)]
+    pub note: Option<String>,
+}
+
+/// Where a request landed.
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct Added {
+    /// Queue ids of the new items, in order.
+    pub ids: Vec<u32>,
+    /// Place in line of the first: 0 is playing now, 1 is next.
+    pub position: u32,
+    /// Seconds of music before it starts.
+    pub ahead: f64,
 }
 
 #[derive(Debug, Clone, Deserialize, TS)]
@@ -482,6 +505,158 @@ pub struct ModesRequest {
 pub struct MoveRequest {
     /// Target queue position.
     pub to: u32,
+}
+
+/// Someone using Virgil from their own phone or computer. Each device holds a secret token that
+/// virgild maps to its person; only `id` is ever sent to others.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct Person {
+    pub id: String,
+    pub name: String,
+    /// One to three letters: the call sign shown on everything they request.
+    pub sign: String,
+    /// Index into the eight call-sign colours.
+    pub color: u8,
+    /// Hosts keep every control while the request line is open.
+    pub host: bool,
+}
+
+/// Who asked for a queue item, and the request it came in with.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct Pick {
+    /// `Person::id`.
+    pub by: String,
+    /// The songs of one request share it, so an album stays one turn.
+    pub request: u32,
+    /// Unix time it was requested.
+    pub at: u32,
+    pub note: Option<String>,
+}
+
+/// What guests may do to playback while the line is open.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum SkipRule {
+    /// Enough votes skip the song.
+    #[default]
+    Vote,
+    /// Guests skip like hosts.
+    Free,
+    /// Only hosts and whoever picked the song skip.
+    Off,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
+pub struct Rules {
+    /// Requests take turns, one per person per round, instead of going to the end.
+    pub take_turns: bool,
+    /// Guests may pause and resume.
+    pub guests_pause: bool,
+    pub skip: SkipRule,
+}
+
+impl Default for Rules {
+    fn default() -> Self {
+        Self { take_turns: true, guests_pause: true, skip: SkipRule::Vote }
+    }
+}
+
+/// Votes on the song playing now.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Votes {
+    pub song_id: Option<u32>,
+    /// Person ids who want it skipped.
+    pub skip: Vec<String>,
+    /// Person ids cheering it.
+    pub cheer: Vec<String>,
+    /// Skip votes it takes.
+    pub need: u32,
+}
+
+/// The request line: whether friends can call in, and who is around.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct Party {
+    pub open: bool,
+    pub rules: Rules,
+    pub people: Vec<Person>,
+    /// Person ids with Virgil open now or lately.
+    pub here: Vec<String>,
+    pub votes: Votes,
+}
+
+/// A song that played while the line was open.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Played {
+    pub uri: String,
+    pub title: String,
+    pub artist: String,
+    pub album: String,
+    pub album_id: Option<String>,
+    pub art: Option<String>,
+    pub duration: f64,
+    /// Unix time it started.
+    pub at: u32,
+    pub pick: Option<Pick>,
+    pub cheers: u32,
+    pub skip_votes: u32,
+    pub skipped: bool,
+}
+
+/// The set list of one night on the request line.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct Aircheck {
+    pub opened: u32,
+    pub closed: Option<u32>,
+    /// Everyone who requested something, as they were that night.
+    pub people: Vec<Person>,
+    pub played: Vec<Played>,
+}
+
+/// `PUT /api/people/me`: who this device is.
+#[derive(Debug, Clone, Deserialize, TS)]
+#[ts(export)]
+pub struct ProfileRequest {
+    pub name: String,
+    pub sign: String,
+    pub color: u8,
+    /// Sent from the join sheet: tell the room someone called in.
+    #[serde(default)]
+    #[ts(optional)]
+    pub join: Option<bool>,
+}
+
+/// `POST /api/people/me/link`: this device belongs to someone already here.
+#[derive(Debug, Clone, Deserialize, TS)]
+#[ts(export)]
+pub struct LinkRequest {
+    pub person: String,
+}
+
+#[derive(Debug, Clone, Deserialize, TS)]
+#[ts(export)]
+pub struct HostRequest {
+    pub host: bool,
+}
+
+/// `POST /api/party`.
+#[derive(Debug, Clone, Default, Deserialize, TS)]
+#[ts(export)]
+pub struct PartyRequest {
+    #[ts(optional)]
+    pub open: Option<bool>,
+    #[ts(optional)]
+    pub rules: Option<Rules>,
 }
 
 #[cfg(test)]

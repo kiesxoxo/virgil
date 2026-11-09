@@ -2,6 +2,7 @@
 import type { HomekitStatus } from "./HomekitStatus";
 import type { LibraryStatus } from "./LibraryStatus";
 import type { Outputs } from "./Outputs";
+import type { Party } from "./Party";
 import type { PlayerState } from "./PlayerState";
 import type { Queue } from "./Queue";
 import type { SignalPath } from "./SignalPath";
@@ -10,4 +11,4 @@ import type { SourceState } from "./SourceState";
 /**
  * Pushed over `/api/ws`. `hello` carries the full state; the rest replace one slice of it.
  */
-export type ServerEvent = { "type": "hello", player: PlayerState, queue: Queue, signal: SignalPath, source: SourceState, library: LibraryStatus, outputs: Outputs, homekit: HomekitStatus | null, } | { "type": "player" } & PlayerState | { "type": "outputs" } & Outputs | { "type": "queue" } & Queue | { "type": "signal" } & SignalPath | { "type": "source" } & SourceState | { "type": "library" } & LibraryStatus | { "type": "homekit" } & HomekitStatus;
+export type ServerEvent = { "type": "hello", player: PlayerState, queue: Queue, signal: SignalPath, source: SourceState, library: LibraryStatus, outputs: Outputs, homekit: HomekitStatus | null, party: Party, } | { "type": "player" } & PlayerState | { "type": "outputs" } & Outputs | { "type": "queue" } & Queue | { "type": "signal" } & SignalPath | { "type": "source" } & SourceState | { "type": "library" } & LibraryStatus | { "type": "homekit" } & HomekitStatus | { "type": "party" } & Party | { "type": "shout", text: string, };

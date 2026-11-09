@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { albumHeader, albumItems } from '../actions.ts';
-	import { queue } from '../api.ts';
+	import { queue } from '../request.svelte.ts';
 	import { TILE } from '../format.ts';
 	import { library } from '../library.svelte.ts';
 	import { contextMenu } from '../menu.svelte.ts';

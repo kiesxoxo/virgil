@@ -82,6 +82,21 @@
 }
 
 /*
+ * Call-sign colours (lib/names.ts), the same in both themes: fills light enough for black letters
+ * (7:1 or better), kept clear of the accent. The letters say who it is; the colour only helps.
+ */
+:root {
+	--who-0: #ffd60a;
+	--who-1: #a3e635;
+	--who-2: #22d3ee;
+	--who-3: #7aa7ff;
+	--who-4: #c4a1ff;
+	--who-5: #ff8fc8;
+	--who-6: #ffa94d;
+	--who-7: #d6d3cc;
+}
+
+/*
  * What the bottom of the screen holds. --nav-h: the tab bar. --reach-row: a row of keys fixed on top
  * of the player. --side-l/-r: a rail along an edge. --libbar: the library's controls in the page.
  * --now-head: Now Playing's header above the cover.

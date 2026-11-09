@@ -6,9 +6,11 @@
 </script>
 
 <script lang="ts">
+	import { Phone } from '@lucide/svelte';
 	import { untrack } from 'svelte';
 	import { albumHeader, albumItems } from '../actions.ts';
-	import { queue } from '../api.ts';
+	import { line } from '../party.svelte.ts';
+	import { queue } from '../request.svelte.ts';
 	import { markDecoded } from '../artwork.ts';
 	import { fitTitle } from '../fit.ts';
 	import { TILE, artUrl, fold, formatShort, qualityRank } from '../format.ts';
@@ -265,7 +267,7 @@
 		<div class="grid shrink-0 grid-cols-2 border-t border-line" style:height="{KEYS}px">
 			<button type="button" class="press-lit wide bg-fg text-[19px] text-bg disabled:bg-surface-2 disabled:text-faint" disabled={albums.length < 2} onclick={seek}>SEEK</button>
 			<button type="button" class="press wide flex items-center justify-center gap-2.5 bg-accent text-[19px] text-accent-fg" onclick={() => queue.playAlbum(album.id)}>
-				<Glyph name="play" class="size-4" />PLAY
+				{#if line.open}<Phone class="size-4" strokeWidth={2.5} />REQUEST{:else}<Glyph name="play" class="size-4" />PLAY{/if}
 			</button>
 		</div>
 	</div>

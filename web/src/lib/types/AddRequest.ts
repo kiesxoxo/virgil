@@ -9,4 +9,8 @@ album?: string, mode: AddMode, play: boolean,
 /**
  * One of the added URIs to start playback at (defaults to the first).
  */
-start?: string, };
+start?: string, 
+/**
+ * A dedication that comes with the request.
+ */
+note?: string, };

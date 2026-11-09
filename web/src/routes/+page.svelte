@@ -10,7 +10,8 @@
 	import SortWord from '#lib/components/SortWord.svelte';
 	import ViewToggle from '#lib/components/ViewToggle.svelte';
 	import { trackHeader, trackItems } from '#lib/actions.ts';
-	import { api, queue } from '#lib/api.ts';
+	import { api } from '#lib/api.ts';
+	import { queue } from '#lib/request.svelte.ts';
 	import { clock, fold, qualityRank } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
