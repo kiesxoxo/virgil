@@ -11,13 +11,15 @@ use tower_http::compression::CompressionLayer;
 use tower_http::services::ServeDir;
 use tower_http::set_header::SetResponseHeaderLayer;
 use virgil_core::{
-    AddRequest, Added, Aircheck, AlbumDetail, HostRequest, LibraryStatus, LinkRequest, ModesRequest, MoveRequest,
-    PartyRequest, Person, PlayState, ProfileRequest, Queue, Radio, SearchResults, SeekRequest, ServerEvent, SkipRule,
+    AddRequest, Added, Aircheck, AlbumDetail, ArtistCatalog, CatalogAlbum, CatalogResults, Download, DownloadRequest,
+    Downloads, HostRequest, LibraryStatus, LinkRequest, ModesRequest, MoveRequest, PartyRequest, Person, PlayState,
+    ProfileRequest, Queue, Radio, SearchResults, SeekRequest, ServerEvent, SkipRule,
 };
 
 use crate::app::App;
+use crate::downloads::Fetcher;
 use crate::party::{Caller, clean_note};
-use crate::{web, ws};
+use crate::{catalog, web, ws};
 
 /// The header each device sends its token in (the WebSocket, which can't, uses `?token=`).
 const TOKEN_HEADER: &str = "x-virgil-token";
@@ -82,7 +84,7 @@ impl ApiError {
         Self { status: StatusCode::FORBIDDEN, message: message.into() }
     }
 
-    /// A service Virgil relies on (NTS, MusicBrainz) didn't answer.
+    /// A service Virgil relies on (NTS, Lidarr, slskdpp) didn't answer, or said no.
     pub fn upstream(e: anyhow::Error) -> Self {
         Self { status: StatusCode::BAD_GATEWAY, message: format!("{e:#}") }
     }
@@ -149,7 +151,16 @@ pub fn router(app: App) -> Router {
         .route("/api/library/albums", get(albums))
         .route("/api/library/albums/{id}", get(album))
         .route("/api/library/search", get(search))
+        .route("/api/library/albums/{id}/missing", get(missing))
         .route("/api/library/rescan", post(rescan))
+        .route("/api/catalog/search", get(catalog_search))
+        .route("/api/catalog/artist", get(catalog_artist))
+        .route("/api/catalog/artists/{id}", get(catalog_artist_albums).post(follow_artist))
+        .route("/api/catalog/albums/{id}", get(catalog_album))
+        .route("/api/catalog/albums/{id}/tracks", post(catalog_tracks))
+        .route("/api/downloads", get(downloads).post(download))
+        .route("/api/downloads/{id}", delete(dismiss_download))
+        .route("/api/downloads/{id}/retry", post(retry_download))
         .route("/api/radio", get(radio))
         .route("/api/radio/{id}/play", post(play_station))
         .route("/api/radio/{id}/aac", get(aac_stream))
@@ -443,6 +454,99 @@ async fn rescan(State(app): State<App>, caller: Caller) -> ApiResult {
     host_only(&caller, "rescan the library")?;
     app.mpd.update().await?;
     Ok(StatusCode::ACCEPTED)
+}
+
+fn fetcher(app: &App) -> ApiResult<&Fetcher> {
+    app.fetch.as_ref().ok_or_else(|| ApiError::not_found("Virgil isn't set up to download music (it needs Lidarr)"))
+}
+
+/// Artists and albums in Lidarr's catalogue, for music the library doesn't have.
+async fn catalog_search(State(app): State<App>, Query(params): Query<SearchParams>) -> ApiResult<Json<CatalogResults>> {
+    let fetcher = fetcher(&app)?;
+    if params.q.trim().chars().count() < 2 {
+        return Err(ApiError::bad_request("Type a little more"));
+    }
+    catalog::search(fetcher, &app, params.q.trim()).await.map(Json).map_err(ApiError::upstream)
+}
+
+#[derive(Deserialize)]
+struct ArtistParams {
+    name: String,
+}
+
+/// The albums Lidarr has of an artist that the library has none of.
+async fn catalog_artist(State(app): State<App>, Query(params): Query<ArtistParams>) -> ApiResult<Json<ArtistCatalog>> {
+    let fetcher = fetcher(&app)?;
+    // The artist's folder in the music directory, from one of their albums here.
+    let album = app.library.albums().await?.into_iter().find(|a| a.artist == params.name);
+    let uri = match album {
+        Some(album) => app.library.album_uris(album.id).await?.into_iter().next(),
+        None => None,
+    };
+    let folder = uri.as_deref().map(virgil_fetch::paths::artist_folder);
+    catalog::artist(fetcher, &params.name, folder).await.map(Json).map_err(ApiError::upstream)
+}
+
+/// Every album Lidarr has of an artist (MusicBrainz id); nothing while Lidarr doesn't follow them.
+async fn catalog_artist_albums(State(app): State<App>, Path(id): Path<String>) -> ApiResult<Json<ArtistCatalog>> {
+    catalog::discography(fetcher(&app)?, &app, &id, false).await.map(Json).map_err(ApiError::upstream)
+}
+
+/// The same, having Lidarr follow the artist (wanting nothing) to list their albums.
+async fn follow_artist(State(app): State<App>, Path(id): Path<String>) -> ApiResult<Json<ArtistCatalog>> {
+    catalog::discography(fetcher(&app)?, &app, &id, true).await.map(Json).map_err(ApiError::upstream)
+}
+
+/// An album from Lidarr's catalogue, with its tracks once Lidarr has it.
+async fn catalog_album(State(app): State<App>, Path(id): Path<String>) -> ApiResult<Json<CatalogAlbum>> {
+    catalog::album(fetcher(&app)?, &app, &id, false).await.map(Json).map_err(ApiError::upstream)
+}
+
+/// An album's tracks, having Lidarr add the album (wanting nothing) if it hasn't got it.
+async fn catalog_tracks(State(app): State<App>, Path(id): Path<String>) -> ApiResult<Json<CatalogAlbum>> {
+    catalog::album(fetcher(&app)?, &app, &id, true).await.map(Json).map_err(ApiError::upstream)
+}
+
+/// One of Virgil's albums as Lidarr has it: every track, and which are missing.
+async fn missing(State(app): State<App>, Path(id): Path<String>) -> ApiResult<Json<CatalogAlbum>> {
+    let fetcher = fetcher(&app)?;
+    let uri =
+        app.library.album_uris(id).await?.into_iter().next().ok_or_else(|| ApiError::not_found("no such album"))?;
+    let album = catalog::album_of(fetcher, &app, &uri).await.map_err(ApiError::upstream)?;
+    album.map(Json).ok_or_else(|| ApiError::not_found("Lidarr doesn't have this album"))
+}
+
+async fn downloads(State(app): State<App>) -> ApiResult<Json<Downloads>> {
+    Ok(Json(fetcher(&app)?.downloads()))
+}
+
+/// Starts getting an album or a song. Anyone may: the library only grows.
+async fn download(
+    State(app): State<App>,
+    caller: Caller,
+    Json(req): Json<DownloadRequest>,
+) -> ApiResult<(StatusCode, Json<Download>)> {
+    let fetcher = fetcher(&app)?;
+    let started = fetcher.start(&req, caller.person.map(|p| p.id)).await.map_err(ApiError::upstream)?;
+    app.set_downloads(fetcher.downloads());
+    Ok((StatusCode::ACCEPTED, Json(started)))
+}
+
+async fn retry_download(State(app): State<App>, Path(id): Path<u32>) -> ApiResult<Json<Download>> {
+    let fetcher = fetcher(&app)?;
+    let download = fetcher.retry(id).ok_or_else(|| ApiError::not_found("no such download"))?;
+    app.set_downloads(fetcher.downloads());
+    Ok(Json(download))
+}
+
+/// Takes a download off the list (and stops it, for a song).
+async fn dismiss_download(State(app): State<App>, Path(id): Path<u32>) -> ApiResult {
+    let fetcher = fetcher(&app)?;
+    if !fetcher.dismiss(id).await {
+        return Err(ApiError::not_found("no such download"));
+    }
+    app.set_downloads(fetcher.downloads());
+    Ok(DONE)
 }
 
 /// NTS's live channels, with the shows on air, and its Infinite Mixtapes.

@@ -10,6 +10,7 @@ rust-version = "1.85"
 [workspace.dependencies]
 virgil-core = { path = "crates/core" }
 virgil-engine-mpd = { path = "crates/engine-mpd" }
+virgil-fetch = { path = "crates/fetch" }
 virgil-homekit = { path = "crates/homekit" }
 virgil-library = { path = "crates/library" }
 virgil-radio = { path = "crates/radio" }

@@ -4,6 +4,8 @@
 	import { onMount, type Snippet } from 'svelte';
 	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
+	import ArtistSheet from '#lib/components/ArtistSheet.svelte';
+	import CatalogSheet from '#lib/components/CatalogSheet.svelte';
 	import ContextMenu from '#lib/components/ContextMenu.svelte';
 	import DedicationSheet from '#lib/components/DedicationSheet.svelte';
 	import JoinSheet from '#lib/components/JoinSheet.svelte';
@@ -165,4 +167,6 @@
 <LineSheet />
 <JoinSheet />
 <DedicationSheet />
+<ArtistSheet />
+<CatalogSheet />
 <Toaster />

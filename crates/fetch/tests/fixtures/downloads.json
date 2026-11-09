@@ -1,0 +1,8 @@
+[
+ {"id": 7, "username": "ola", "filename": "@@music\\Emptyset\\Ash (2023)\\01 - Flint.flac", "name": "01 - Flint.flac", "folder": "Ash (2023)",
+  "size": 1000, "bytes": 500, "state": "transferring", "attempts": 1, "sources": 1, "speed": 250000,
+  "created": "2026-11-09T21:00:00Z", "updated": "2026-11-09T21:00:05Z", "started": "2026-11-09T21:00:01Z"},
+ {"id": 8, "username": "mp3fan", "filename": "@@m\\Emptyset - Ash\\01 Flint.mp3", "name": "01 Flint.mp3", "folder": "Emptyset - Ash",
+  "size": 6700000, "bytes": 0, "state": "queued_remote", "attempts": 1, "sources": 1, "queue_place": 4, "speed": 0,
+  "created": "2026-11-09T21:00:00Z", "updated": "2026-11-09T21:00:05Z"}
+]

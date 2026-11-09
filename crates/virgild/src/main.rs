@@ -1,7 +1,9 @@
 mod api;
 mod app;
+mod catalog;
 mod config;
 mod ctl;
+mod downloads;
 mod homekit;
 mod party;
 mod signal;
@@ -67,12 +69,14 @@ async fn serve(config: Config, listener: TcpListener) -> anyhow::Result<()> {
     let radio = virgil_radio::Nts::new()?;
     let listen = config.listen;
     let (switch, writes) = homekit::start(&config).await.unzip();
-    let app = App::new(config, library, radio, switch);
+    let fetch = downloads_from(&config)?;
+    let app = App::new(config, library, radio, switch, fetch);
 
     tokio::spawn(sync::run_mpd(app.clone()));
     tokio::spawn(sync::run_library(app.clone()));
     tokio::spawn(sync::run_party(app.clone()));
     tokio::spawn(signal::run(app.clone()));
+    tokio::spawn(downloads::run(app.clone()));
     if let Some(writes) = writes {
         tokio::spawn(homekit::run(app.clone(), writes));
     }
@@ -85,6 +89,24 @@ async fn serve(config: Config, listener: TcpListener) -> anyhow::Result<()> {
         () = shutdown_signal() => info!("shutting down"),
     }
     Ok(())
+}
+
+/// Downloads, when Lidarr is set up (and single songs, when slskdpp is too).
+fn downloads_from(config: &Config) -> anyhow::Result<Option<downloads::Fetcher>> {
+    let Some(lidarr) = &config.lidarr else {
+        if config.slskdpp.is_some() {
+            warn!("[slskdpp] is set up without [lidarr], which files the songs it downloads; downloads stay off");
+        }
+        return Ok(None);
+    };
+    let path = config.data_dir.join("downloads.json");
+    let fetcher = downloads::Fetcher::new(lidarr, config.slskdpp.as_ref(), Some(path), downloads::Patience::default())?;
+    info!(
+        "downloads through Lidarr at {}{}",
+        lidarr.url,
+        if config.slskdpp.is_some() { ", songs through slskdpp" } else { "" }
+    );
+    Ok(Some(fetcher))
 }
 
 async fn shutdown_signal() {

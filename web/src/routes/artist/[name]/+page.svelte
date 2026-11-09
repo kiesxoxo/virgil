@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import GroupPage from '#lib/components/GroupPage.svelte';
+	import NotInLibrary from '#lib/components/NotInLibrary.svelte';
 	import { appearsOn, find } from '#lib/browse.ts';
 	import { library } from '#lib/library.svelte.ts';
 
@@ -10,3 +11,4 @@
 </script>
 
 <GroupPage kind="artist" {group} {name} appearsOn={collaborations} />
+<NotInLibrary name={group?.name ?? name} />

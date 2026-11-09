@@ -1,0 +1,179 @@
+[
+ {
+  "id": 42,
+  "title": "Borders",
+  "disambiguation": "",
+  "foreignAlbumId": "83255a0d-8cb7-43d9-bc14-ce0b5f36c623",
+  "monitored": true,
+  "anyReleaseOk": true,
+  "profileId": 0,
+  "duration": 1813000,
+  "albumType": "Album",
+  "secondaryTypes": [],
+  "mediumCount": 1,
+  "releaseDate": "2017-01-25T00:00:00Z",
+  "releases": [
+   {
+    "id": 294,
+    "albumId": 42,
+    "foreignReleaseId": "971ac950-8b9d-4512-8713-d0d40e5f7577",
+    "title": "Borders",
+    "status": "Official",
+    "duration": 1813000,
+    "trackCount": 11,
+    "media": [
+     {
+      "mediumNumber": 1,
+      "mediumName": "",
+      "mediumFormat": "Digital Media"
+     }
+    ],
+    "mediumCount": 1,
+    "format": "Digital Media",
+    "monitored": false
+   },
+   {
+    "id": 295,
+    "albumId": 42,
+    "foreignReleaseId": "00289b38-8459-41a0-8e70-3294813b93f3",
+    "title": "Borders",
+    "status": "Official",
+    "duration": 1813000,
+    "trackCount": 11,
+    "media": [
+     {
+      "mediumNumber": 1,
+      "mediumName": "",
+      "mediumFormat": "CD"
+     }
+    ],
+    "mediumCount": 1,
+    "format": "CD",
+    "monitored": true
+   }
+  ],
+  "genres": [
+   "Electronic",
+   "Experimental"
+  ],
+  "media": [
+   {
+    "mediumNumber": 1,
+    "mediumName": "",
+    "mediumFormat": "CD"
+   }
+  ],
+  "artistId": 1,
+  "artist": {
+   "id": 1,
+   "artistName": "Emptyset",
+   "foreignArtistId": "050092ae-46a6-4d61-ba8a-d8716a0f5fc1",
+   "sortName": "emptyset",
+   "path": "/data/Music/Emptyset",
+   "monitored": true,
+   "monitorNewItems": "all",
+   "qualityProfileId": 2,
+   "metadataProfileId": 1,
+   "artistType": "Group",
+   "status": "continuing",
+   "ended": false
+  },
+  "images": [
+   {
+    "coverType": "cover",
+    "url": "/MediaCover/Albums/42/cover.jpg?lastWrite=639289947547222896",
+    "remoteUrl": "https://images.lidarr.audio/cache/https://coverartarchive.org/release/971ac950-8b9d-4512-8713-d0d40e5f7577/24313077886-1200.jpg",
+    "extension": ".jpg"
+   }
+  ],
+  "remoteCover": "https://images.lidarr.audio/cache/https://coverartarchive.org/release/971ac950-8b9d-4512-8713-d0d40e5f7577/24313077886-1200.jpg"
+ },
+ {
+  "title": "Collapsed",
+  "disambiguation": "",
+  "foreignAlbumId": "452ede5d-70a2-45ab-993d-cab9ecd47cb4",
+  "monitored": false,
+  "anyReleaseOk": true,
+  "profileId": 0,
+  "duration": 872000,
+  "albumType": "EP",
+  "secondaryTypes": [],
+  "mediumCount": 1,
+  "releaseDate": "2012-10-04T00:00:00Z",
+  "releases": [
+   {
+    "id": 0,
+    "albumId": 0,
+    "foreignReleaseId": "25834023-aeb5-4f8c-8016-162c77b077e4",
+    "title": "Collapsed",
+    "status": "Official",
+    "duration": 872000,
+    "trackCount": 4,
+    "media": [
+     {
+      "mediumNumber": 1,
+      "mediumName": "",
+      "mediumFormat": "Digital Media"
+     }
+    ],
+    "mediumCount": 1,
+    "format": "Digital Media",
+    "monitored": true
+   },
+   {
+    "id": 0,
+    "albumId": 0,
+    "foreignReleaseId": "ca2115d1-8f9a-4d9b-887e-d99eb801ecf7",
+    "title": "Collapsed",
+    "status": "Official",
+    "duration": 872000,
+    "trackCount": 4,
+    "media": [
+     {
+      "mediumNumber": 1,
+      "mediumName": "",
+      "mediumFormat": "12\" Vinyl"
+     }
+    ],
+    "mediumCount": 1,
+    "format": "12\" Vinyl",
+    "monitored": false
+   }
+  ],
+  "genres": [
+   "Electronic",
+   "Idm"
+  ],
+  "media": [
+   {
+    "mediumNumber": 1,
+    "mediumName": "",
+    "mediumFormat": "Digital Media"
+   }
+  ],
+  "artistId": 1,
+  "artist": {
+   "id": 1,
+   "artistName": "Emptyset",
+   "foreignArtistId": "050092ae-46a6-4d61-ba8a-d8716a0f5fc1",
+   "sortName": "emptyset",
+   "path": "/data/Music/Emptyset",
+   "monitored": true,
+   "monitorNewItems": "all",
+   "qualityProfileId": 2,
+   "metadataProfileId": 1,
+   "artistType": "Group",
+   "status": "continuing",
+   "ended": false
+  },
+  "images": [
+   {
+    "coverType": "cover",
+    "url": "/MediaCoverProxy/eaf0435fde86c8bcfe8f11b5d78bcee85ee2d7c5494495a0bed9be3c001b9562/24313258108-1200.jpg",
+    "remoteUrl": "https://images.lidarr.audio/cache/https://coverartarchive.org/release/25834023-aeb5-4f8c-8016-162c77b077e4/24313258108-1200.jpg",
+    "extension": ".jpg"
+   }
+  ],
+  "remoteCover": "https://images.lidarr.audio/cache/https://coverartarchive.org/release/25834023-aeb5-4f8c-8016-162c77b077e4/24313258108-1200.jpg"
+ }
+]

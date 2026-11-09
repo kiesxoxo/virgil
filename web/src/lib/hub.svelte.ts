@@ -1,6 +1,7 @@
 import { api } from './api.ts';
 import { toasts } from './toast.svelte.ts';
 import { token } from './token.ts';
+import type { Downloads } from './types/Downloads.ts';
 import type { HomekitStatus } from './types/HomekitStatus.ts';
 import type { LibraryStatus } from './types/LibraryStatus.ts';
 import type { Outputs } from './types/Outputs.ts';
@@ -62,6 +63,8 @@ class Hub {
 		here: [],
 		votes: { songId: null, skip: [], cheer: [], need: 1 }
 	});
+	/** Downloads through Lidarr and slskdpp; null when Virgil isn't set up for them. */
+	downloads = $state.raw<Downloads | null>(null);
 
 	#receivedAt = $state(0);
 	#now = $state(0);
@@ -127,6 +130,7 @@ class Hub {
 				this.outputs = event.outputs;
 				this.homekit = event.homekit;
 				this.party = event.party;
+				this.downloads = event.downloads;
 				this.ready = true;
 				break;
 			case 'outputs': {
@@ -167,6 +171,11 @@ class Hub {
 			case 'party': {
 				const { type: _, ...party } = event;
 				this.party = party;
+				break;
+			}
+			case 'downloads': {
+				const { type: _, ...downloads } = event;
+				this.downloads = downloads;
 				break;
 			}
 			case 'shout':

@@ -24,3 +24,17 @@ preempt = "dbus-send --system --type=method_call --dest=org.gnome.ShairportSync 
 [homekit]
 name = "Virgil"
 port = 51827
+
+# Downloads: find albums the library doesn't have and have Lidarr get them. Lidarr's root folder
+# must be the folder MPD plays (Virgil rescans it once something is in). Uncomment to turn it on.
+# [lidarr]
+# url = "http://nas:8686"
+# api_key = "…"            # Lidarr › Settings › General › API Key
+# root = "/data/Music"     # only if Lidarr has more than one root folder
+
+# Single songs too: slskdpp gets the file from Soulseek and Lidarr files it into its album.
+# [slskdpp]
+# url = "http://nas:5030"
+# api_key = "…"            # slskdpp › Settings › API keys
+# downloads = "/data/Downloads/slskdpp"   # slskdpp's downloads folder, as Lidarr sees it
+# formats = ["flac"]       # file types to take, best first

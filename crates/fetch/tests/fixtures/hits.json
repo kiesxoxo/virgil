@@ -1,0 +1,23 @@
+[
+ {"user": "ola", "folder": "@@music\\Emptyset\\Ash (2023)", "name": "Ash (2023)",
+  "files": [
+   {"path": "@@music\\Emptyset\\Ash (2023)\\01 - Flint.flac", "name": "01 - Flint.flac", "size": 30000000, "ext": "flac", "duration": 169, "sample_rate": 44100, "bit_depth": 16},
+   {"path": "@@music\\Emptyset\\Ash (2023)\\02 - Flame.flac", "name": "02 - Flame.flac", "size": 24000000, "ext": "flac", "duration": 134}
+  ],
+  "file_count": 2, "formats": ["flac"], "lossless": true, "total_size": 54000000,
+  "slot_free": true, "queue_length": 0, "upload_speed": 1000000, "score": 0.9, "album_key": "ash"},
+ {"user": "basia", "folder": "@@share\\Downloads\\misc", "name": "misc",
+  "files": [
+   {"path": "@@share\\Downloads\\misc\\Emptyset - Flint.flac", "name": "Emptyset - Flint.flac", "size": 29000000, "ext": "flac", "duration": 170},
+   {"path": "@@share\\Downloads\\misc\\Flint (Remix).flac", "name": "Flint (Remix).flac", "size": 41000000, "ext": "flac", "duration": 240},
+   {"path": "@@share\\Downloads\\misc\\Flint.flac", "name": "Flint.flac", "size": 40000000, "ext": "flac", "duration": 230}
+  ],
+  "file_count": 3, "formats": ["flac"], "lossless": true, "total_size": 110000000,
+  "slot_free": true, "queue_length": 0, "upload_speed": 5000000, "score": 0.5, "album_key": "misc"},
+ {"user": "mp3fan", "folder": "@@m\\Emptyset - Ash", "name": "Emptyset - Ash",
+  "files": [
+   {"path": "@@m\\Emptyset - Ash\\01 Flint.mp3", "name": "01 Flint.mp3", "size": 6700000, "ext": "mp3", "bitrate": 320, "duration": 169}
+  ],
+  "file_count": 1, "formats": ["mp3"], "avg_bitrate": 320, "lossless": false, "total_size": 6700000,
+  "slot_free": false, "queue_length": 3, "upload_speed": 200000, "score": 0.4, "album_key": "ash"}
+]
