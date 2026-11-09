@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Check, House, ImageDown, LoaderCircle, RefreshCw, RotateCw, TriangleAlert, Usb } from '@lucide/svelte';
+	import { Check, House, LoaderCircle, RefreshCw, RotateCw, TriangleAlert, Usb } from '@lucide/svelte';
 	import Masthead from '#lib/components/Masthead.svelte';
 	import SignalPathCard from '#lib/components/SignalPathCard.svelte';
 	import { api } from '#lib/api.ts';
@@ -64,9 +64,6 @@
 	let homekit = $derived(hub.homekit);
 	const resetting = new Confirm();
 	const resetHomekit = () => api.resetHomekit().then(() => toasts.done('Virgil can be added to a home again'));
-
-	let download = $derived(hub.library.artDownload);
-	let downloading = $derived(!!download && !download.error && download.done < download.total);
 </script>
 
 <svelte:head><title>Settings · Virgil</title></svelte:head>
@@ -169,17 +166,8 @@
 	<div class="flex items-stretch border-b border-line">
 		<div class="min-w-0 flex-1 px-3 py-2.5">
 			<div class="text-sm font-medium">Album artwork</div>
-			<div class="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
-				{#if downloading && download}
-					<LoaderCircle class="size-3 shrink-0" />
-					Downloading… {download.done} of {download.total}, {download.saved} saved
-				{:else if download?.error}
-					<span class="text-warn">Stopped: {download.error}</span>
-				{:else if download?.failed}
-					<span class="text-warn">
-						Saved {download.saved}; {download.failed} couldn't be saved (is the album folder writable?)
-					</span>
-				{:else if hub.library.missingArt}
+			<div class="mt-0.5 text-xs text-muted">
+				{#if hub.library.missingArt}
 					{hub.library.missingArt.toLocaleString()}
 					{hub.library.missingArt === 1 ? 'album has' : 'albums have'} no artwork
 				{:else}
@@ -187,15 +175,6 @@
 				{/if}
 			</div>
 		</div>
-		<button
-			type="button"
-			class="press label flex shrink-0 items-center gap-2 border-l border-line px-3 text-[10.5px] disabled:text-faint"
-			disabled={downloading || !hub.library.missingArt}
-			title="Saves cover.jpg in each album folder that has no embedded or folder art"
-			onclick={() => api.downloadMissingArt()}
-		>
-			<ImageDown class="size-3.5" /> Download
-		</button>
 	</div>
 
 	{#if airplay}

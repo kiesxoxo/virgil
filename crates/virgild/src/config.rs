@@ -14,9 +14,10 @@ pub struct Config {
     pub mpd: String,
     /// Library database and artwork cache.
     pub data_dir: PathBuf,
-    /// MPD's music directory as virgild sees it. Needed (and must be writable)
-    /// to save downloaded covers next to the music.
-    pub music_dir: Option<PathBuf>,
+    /// No longer used: Virgil only reads the music, through MPD. Still accepted, so that older
+    /// configs load; virgild says it can go.
+    #[serde(rename = "music_dir")]
+    pub old_music_dir: Option<serde::de::IgnoredAny>,
     /// ALSA card id of the DAC, as in `/proc/asound/<id>`.
     pub alsa_card: String,
     /// Where ALSA's procfs tree is visible. Docker hides `/proc/asound`, so the
@@ -56,7 +57,7 @@ impl Default for Config {
             listen: ([0, 0, 0, 0], 8080).into(),
             mpd: "127.0.0.1:6600".into(),
             data_dir: "data".into(),
-            music_dir: None,
+            old_music_dir: None,
             alsa_card: "sndrpihifiberry".into(),
             asound_dir: "/proc/asound".into(),
             sources: BTreeMap::new(),
@@ -91,5 +92,12 @@ mod tests {
         assert!(config.sources["airplay"].preempt.is_some());
         let homekit = config.homekit.expect("deploy config enables HomeKit");
         assert_eq!((homekit.name.as_str(), homekit.port), ("Virgil", 51827));
+        assert!(config.old_music_dir.is_none());
+    }
+
+    #[test]
+    fn configs_naming_the_music_dir_still_load() {
+        let config: Config = toml::from_str("music_dir = \"/music\"\n").unwrap();
+        assert!(config.old_music_dir.is_some());
     }
 }

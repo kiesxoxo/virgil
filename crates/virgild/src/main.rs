@@ -5,7 +5,6 @@ mod ctl;
 mod homekit;
 mod signal;
 mod sync;
-mod tags;
 mod web;
 mod ws;
 
@@ -14,7 +13,7 @@ use std::path::PathBuf;
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 use tokio::net::TcpListener;
-use tracing::info;
+use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 use virgil_library::Library;
 
@@ -58,8 +57,11 @@ fn main() -> anyhow::Result<()> {
 }
 
 async fn serve(config: Config, listener: TcpListener) -> anyhow::Result<()> {
+    if config.old_music_dir.is_some() {
+        warn!("music_dir in the config is no longer used (Virgil only reads the music, through MPD); it can go");
+    }
     std::fs::create_dir_all(&config.data_dir).with_context(|| format!("creating {}", config.data_dir.display()))?;
-    let library = Library::open(&config.data_dir, &config.mpd, config.music_dir.clone())?;
+    let library = Library::open(&config.data_dir, &config.mpd)?;
     let radio = virgil_radio::Nts::new()?;
     let listen = config.listen;
     let (switch, writes) = homekit::start(&config).await.unzip();

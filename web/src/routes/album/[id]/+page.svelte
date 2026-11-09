@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ListChecks, ListEnd, ListPlus, Square, SquareCheck, Tags } from '@lucide/svelte';
+	import { ListChecks, ListEnd, ListPlus, Square, SquareCheck } from '@lucide/svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import BackLink from '#lib/components/BackLink.svelte';
 	import Cover from '#lib/components/Cover.svelte';
@@ -16,7 +16,6 @@
 	import { clock, formatLong, formatShort, isHiRes, plural, span } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
-	import { tagEditor } from '#lib/tageditor.svelte.ts';
 	import type { AlbumDetail } from '#lib/types/AlbumDetail.ts';
 	import type { Track } from '#lib/types/Track.ts';
 	import type { PageProps } from './$types';
@@ -130,11 +129,6 @@
 
 	/** The selected tracks' URIs, in album order rather than click order. */
 	const selectedUris = () => tracks.filter((t) => selected.has(t.uri)).map((t) => t.uri);
-
-	function editSelected() {
-		const uris = selectedUris();
-		tagEditor.show(uris, uris.length === 1 ? (tracks.find((t) => t.uri === uris[0])?.title ?? '') : (album?.title ?? ''));
-	}
 
 	let meta = $derived(
 		album
@@ -283,16 +277,6 @@
 							onclick={() => queue.tracksLast(selectedUris())}
 						>
 							<ListEnd class="size-[18px]" />
-						</button>
-						<button
-							type="button"
-							class="press grid w-11 place-items-center border-l border-line bg-accent text-accent-fg disabled:bg-surface-2 disabled:text-faint"
-							disabled={!selected.size}
-							title="Edit tags"
-							aria-label="Edit tags"
-							onclick={editSelected}
-						>
-							<Tags class="size-[18px]" />
 						</button>
 						<button type="button" class="press label border-l border-line px-3 text-[11px]" onclick={stopSelecting}>Done</button>
 					</div>

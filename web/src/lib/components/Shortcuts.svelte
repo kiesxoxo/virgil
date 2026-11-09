@@ -6,7 +6,6 @@
 	import { hub } from '../hub.svelte.ts';
 	import { menu } from '../menu.svelte.ts';
 	import { search } from '../search.svelte.ts';
-	import { tagEditor } from '../tageditor.svelte.ts';
 
 	// A few keyboard shortcuts, and a cheat sheet while Ctrl is held on its own.
 	const shortcuts: { keys: string[]; label: string }[] = [
@@ -43,7 +42,7 @@
 		}
 		// Ctrl+C and friends aren't a request for the cheat sheet.
 		hide();
-		if (e.defaultPrevented || tagEditor.open || menu.open) return;
+		if (e.defaultPrevented || menu.open) return;
 
 		if (editable(e.target)) {
 			if (e.key === 'Escape' && search.field && e.target === search.field) {

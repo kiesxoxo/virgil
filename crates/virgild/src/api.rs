@@ -1,5 +1,5 @@
 use axum::body::{Body, Bytes};
-use axum::extract::{DefaultBodyLimit, Path, Query, State};
+use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post};
@@ -10,12 +10,12 @@ use tower_http::compression::CompressionLayer;
 use tower_http::services::ServeDir;
 use tower_http::set_header::SetResponseHeaderLayer;
 use virgil_core::{
-    AddRequest, AlbumDetail, ArtOutcome, LibraryStatus, LookupQuery, LookupRelease, LookupResults, LookupSource,
-    ModesRequest, MoveRequest, PlayState, Queue, Radio, SearchResults, SeekRequest, ServerEvent,
+    AddRequest, AlbumDetail, LibraryStatus, ModesRequest, MoveRequest, PlayState, Queue, Radio, SearchResults,
+    SeekRequest, ServerEvent,
 };
 
 use crate::app::App;
-use crate::{tags, web, ws};
+use crate::{web, ws};
 
 #[derive(Debug)]
 pub struct ApiError {
@@ -30,10 +30,6 @@ impl ApiError {
 
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self { status: StatusCode::BAD_REQUEST, message: message.into() }
-    }
-
-    pub fn conflict(message: impl Into<String>) -> Self {
-        Self { status: StatusCode::CONFLICT, message: message.into() }
     }
 
     /// A service Virgil relies on (NTS, MusicBrainz) didn't answer.
@@ -95,18 +91,11 @@ pub fn router(app: App) -> Router {
         .route("/api/library/albums/{id}", get(album))
         .route("/api/library/search", get(search))
         .route("/api/library/rescan", post(rescan))
-        .route("/api/library/albums/{id}/art", post(download_art))
-        .route("/api/library/albums/{id}/art/upload", post(upload_art).layer(DefaultBodyLimit::max(MAX_UPLOAD)))
-        .route("/api/library/art/download-missing", post(download_missing_art))
         .route("/api/radio", get(radio))
         .route("/api/radio/{id}/play", post(play_station))
         .route("/api/radio/{id}/aac", get(aac_stream))
-        .route("/api/lookup/search", post(lookup_search))
-        .route("/api/lookup/{source}/{id}", get(lookup_release))
         .route("/api/outputs/{id}/select", post(select_output))
         .route("/api/restart", post(restart))
-        .route("/api/tags/read", post(tags::read))
-        .route("/api/tags/write", post(tags::write))
         .route("/api/sources/{name}/acquire", post(acquire))
         .route("/api/sources/{name}/release", post(release))
         .route("/api/homekit/reset", post(homekit_reset))
@@ -248,33 +237,6 @@ async fn rescan(State(app): State<App>) -> ApiResult {
     Ok(StatusCode::ACCEPTED)
 }
 
-/// Downloads a cover for one album into its folder, unless it already has art.
-async fn download_art(State(app): State<App>, Path(id): Path<String>) -> ApiResult<Json<ArtOutcome>> {
-    Ok(Json(app.library.download_art(id).await?))
-}
-
-/// Covers bigger than this are refused.
-const MAX_UPLOAD: usize = 20 << 20;
-
-/// Saves the uploaded image (the request body) as the album's cover, replacing any cover.* file.
-async fn upload_art(State(app): State<App>, Path(id): Path<String>, body: Bytes) -> ApiResult {
-    if virgil_library::cover_extension(&body).is_none() {
-        return Err(ApiError::bad_request("choose a JPEG, PNG or WebP image"));
-    }
-    app.library.upload_art(id, body.to_vec()).await?;
-    Ok(DONE)
-}
-
-/// Starts downloading covers for every album without art; progress arrives
-/// in the library status.
-async fn download_missing_art(State(app): State<App>) -> ApiResult {
-    if app.library.download_missing_art() {
-        Ok(StatusCode::ACCEPTED)
-    } else {
-        Err(ApiError::conflict("artwork is already being downloaded"))
-    }
-}
-
 /// NTS's live channels, with the shows on air, and its Infinite Mixtapes.
 async fn radio(State(app): State<App>) -> ApiResult<Json<Radio>> {
     app.radio.radio().await.map(Json).map_err(ApiError::upstream)
@@ -305,23 +267,6 @@ async fn aac_stream(State(app): State<App>, Path(id): Path<String>) -> ApiResult
         Some((Ok::<_, std::convert::Infallible>(Bytes::from(chunk)), chunks))
     }));
     Ok(([(header::CONTENT_TYPE, "audio/aac"), (header::CACHE_CONTROL, "no-store")], body).into_response())
-}
-
-/// Releases that might be the album, from MusicBrainz and Discogs, for the tag editor.
-async fn lookup_search(State(app): State<App>, Json(query): Json<LookupQuery>) -> ApiResult<Json<LookupResults>> {
-    app.library.lookup_online(&query).await.map(Json).map_err(|e| ApiError::bad_request(format!("{e:#}")))
-}
-
-/// One release's tags and tracklist.
-async fn lookup_release(
-    State(app): State<App>,
-    Path((source, id)): Path<(LookupSource, String)>,
-) -> ApiResult<Json<LookupRelease>> {
-    // Release ids are MusicBrainz UUIDs or Discogs numbers.
-    if id.is_empty() || !id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
-        return Err(ApiError::bad_request(format!("not a release id: {id}")));
-    }
-    app.library.lookup_release(source, &id).await.map(Json).map_err(ApiError::upstream)
 }
 
 async fn select_output(State(app): State<App>, Path(id): Path<u32>) -> ApiResult {

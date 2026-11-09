@@ -46,8 +46,7 @@ class Hub {
 		scanning: false,
 		albums: 0,
 		tracks: 0,
-		missingArt: 0,
-		artDownload: null
+		missingArt: 0
 	});
 	outputs = $state.raw<Outputs>({ outputs: [], newCards: [] });
 	/** The Apple Home switch; null when HomeKit is off. */

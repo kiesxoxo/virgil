@@ -29,7 +29,7 @@ services:
       - type: bind
         source: /mnt/music
         target: /music
-        read_only: false # Virgil saves downloaded covers (cover.jpg) into album folders
+        read_only: true # Virgil only reads the music; Lidarr (or another tool) manages it
         bind:
           propagation: rslave
       - /dev/snd:/dev/snd            # sound devices (see device_cgroup_rules)
