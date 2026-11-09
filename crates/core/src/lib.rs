@@ -253,32 +253,6 @@ pub struct LibraryStatus {
     pub tracks: u32,
     /// Albums checked for artwork and found to have none.
     pub missing_art: u32,
-    /// Set while missing artwork is being downloaded.
-    pub art_download: Option<ArtProgress>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct ArtProgress {
-    pub done: u32,
-    pub total: u32,
-    pub saved: u32,
-    /// Albums whose cover could not be saved (e.g. a folder that isn't writable).
-    pub failed: u32,
-    /// Why the run stopped early (e.g. no internet access).
-    pub error: Option<String>,
-}
-
-/// What a cover-art download for one album did.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub enum ArtOutcome {
-    /// Downloaded and saved as cover.jpg / cover.png in the album's folder.
-    Saved,
-    /// The album already has embedded or folder art; nothing was downloaded.
-    AlreadyPresent,
-    NotFound,
 }
 
 /// What the DAC is actually being fed, from `/proc/asound/<card>/pcm0p/sub0/hw_params`.
@@ -432,84 +406,6 @@ pub struct Radio {
     pub mixtapes: Vec<Station>,
 }
 
-/// An online database the tag editor can fill tags from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
-#[serde(rename_all = "lowercase")]
-#[ts(export)]
-pub enum LookupSource {
-    Musicbrainz,
-    Discogs,
-}
-
-/// What to look for: the album as the editor has it.
-#[derive(Debug, Clone, Deserialize, TS)]
-#[ts(export)]
-pub struct LookupQuery {
-    pub artist: String,
-    pub album: String,
-}
-
-/// A release that might be the album, as the search lists it.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct LookupCandidate {
-    pub source: LookupSource,
-    pub id: String,
-    pub title: String,
-    pub artist: String,
-    pub year: Option<String>,
-    pub country: Option<String>,
-    pub label: Option<String>,
-    pub catno: Option<String>,
-    /// "CD", "2×Vinyl", "Digital Media"…
-    pub format: Option<String>,
-    /// Number of tracks, when the search says (MusicBrainz does, Discogs doesn't).
-    pub tracks: Option<u32>,
-    /// The release's page on musicbrainz.org or discogs.com.
-    pub url: String,
-}
-
-/// Candidates from every source; a source that failed is named in `errors`
-/// rather than hiding the others' results.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct LookupResults {
-    pub candidates: Vec<LookupCandidate>,
-    pub errors: Vec<String>,
-}
-
-/// A release's tags, ready to fill the editor with.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct LookupRelease {
-    pub source: LookupSource,
-    pub id: String,
-    pub title: String,
-    pub artist: String,
-    /// As precise as the source has it: "2007", "2007-11", "2007-11-05".
-    pub date: Option<String>,
-    /// When the music first came out, if this release is a later edition.
-    pub original_date: Option<String>,
-    /// Most fitting first.
-    pub genres: Vec<String>,
-    pub tracks: Vec<LookupTrack>,
-    pub url: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct LookupTrack {
-    /// 1-based.
-    pub disc: u32,
-    /// 1-based, within the disc.
-    pub number: u32,
-    pub title: String,
-    pub artist: String,
-    /// Seconds.
-    pub duration: Option<f64>,
-}
-
 /// Pushed over `/api/ws`. `hello` carries the full state; the rest replace one slice of it.
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(tag = "type", rename_all = "camelCase")]
@@ -586,86 +482,6 @@ pub struct ModesRequest {
 pub struct MoveRequest {
     /// Target queue position.
     pub to: u32,
-}
-
-/// One tag field and its values, foobar2000-style: `ARTIST`, `ALBUM ARTIST`,
-/// `TRACKNUMBER`, any custom name. Most fields have one value.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct TagField {
-    pub name: String,
-    pub values: Vec<String>,
-}
-
-/// A file's tags and technical details, as the tag editor shows them.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct TaggedFile {
-    pub uri: String,
-    /// Fields in file order. Empty when the file can't be read (see `error`).
-    pub fields: Vec<TagField>,
-    pub info: Option<FileInfo>,
-    /// Why the file can't be read or written (e.g. a format without tag support).
-    pub error: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub struct FileInfo {
-    /// "FLAC", "MP3", "ALAC", …
-    pub codec: String,
-    /// "Vorbis comments", "ID3v2", "APEv2", "iTunes metadata"
-    pub tag_type: String,
-    pub sample_rate: Option<u32>,
-    pub bits: Option<u8>,
-    pub channels: Option<u8>,
-    /// Seconds.
-    pub duration: f64,
-    /// kbit/s.
-    pub bitrate: Option<u32>,
-    /// Bytes.
-    #[ts(type = "number")]
-    pub size: u64,
-}
-
-#[derive(Debug, Clone, Deserialize, TS)]
-#[ts(export)]
-pub struct TagsRequest {
-    pub uris: Vec<String>,
-}
-
-/// Changes to one file. `set` replaces a field's values (an empty list
-/// removes it); `remove` drops fields. Names match case-insensitively.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct TagEdit {
-    pub uri: String,
-    #[serde(default)]
-    pub set: Vec<TagField>,
-    #[serde(default)]
-    pub remove: Vec<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, TS)]
-#[ts(export)]
-pub struct TagWriteRequest {
-    pub edits: Vec<TagEdit>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, TS)]
-#[ts(export)]
-pub struct TagWriteResult {
-    /// Files whose tags changed.
-    pub written: u32,
-    pub failed: Vec<TagWriteError>,
-}
-
-#[derive(Debug, Clone, Serialize, TS)]
-#[ts(export)]
-pub struct TagWriteError {
-    pub uri: String,
-    pub error: String,
 }
 
 #[cfg(test)]

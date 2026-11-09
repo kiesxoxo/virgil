@@ -79,8 +79,6 @@ if [ ! -f "$virgil_conf" ]; then
 listen = "0.0.0.0:${VIRGIL_PORT}"
 mpd = "/run/mpd/socket"
 data_dir = "/data/virgil"
-# Downloaded covers are saved next to the music.
-music_dir = "/music"
 alsa_card = "${ALSA_CARD}"
 # Docker hides /proc/asound; compose.yaml mounts the host's copy here.
 asound_dir = "/host/asound"

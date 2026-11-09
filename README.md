@@ -26,8 +26,10 @@ docker pull ghcr.io/kiesxoxo/virgil:0.11.2
 - **virgild** owns everything else: the library index (SQLite + FTS5), artwork thumbnails, the
   queue UI, live state over WebSocket, what's on NTS, and who gets the DAC (local playback vs AirPlay).
 - **Web UI**: SvelteKit 3 (Svelte 5) SPA, embedded in the virgild binary. Browse by album,
-  artist or genre, search songs, edit tags foobar2000-style (or fill them from MusicBrainz or Discogs and review before saving). Light and dark mode, built for
-  phones first; installable to the home screen.
+  artist or genre, search songs. Light and dark mode, built for phones first; installable to the
+  home screen.
+- **The music** is only read. Tags, covers and files are another tool's job (Lidarr, say): covers
+  come from a `cover.*` image in the album folder or a picture embedded in the files, as MPD reads them.
 
 ## Bit-perfect, verified
 
@@ -57,8 +59,7 @@ The schedule comes from NTS's public API through virgild, which caches it until 
 ends. NTS 1 and NTS 2 play NTS's 256 kbps MP3 streams. The mixtapes play as 256 kbps AAC: NTS
 serves those as HLS, which MPD can't play, so virgild fetches the chunks (over HTTPS, certificates
 checked) and hands MPD one continuous AAC stream on `127.0.0.1`. Either way the source is lossy; the
-signal path still checks the last step to the DAC. Radio needs the Pi to reach the internet (as
-cover downloads do).
+signal path still checks the last step to the DAC. Radio needs the Pi to reach the internet.
 
 ## AirPlay and the DAC
 
@@ -94,7 +95,6 @@ crates/core        wire types; `cargo test -p virgil-core` regenerates web/src/l
 crates/engine-mpd  MPD protocol client and typed commands (the playback-engine seam)
 crates/library     MPD database → SQLite projection, search, artwork cache
 crates/radio       NTS: live channels, Infinite Mixtapes, HLS relay
-crates/tags        reading and writing tags in the files
 crates/homekit     the Apple Home switch (HAP over IP)
 crates/virgild     the daemon: HTTP API, WebSocket, DAC arbitration, signal path, embedded UI
 web/               SvelteKit 3 app (Tailwind 4, Lucide icons)

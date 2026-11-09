@@ -1,83 +1,26 @@
 // Menu items for albums, tracks and queue entries, shared by every view.
 
-import { ArrowUpToLine, Disc3, ImageDown, ImageUp, ListEnd, ListPlus, ListX, Play, Tags, UserRound } from '@lucide/svelte';
+import { ArrowUpToLine, Disc3, ListEnd, ListPlus, ListX, Play, UserRound } from '@lucide/svelte';
 import { goto } from '$app/navigation';
 import { page } from '$app/state';
 import { api, queue } from './api.ts';
 import type { MenuHeader, MenuItem } from './menu.svelte.ts';
-import { isStream, radio } from './radio.svelte.ts';
-import { tagEditor } from './tageditor.svelte.ts';
-import { toasts } from './toast.svelte.ts';
+import { radio } from './radio.svelte.ts';
 import type { Album } from './types/Album.ts';
-import type { ArtOutcome } from './types/ArtOutcome.ts';
 import type { QueueItem } from './types/QueueItem.ts';
 import type { Track } from './types/Track.ts';
-
-const artMessages: Record<ArtOutcome, string> = {
-	saved: 'Artwork saved to the album folder',
-	alreadyPresent: 'This album already has artwork',
-	notFound: 'No matching artwork found online'
-};
-
-/** Covers bigger than this are refused by virgild. */
-const MAX_UPLOAD = 20 << 20;
-
-/**
- * Opens the file picker (must run straight from the tap, or iOS ignores it)
- * and saves the picked image as the album's cover.
- */
-function uploadArt(album: Album) {
-	const input = document.createElement('input');
-	input.type = 'file';
-	input.accept = 'image/jpeg,image/png,image/webp';
-	input.hidden = true;
-	const done = () => input.remove();
-	input.addEventListener('cancel', done);
-	input.addEventListener('change', () => {
-		const file = input.files?.[0];
-		done();
-		if (!file) return;
-		if (file.size > MAX_UPLOAD) return toasts.show('That image is too large (20 MB at most)');
-		toasts.done('Uploading artwork…');
-		api.uploadArt(album.id, file).then(
-			() => toasts.done('Artwork saved to the album folder'),
-			() => {} // the error toast is already up
-		);
-	});
-	document.body.append(input);
-	input.click();
-}
 
 /** The item that goes to `href`, unless that's the page the menu is on. */
 const goTo = (label: string, icon: MenuItem['icon'], href: string): MenuItem[] =>
 	page.url.pathname === href ? [] : [{ label, icon, run: () => goto(href) }];
 
 export function albumItems(album: Album): MenuItem[] {
-	const items: MenuItem[] = [
+	return [
 		{ label: 'Play', icon: Play, run: () => queue.playAlbum(album.id) },
 		{ label: 'Play next', icon: ListPlus, run: () => queue.albumNext(album.id) },
 		{ label: 'Add to end of queue', icon: ListEnd, run: () => queue.albumLast(album.id) },
 		...goTo('Go to artist', UserRound, `/artist/${encodeURIComponent(album.artist)}`)
 	];
-	if (!album.art) {
-		items.push({
-			label: 'Download artwork',
-			icon: ImageDown,
-			run: () => {
-				toasts.done('Looking for artwork…');
-				return api.downloadArt(album.id).then((outcome) =>
-					outcome === 'notFound' ? toasts.show(artMessages[outcome]) : toasts.done(artMessages[outcome])
-				);
-			}
-		});
-	}
-	items.push({
-		label: 'Edit tags…',
-		icon: Tags,
-		run: () => tagEditor.show(api.album(album.id).then((d) => d.tracks.map((t) => t.uri)), album.title)
-	});
-	items.push({ label: album.art ? 'Replace artwork…' : 'Upload artwork…', icon: ImageUp, run: () => uploadArt(album) });
-	return items;
 }
 
 export const albumHeader = (album: Album): MenuHeader => ({ title: album.title, subtitle: album.artist, art: album.art });
@@ -88,8 +31,7 @@ export function trackItems(track: Track, albumId: string): MenuItem[] {
 		{ label: 'Play', icon: Play, run: () => queue.playAlbum(albumId, track.uri) },
 		{ label: 'Play next', icon: ListPlus, run: () => queue.tracksNext([track.uri]) },
 		{ label: 'Add to end of queue', icon: ListEnd, run: () => queue.tracksLast([track.uri]) },
-		...goTo('Go to album', Disc3, `/album/${albumId}`),
-		{ label: 'Edit tags…', icon: Tags, run: () => tagEditor.show([track.uri], track.title) }
+		...goTo('Go to album', Disc3, `/album/${albumId}`)
 	];
 }
 
@@ -113,8 +55,6 @@ export function queueItems(item: QueueItem, index: number, current: number): Men
 		});
 	}
 	if (item.albumId) items.push(...goTo('Go to album', Disc3, `/album/${item.albumId}`));
-	// A radio stream has no file to tag.
-	if (!isStream(item.uri)) items.push({ label: 'Edit tags…', icon: Tags, run: () => tagEditor.show([item.uri], item.title) });
 	items.push({ label: 'Remove from queue', icon: ListX, run: () => api.remove(item.id), danger: true });
 	return items;
 }

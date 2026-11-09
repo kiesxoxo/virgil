@@ -13,14 +13,12 @@ virgil-engine-mpd = { path = "crates/engine-mpd" }
 virgil-homekit = { path = "crates/homekit" }
 virgil-library = { path = "crates/library" }
 virgil-radio = { path = "crates/radio" }
-virgil-tags = { path = "crates/tags" }
 
 anyhow = "1"
 axum = { version = "0.8", features = ["ws"] }
 base64 = "0.22"
 clap = { version = "4", features = ["derive", "env"] }
 html-escape = "0.2"
-lofty = "0.25"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 mime_guess = "2"
 num-bigint = "0.4"

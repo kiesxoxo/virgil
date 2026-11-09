@@ -5,27 +5,22 @@
 mod art;
 mod db;
 mod group;
-mod lookup;
-mod online;
 
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use anyhow::{Context, bail};
+use anyhow::Context;
 use rusqlite::Connection;
 use tokio::sync::{Notify, watch};
 use tracing::{debug, info, warn};
-use virgil_core::{Album, AlbumDetail, ArtOutcome, ArtProgress, LibraryStatus, SearchResults};
+use virgil_core::{Album, AlbumDetail, LibraryStatus, SearchResults};
 use virgil_engine_mpd::{Entry, MpdEngine, Song};
 
 /// Artwork changes are published in batches of this many albums: each batch has every open page
 /// fetch the album list again.
 const ART_BATCH: usize = 50;
-/// The same for covers from the internet, which come in slowly (a second or more each).
-const DOWNLOAD_BATCH: usize = 5;
 
 #[derive(Clone)]
 pub struct Library {
@@ -39,25 +34,12 @@ struct Inner {
     index: RwLock<db::Index>,
     status: watch::Sender<LibraryStatus>,
     sync_requested: Notify,
-    /// MPD's music directory as this process sees it; downloaded covers go there.
-    music_dir: Option<PathBuf>,
-    finder: online::Finder,
-    downloading: AtomicBool,
     /// Every cover has had its thumbnails completed once since Virgil started.
     sizes_completed: AtomicBool,
 }
 
-/// Folder images MPD's `albumart` doesn't read but people use (folder.jpg, front.png, …).
-const FOLDER_ART: [&str; 4] = ["cover", "folder", "front", "album"];
-const IMAGE_EXTENSIONS: [&str; 4] = ["jpg", "jpeg", "png", "webp"];
-
 fn unix_now() -> u32 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs() as u32)
-}
-
-/// The cover services could not be reached at all.
-fn is_offline(e: &anyhow::Error) -> bool {
-    e.chain().any(|cause| cause.downcast_ref::<reqwest::Error>().is_some_and(|e| e.is_connect() || e.is_timeout()))
 }
 
 /// Folders and files systems leave behind that are never music.
@@ -72,73 +54,10 @@ fn hidden(uri: &str) -> bool {
     uri.rsplit('/').next().is_some_and(|name| name.starts_with("._") || JUNK.contains(&name))
 }
 
-/// A file's stem and extension in lowercase, when both are there and valid UTF-8.
-fn lower_name(path: &Path) -> Option<(String, String)> {
-    let lower = |s: Option<&std::ffi::OsStr>| s.and_then(|s| s.to_str()).map(str::to_lowercase);
-    Some((lower(path.file_stem())?, lower(path.extension())?))
-}
-
-/// An image file named `<stem>.<jpg|jpeg|png|webp>` for one of `stems`, in any case.
-fn is_image_named(path: &Path, stems: &[&str]) -> bool {
-    lower_name(path)
-        .is_some_and(|(stem, ext)| stems.contains(&stem.as_str()) && IMAGE_EXTENSIONS.contains(&ext.as_str()))
-}
-
-/// A cover/folder/front/album image already in `dir`, if any.
-fn folder_image(dir: &Path) -> anyhow::Result<Option<PathBuf>> {
-    let entries = std::fs::read_dir(dir).with_context(|| format!("reading album folder {}", dir.display()))?;
-    Ok(entries.flatten().map(|entry| entry.path()).find(|path| is_image_named(path, &FOLDER_ART)))
-}
-
-/// Writes a new file; fails with AlreadyExists rather than overwrite one.
-fn write_new(path: &Path, data: &[u8]) -> std::io::Result<()> {
-    let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(path)?;
-    if let Err(e) = file.write_all(data).and_then(|()| file.sync_all()) {
-        drop(file);
-        let _ = std::fs::remove_file(path);
-        return Err(e);
-    }
-    Ok(())
-}
-
-/// The file extension for a cover image Virgil accepts (JPEG, PNG or WebP), None otherwise.
-pub fn cover_extension(bytes: &[u8]) -> Option<&'static str> {
-    match image::guess_format(bytes).ok()? {
-        image::ImageFormat::Jpeg => Some("jpg"),
-        image::ImageFormat::Png => Some("png"),
-        image::ImageFormat::WebP => Some("webp"),
-        _ => None,
-    }
-}
-
-/// Makes `name` the album's only cover.* image, so MPD can't pick an older
-/// one. The image is written to a staging file first; old covers are removed
-/// before it is renamed into place, because on a case-insensitive share
-/// "Cover.JPG" and "cover.jpg" are the same file.
-fn replace_cover(dir: &Path, name: &str, data: &[u8]) -> anyhow::Result<PathBuf> {
-    let path = dir.join(name);
-    let staging = dir.join(".virgil-cover-upload.tmp");
-    let _ = std::fs::remove_file(&staging);
-    write_new(&staging, data).with_context(|| format!("saving {}", path.display()))?;
-    let result = (|| {
-        for old in std::fs::read_dir(dir)?.flatten().map(|entry| entry.path()) {
-            if is_image_named(&old, &["cover"]) {
-                std::fs::remove_file(&old).with_context(|| format!("removing old cover {}", old.display()))?;
-            }
-        }
-        std::fs::rename(&staging, &path).with_context(|| format!("saving {}", path.display()))
-    })();
-    if result.is_err() {
-        let _ = std::fs::remove_file(&staging);
-    }
-    result.map(|()| path)
-}
-
 impl Library {
     /// Opens (or creates) `data_dir/library.db` and starts the background
-    /// worker. Nothing is scanned until [`Library::request_sync`]. Without a
-    /// `music_dir` covers can't be downloaded.
-    pub fn open(data_dir: &Path, mpd_addr: &str, music_dir: Option<PathBuf>) -> anyhow::Result<Self> {
+    /// worker. Nothing is scanned until [`Library::request_sync`].
+    pub fn open(data_dir: &Path, mpd_addr: &str) -> anyhow::Result<Self> {
         let art_dir = data_dir.join("art");
         std::fs::create_dir_all(&art_dir).with_context(|| format!("creating {}", art_dir.display()))?;
         let db_path = data_dir.join("library.db");
@@ -154,9 +73,6 @@ impl Library {
                 index: RwLock::new(index),
                 status: watch::Sender::new(status),
                 sync_requested: Notify::new(),
-                music_dir,
-                finder: online::Finder::new()?,
-                downloading: AtomicBool::new(false),
                 sizes_completed: AtomicBool::new(false),
             }),
         };
@@ -220,8 +136,7 @@ impl Library {
 
     fn publish(&self, status: LibraryStatus) {
         self.inner.status.send_modify(|current| {
-            *current =
-                LibraryStatus { scanning: current.scanning, art_download: current.art_download.clone(), ..status };
+            *current = LibraryStatus { scanning: current.scanning, ..status };
         });
     }
 
@@ -374,147 +289,6 @@ impl Library {
         self.db(move |conn| db::set_art(conn, &album_id, key.as_deref(), now)).await
     }
 
-    /// Downloads a cover for one album and saves it in the album's folder,
-    /// unless the album already has embedded or folder art.
-    pub async fn download_art(&self, album_id: String) -> anyhow::Result<ArtOutcome> {
-        let outcome = self.download_one(&album_id).await?;
-        self.bump().await?;
-        Ok(outcome)
-    }
-
-    async fn download_one(&self, album_id: &str) -> anyhow::Result<ArtOutcome> {
-        let id = album_id.to_string();
-        let Some(target) = self.db(move |conn| db::art_target(conn, &id)).await? else { bail!("no such album") };
-        if target.art.is_some() {
-            return Ok(ArtOutcome::AlreadyPresent);
-        }
-        // Art may have appeared since the last scan: embedded, or a cover.* MPD reads.
-        if let Ok(Some(bytes)) = self.inner.mpd.picture(&target.cover_uri).await {
-            let key = self.thumbs(bytes).await?;
-            self.record_art(album_id.to_string(), Some(key)).await?;
-            return Ok(ArtOutcome::AlreadyPresent);
-        }
-        let dir = self.album_dir(&target.cover_uri)?;
-        // Folder images MPD ignores (folder.jpg, front.png) still count as art.
-        let scan = dir.clone();
-        if let Some(existing) = tokio::task::spawn_blocking(move || folder_image(&scan)).await?? {
-            let bytes = tokio::fs::read(&existing).await?;
-            if let Ok(key) = self.thumbs(bytes).await {
-                self.record_art(album_id.to_string(), Some(key)).await?;
-            }
-            return Ok(ArtOutcome::AlreadyPresent);
-        }
-        let Some(bytes) = self.inner.finder.find(&target.artist, &target.title).await? else {
-            return Ok(ArtOutcome::NotFound);
-        };
-        let extension = if matches!(image::guess_format(&bytes), Ok(image::ImageFormat::Png)) { "png" } else { "jpg" };
-        let path = dir.join(format!("cover.{extension}"));
-        let (to, data) = (path.clone(), bytes.clone());
-        let written = tokio::task::spawn_blocking(move || write_new(&to, &data)).await?;
-        match written {
-            Ok(()) => {}
-            // Someone put a cover there meanwhile: leave it alone.
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => return Ok(ArtOutcome::AlreadyPresent),
-            Err(e) => return Err(e).with_context(|| format!("saving {}", path.display())),
-        }
-        info!("artwork: saved {}", path.display());
-        let key = self.thumbs(bytes).await?;
-        self.record_art(album_id.to_string(), Some(key)).await?;
-        Ok(ArtOutcome::Saved)
-    }
-
-    /// The folder holding the song `uri` (an album's `cover_uri`), where its cover goes.
-    fn album_dir(&self, uri: &str) -> anyhow::Result<PathBuf> {
-        let Some(music_dir) = &self.inner.music_dir else {
-            bail!("music_dir is not set in virgild's config, so covers can't be saved");
-        };
-        Ok(music_dir.join(group::parent_dir(uri)))
-    }
-
-    /// Saves an image the user picked as the album's cover.<ext>, replacing
-    /// any cover.* already in its folder. Check it with [`cover_extension`] first.
-    pub async fn upload_art(&self, album_id: String, bytes: Vec<u8>) -> anyhow::Result<()> {
-        let Some(extension) = cover_extension(&bytes) else { bail!("not a JPEG, PNG or WebP image") };
-        let id = album_id.clone();
-        let Some(target) = self.db(move |conn| db::art_target(conn, &id)).await? else { bail!("no such album") };
-        let dir = self.album_dir(&target.cover_uri)?;
-        // Thumbnails first: an image that won't decode never replaces a working cover.
-        let key = self.thumbs(bytes.clone()).await.context("unreadable image")?;
-        let name = format!("cover.{extension}");
-        let path = tokio::task::spawn_blocking(move || replace_cover(&dir, &name, &bytes)).await??;
-        info!("artwork: uploaded {}", path.display());
-        self.record_art(album_id, Some(key)).await?;
-        self.bump().await
-    }
-
-    /// Starts downloading covers for every album without art. False when a run
-    /// is already going.
-    pub fn download_missing_art(&self) -> bool {
-        if self.inner.downloading.swap(true, Ordering::SeqCst) {
-            return false;
-        }
-        let library = self.clone();
-        tokio::spawn(async move {
-            library.download_missing().await;
-            library.inner.downloading.store(false, Ordering::SeqCst);
-        });
-        true
-    }
-
-    async fn download_missing(&self) {
-        let ids = match self.db(|conn| db::missing_art(conn)).await {
-            Ok(ids) => ids,
-            Err(e) => return warn!("artwork download: {e:#}"),
-        };
-        let mut progress = ArtProgress { done: 0, total: ids.len() as u32, saved: 0, failed: 0, error: None };
-        self.set_progress(Some(progress.clone()));
-        info!("artwork: downloading covers for {} albums", progress.total);
-        let mut pending = 0;
-        for id in ids {
-            match self.download_one(&id).await {
-                Ok(outcome) => {
-                    if outcome == ArtOutcome::Saved {
-                        progress.saved += 1;
-                    }
-                    if outcome != ArtOutcome::NotFound {
-                        pending += 1;
-                    }
-                    if pending == DOWNLOAD_BATCH {
-                        let _ = self.bump().await;
-                        pending = 0;
-                    }
-                }
-                // No internet: every other album would fail the same way, so stop and say why.
-                Err(e) if is_offline(&e) => {
-                    warn!("artwork download stopped: {e:#}");
-                    progress.error = Some(format!("{e:#}"));
-                    self.set_progress(Some(progress));
-                    if pending > 0 {
-                        let _ = self.bump().await;
-                    }
-                    return;
-                }
-                // One folder failing (e.g. not writable) doesn't stop the rest.
-                Err(e) => {
-                    warn!("artwork for album {id}: {e:#}");
-                    progress.failed += 1;
-                }
-            }
-            progress.done += 1;
-            self.set_progress(Some(progress.clone()));
-        }
-        info!("artwork: saved {} of {} covers, {} failed", progress.saved, progress.total, progress.failed);
-        // Failures stay on screen; a clean run clears the progress.
-        self.set_progress((progress.failed > 0).then_some(progress));
-        if pending > 0 {
-            let _ = self.bump().await;
-        }
-    }
-
-    fn set_progress(&self, progress: Option<ArtProgress>) {
-        self.inner.status.send_modify(|status| status.art_download = progress);
-    }
-
     async fn bump(&self) -> anyhow::Result<()> {
         let status = self
             .db(|conn| {
@@ -542,41 +316,5 @@ mod tests {
         assert!(!hidden("...And Justice for All"), "an album, not junk");
         assert!(!hidden("Slipknot/.5: The Gray Chapter/01 Prelude 3.0.flac"));
         assert!(!hidden("Artist/Album"));
-    }
-
-    #[test]
-    fn finds_folder_art_and_never_overwrites() {
-        let dir = std::env::temp_dir().join(format!("virgil-art-test-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("01 Track.flac"), b"x").unwrap();
-        assert_eq!(folder_image(&dir).unwrap(), None);
-
-        write_new(&dir.join("cover.jpg"), b"first").unwrap();
-        let again = write_new(&dir.join("cover.jpg"), b"second").unwrap_err();
-        assert_eq!(again.kind(), std::io::ErrorKind::AlreadyExists);
-        assert_eq!(std::fs::read(dir.join("cover.jpg")).unwrap(), b"first");
-
-        std::fs::remove_file(dir.join("cover.jpg")).unwrap();
-        std::fs::write(dir.join("Folder.JPG"), b"x").unwrap();
-        assert_eq!(folder_image(&dir).unwrap(), Some(dir.join("Folder.JPG")));
-        std::fs::remove_dir_all(&dir).unwrap();
-        assert!(folder_image(&dir).is_err(), "a missing folder (share not mounted) is an error");
-    }
-
-    #[test]
-    fn uploaded_cover_replaces_other_covers_only() {
-        let dir = std::env::temp_dir().join(format!("virgil-upload-test-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        for name in ["cover.jpg", "Cover.PNG", "folder.jpg", "01 Track.flac"] {
-            std::fs::write(dir.join(name), b"old").unwrap();
-        }
-        let path = replace_cover(&dir, "cover.png", b"new").unwrap();
-        assert_eq!(path, dir.join("cover.png"));
-        assert_eq!(std::fs::read(&path).unwrap(), b"new");
-        let mut left: Vec<_> =
-            std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect();
-        left.sort();
-        assert_eq!(left, ["01 Track.flac", "cover.png", "folder.jpg"]);
-        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

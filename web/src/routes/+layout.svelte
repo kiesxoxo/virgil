@@ -14,7 +14,6 @@
 	import { library } from '#lib/library.svelte.ts';
 	import { swipeBack } from '#lib/swipeback.ts';
 	import { isStream, radio } from '#lib/radio.svelte.ts';
-	import { tagEditor } from '#lib/tageditor.svelte.ts';
 	import '#lib/theme.svelte.ts';
 
 	let { children }: { children: Snippet } = $props();
@@ -140,12 +139,6 @@
 	</nav>
 {/if}
 
-{#if tagEditor.open}
-	<!-- Rarely opened, and the biggest part of the app: not worth having every page load it. -->
-	{#await import('#lib/components/TagEditor.svelte') then { default: TagEditor }}
-		<TagEditor />
-	{/await}
-{/if}
 <Shortcuts />
 <ContextMenu />
 <Toaster />
