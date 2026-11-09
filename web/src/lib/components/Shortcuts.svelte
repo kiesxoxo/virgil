@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { flushSync } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { api } from '../api.ts';
 	import { hub } from '../hub.svelte.ts';
 	import { menu } from '../menu.svelte.ts';
@@ -83,7 +84,7 @@
 				break;
 			case 'q':
 			case 'Q':
-				goto('/queue');
+				if (page.route.id !== '/queue') goto('/queue');
 				break;
 			case 'Escape':
 				if (search.query) search.clear();

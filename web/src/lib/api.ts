@@ -41,7 +41,7 @@ async function call(method: string, path: string, body?: unknown, signal?: Abort
 	return res;
 }
 
-export class ApiError extends Error {
+class ApiError extends Error {
 	constructor(
 		readonly status: number,
 		message: string
@@ -55,7 +55,6 @@ const get = <T>(path: string, signal?: AbortSignal) => call('GET', path, undefin
 
 export const api = {
 	play: () => post('/api/player/play'),
-	pause: () => post('/api/player/pause'),
 	toggle: () => post('/api/player/toggle'),
 	next: () => post('/api/player/next'),
 	previous: () => post('/api/player/previous'),

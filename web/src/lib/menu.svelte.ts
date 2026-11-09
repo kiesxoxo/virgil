@@ -32,7 +32,6 @@ class MenuState {
 	yAbove = $state(0);
 	/** Anchored to a button: `x` is the right edge the menu lines up with. */
 	alignRight = $state(false);
-	openedAt = 0;
 
 	/** Opens at a point (right-click, long-press) or below an element (⋯ button). */
 	show(items: MenuItem[], at: { x: number; y: number } | DOMRect, header: MenuHeader | null = null) {
@@ -50,7 +49,6 @@ class MenuState {
 		this.items = items;
 		this.header = header;
 		this.open = true;
-		this.openedAt = performance.now();
 	}
 
 	close() {
@@ -66,6 +64,27 @@ class MenuState {
 export const menu = new MenuState();
 
 const LONG_PRESS_MS = 450;
+/** How long after a finger lifts its click can still arrive. */
+const LIFT_CLICK_MS = 100;
+
+/**
+ * The click that ends a long press lands on whatever is under the finger by then, and that's the
+ * menu it opened: the backdrop, or an item nobody chose. It doesn't count.
+ */
+function ignoreLift() {
+	const swallow = (e: Event) => {
+		e.preventDefault();
+		e.stopPropagation();
+	};
+	const lifted = () => {
+		removeEventListener('pointerup', lifted, true);
+		removeEventListener('pointercancel', lifted, true);
+		setTimeout(() => removeEventListener('click', swallow, true), LIFT_CLICK_MS);
+	};
+	addEventListener('click', swallow, true);
+	addEventListener('pointerup', lifted, true);
+	addEventListener('pointercancel', lifted, true);
+}
 
 /**
  * Right-click (desktop), long-press (phones) or the platform context-menu key
@@ -96,6 +115,7 @@ export function contextMenu(items: () => MenuItem[], header?: () => MenuHeader |
 				pressed = true;
 				navigator.vibrate?.(8);
 				open(start.x, start.y);
+				ignoreLift();
 			}, LONG_PRESS_MS);
 		};
 		const onPointerMove = (e: PointerEvent) => {

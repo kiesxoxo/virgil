@@ -36,9 +36,9 @@ impl ApiError {
         Self { status: StatusCode::CONFLICT, message: message.into() }
     }
 
-    /// A service Virgil relies on (NTS) didn't answer.
-    pub fn bad_gateway(message: impl Into<String>) -> Self {
-        Self { status: StatusCode::BAD_GATEWAY, message: message.into() }
+    /// A service Virgil relies on (NTS, MusicBrainz) didn't answer.
+    pub fn upstream(e: anyhow::Error) -> Self {
+        Self { status: StatusCode::BAD_GATEWAY, message: format!("{e:#}") }
     }
 }
 
@@ -277,11 +277,11 @@ async fn download_missing_art(State(app): State<App>) -> ApiResult {
 
 /// NTS's live channels, with the shows on air, and its Infinite Mixtapes.
 async fn radio(State(app): State<App>) -> ApiResult<Json<Radio>> {
-    app.radio.radio().await.map(Json).map_err(|e| ApiError::bad_gateway(format!("{e:#}")))
+    app.radio.radio().await.map(Json).map_err(ApiError::upstream)
 }
 
 async fn play_station(State(app): State<App>, Path(id): Path<String>) -> ApiResult {
-    let station = app.radio.station(&id).await.map_err(|e| ApiError::bad_gateway(format!("{e:#}")))?;
+    let station = app.radio.station(&id).await.map_err(ApiError::upstream)?;
     let station = station.ok_or_else(|| ApiError::not_found("no such station"))?;
     // AAC when there is any (the mixtapes), through this server's relay; else MP3.
     let uri = match station.stream_aac {
@@ -295,7 +295,7 @@ async fn play_station(State(app): State<App>, Path(id): Path<String>) -> ApiResu
 /// A station's AAC stream for MPD: NTS serves it as HLS, which MPD can't
 /// play, so its chunks are joined into one ADTS stream here.
 async fn aac_stream(State(app): State<App>, Path(id): Path<String>) -> ApiResult<Response> {
-    let station = app.radio.station(&id).await.map_err(|e| ApiError::bad_gateway(format!("{e:#}")))?;
+    let station = app.radio.station(&id).await.map_err(ApiError::upstream)?;
     let Some(playlist) = station.and_then(|s| s.stream_aac) else {
         return Err(ApiError::not_found("no AAC stream for this station"));
     };
@@ -321,7 +321,7 @@ async fn lookup_release(
     if id.is_empty() || !id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
         return Err(ApiError::bad_request(format!("not a release id: {id}")));
     }
-    app.library.lookup_release(source, &id).await.map(Json).map_err(|e| ApiError::bad_gateway(format!("{e:#}")))
+    app.library.lookup_release(source, &id).await.map(Json).map_err(ApiError::upstream)
 }
 
 async fn select_output(State(app): State<App>, Path(id): Path<u32>) -> ApiResult {

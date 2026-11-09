@@ -1,6 +1,8 @@
 // Menu items for albums, tracks and queue entries, shared by every view.
 
-import { ArrowUpToLine, ImageDown, ImageUp, ListEnd, ListPlus, ListX, Play, Tags } from '@lucide/svelte';
+import { ArrowUpToLine, Disc3, ImageDown, ImageUp, ListEnd, ListPlus, ListX, Play, Tags, UserRound } from '@lucide/svelte';
+import { goto } from '$app/navigation';
+import { page } from '$app/state';
 import { api, queue } from './api.ts';
 import type { MenuHeader, MenuItem } from './menu.svelte.ts';
 import { isStream, radio } from './radio.svelte.ts';
@@ -46,11 +48,16 @@ function uploadArt(album: Album) {
 	input.click();
 }
 
+/** The item that goes to `href`, unless that's the page the menu is on. */
+const goTo = (label: string, icon: MenuItem['icon'], href: string): MenuItem[] =>
+	page.url.pathname === href ? [] : [{ label, icon, run: () => goto(href) }];
+
 export function albumItems(album: Album): MenuItem[] {
 	const items: MenuItem[] = [
 		{ label: 'Play', icon: Play, run: () => queue.playAlbum(album.id) },
 		{ label: 'Play next', icon: ListPlus, run: () => queue.albumNext(album.id) },
-		{ label: 'Add to end of queue', icon: ListEnd, run: () => queue.albumLast(album.id) }
+		{ label: 'Add to end of queue', icon: ListEnd, run: () => queue.albumLast(album.id) },
+		...goTo('Go to artist', UserRound, `/artist/${encodeURIComponent(album.artist)}`)
 	];
 	if (!album.art) {
 		items.push({
@@ -81,6 +88,7 @@ export function trackItems(track: Track, albumId: string): MenuItem[] {
 		{ label: 'Play', icon: Play, run: () => queue.playAlbum(albumId, track.uri) },
 		{ label: 'Play next', icon: ListPlus, run: () => queue.tracksNext([track.uri]) },
 		{ label: 'Add to end of queue', icon: ListEnd, run: () => queue.tracksLast([track.uri]) },
+		...goTo('Go to album', Disc3, `/album/${albumId}`),
 		{ label: 'Edit tags…', icon: Tags, run: () => tagEditor.show([track.uri], track.title) }
 	];
 }
@@ -104,6 +112,7 @@ export function queueItems(item: QueueItem, index: number, current: number): Men
 			run: () => api.move(item.id, index > current ? current + 1 : current)
 		});
 	}
+	if (item.albumId) items.push(...goTo('Go to album', Disc3, `/album/${item.albumId}`));
 	// A radio stream has no file to tag.
 	if (!isStream(item.uri)) items.push({ label: 'Edit tags…', icon: Tags, run: () => tagEditor.show([item.uri], item.title) });
 	items.push({ label: 'Remove from queue', icon: ListX, run: () => api.remove(item.id), danger: true });

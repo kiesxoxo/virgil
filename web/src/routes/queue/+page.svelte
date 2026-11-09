@@ -6,7 +6,8 @@
 	import Menu from '#lib/components/Menu.svelte';
 	import { queueHeader, queueItems } from '#lib/actions.ts';
 	import { api } from '#lib/api.ts';
-	import { clock, span } from '#lib/format.ts';
+	import { Confirm } from '#lib/confirm.svelte.ts';
+	import { clock, plural, span } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { contextMenu } from '#lib/menu.svelte.ts';
 	import { isStream, radio } from '#lib/radio.svelte.ts';
@@ -19,19 +20,8 @@
 	let played = $derived(cur > 0 ? items.slice(0, cur) : []);
 	let remaining = $derived(upNext.reduce((sum, i) => sum + i.duration, 0));
 
-	let confirmClear = $state(false);
-	let confirmTimer: ReturnType<typeof setTimeout> | undefined;
-
-	function clear() {
-		if (!confirmClear) {
-			confirmClear = true;
-			clearTimeout(confirmTimer);
-			confirmTimer = setTimeout(() => (confirmClear = false), 3000);
-			return;
-		}
-		confirmClear = false;
-		api.clear().then(() => toasts.done(hub.current ? 'Queue cleared; this song keeps playing' : 'Queue cleared'));
-	}
+	const clearing = new Confirm();
+	const clear = () => api.clear().then(() => toasts.done(hub.current ? 'Queue cleared; this song keeps playing' : 'Queue cleared'));
 
 	const actions = (item: QueueItem) => queueItems(item, items.indexOf(item), cur);
 	/** A song's artist and album; a station's show and channel. */
@@ -77,7 +67,7 @@
 	{:else}
 		<div class="flex h-11 items-stretch border-y border-line">
 			<p class="label flex min-w-0 flex-1 items-center px-3 text-[10.5px] whitespace-nowrap text-muted">
-				{cur >= 0 ? `${upNext.length} up next` : `${items.length} ${items.length === 1 ? 'song' : 'songs'}`}{#if remaining > 0}&nbsp;/ {span(remaining)}{/if}
+				{cur >= 0 ? `${upNext.length} up next` : plural(items.length, 'song')}{#if remaining > 0}&nbsp;/ {span(remaining)}{/if}
 			</p>
 			<button
 				type="button"
@@ -90,11 +80,11 @@
 			</button>
 			<button
 				type="button"
-				class="label border-l border-line px-3 text-[10.5px] whitespace-nowrap {confirmClear ? 'press bg-accent text-accent-fg' : 'press text-muted'}"
+				class="label border-l border-line px-3 text-[10.5px] whitespace-nowrap {clearing.armed ? 'press bg-accent text-accent-fg' : 'press text-muted'}"
 				title={hub.current ? 'Remove everything except the song that is playing' : 'Remove everything'}
-				onclick={clear}
+				onclick={() => clearing.press(clear)}
 			>
-				{confirmClear ? 'Confirm' : 'Clear'}
+				{clearing.armed ? 'Confirm' : 'Clear'}
 			</button>
 		</div>
 

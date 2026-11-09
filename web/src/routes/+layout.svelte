@@ -7,43 +7,46 @@
 	import Logotype from '#lib/components/Logotype.svelte';
 	import PlayerBar from '#lib/components/PlayerBar.svelte';
 	import Shortcuts from '#lib/components/Shortcuts.svelte';
-	import TagEditor from '#lib/components/TagEditor.svelte';
 	import Toaster from '#lib/components/Toaster.svelte';
+	import { trackOpeners } from '#lib/back.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { keyboard } from '#lib/keyboard.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
 	import { swipeBack } from '#lib/swipeback.ts';
 	import { isStream, radio } from '#lib/radio.svelte.ts';
+	import { tagEditor } from '#lib/tageditor.svelte.ts';
 	import '#lib/theme.svelte.ts';
 
 	let { children }: { children: Snippet } = $props();
 
-	const albums = (id: string) => id === '/' || id.startsWith('/album/');
-	const artists = (id: string) => id === '/artists' || id.startsWith('/artist/');
-	const genres = (id: string) => id === '/genres' || id.startsWith('/genre/');
-	const radioPage = { href: '/radio', label: 'Radio', active: (id: string) => id === '/radio' };
-	const queuePage = { href: '/queue', label: 'Queue', active: (id: string) => id === '/queue' };
-	const settings = { href: '/settings', label: 'Settings', active: (id: string) => id === '/settings' };
+	trackOpeners();
 
+	const shelves = [
+		{ href: '/', label: 'Albums', active: (id: string) => id === '/' || id.startsWith('/album/') },
+		{ href: '/artists', label: 'Artists', active: (id: string) => id === '/artists' || id.startsWith('/artist/') },
+		{ href: '/genres', label: 'Genres', active: (id: string) => id === '/genres' || id.startsWith('/genre/') }
+	];
+	const pages = [
+		{ href: '/radio', label: 'Radio', active: (id: string) => id === '/radio' },
+		{ href: '/queue', label: 'Queue', active: (id: string) => id === '/queue' },
+		{ href: '/settings', label: 'Settings', active: (id: string) => id === '/settings' }
+	];
 	// Desktop: every view in the sidebar.
-	const nav = [
-		{ href: '/', label: 'Albums', active: albums },
-		{ href: '/artists', label: 'Artists', active: artists },
-		{ href: '/genres', label: 'Genres', active: genres },
-		radioPage,
-		queuePage,
-		settings
-	];
-	// Phones: one Library tab; its pages switch between albums, artists and genres.
-	const tabs = [
-		{ href: '/', label: 'Library', active: (id: string) => albums(id) || artists(id) || genres(id) },
-		radioPage,
-		queuePage,
-		settings
-	];
+	const nav = [...shelves, ...pages];
 
 	let routeId = $derived(page.route.id ?? '');
 	let fullscreen = $derived(routeId === '/now');
+
+	/** Which of the library's pages was seen last. */
+	let shelf = $state('/');
+	$effect(() => {
+		shelf = shelves.find((item) => item.active(routeId))?.href ?? shelf;
+	});
+	// Phones: one Library tab, which goes back to that page; the page switches between albums, artists and genres.
+	let tabs = $derived([
+		{ href: shelf, label: 'Library', active: (id: string) => shelves.some((item) => item.active(id)) },
+		...pages
+	]);
 	// Give the first connection a moment before complaining.
 	let patient = $state(true);
 
@@ -121,7 +124,7 @@
 	<!-- Stays beneath the on-screen keyboard rather than riding up with it. -->
 	<nav class="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg lg:hidden" class:hidden={keyboard.height > 0}>
 		<div class="grid h-14 grid-cols-4">
-			{#each tabs as item (item.href)}
+			{#each tabs as item (item.label)}
 				{@const active = item.active(routeId)}
 				<a
 					href={item.href}
@@ -137,7 +140,12 @@
 	</nav>
 {/if}
 
-<TagEditor />
+{#if tagEditor.open}
+	<!-- Rarely opened, and the biggest part of the app: not worth having every page load it. -->
+	{#await import('#lib/components/TagEditor.svelte') then { default: TagEditor }}
+		<TagEditor />
+	{/await}
+{/if}
 <Shortcuts />
 <ContextMenu />
 <Toaster />

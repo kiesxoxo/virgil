@@ -123,6 +123,11 @@ export function find(groups: Group[], name: string): Group | undefined {
 	return groups.find((g) => g.key === k);
 }
 
+/** Songs and running time of some albums. */
+export function totals(albums: Album[]): { tracks: number; seconds: number } {
+	return albums.reduce((sum, a) => ({ tracks: sum.tracks + a.tracks, seconds: sum.seconds + a.duration }), { tracks: 0, seconds: 0 });
+}
+
 /** Up to four covers to show for a group: different albums, ones with art first. */
 export function covers(group: Group): (string | null)[] {
 	const withArt = group.albums.filter((a) => a.art);

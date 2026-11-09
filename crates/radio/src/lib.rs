@@ -11,7 +11,7 @@ use anyhow::Context;
 use serde::Deserialize;
 use tokio::sync::{Mutex, mpsc};
 use tracing::warn;
-use virgil_core::{Broadcast, Radio, Station};
+use virgil_core::{Broadcast, Radio, Station, unix_time};
 
 const USER_AGENT: &str = concat!("Virgil/", env!("CARGO_PKG_VERSION"), " ( https://github.com/kiesxoxo/virgil )");
 const LIVE_URL: &str = "https://www.nts.live/api/v2/live";
@@ -110,36 +110,6 @@ fn prose(s: &str) -> String {
     html_escape::decode_html_entities(s).trim().to_string()
 }
 
-/// Days from 1970-01-01 to a date in the proleptic Gregorian calendar.
-fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
-    let y = if m <= 2 { y - 1 } else { y };
-    let era = y.div_euclid(400);
-    let yoe = y - era * 400;
-    let doy = (153 * ((m + 9) % 12) + 2) / 5 + d - 1;
-    era * 146_097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719_468
-}
-
-/// Unix time from an RFC 3339 timestamp: `2026-10-30T11:00:00Z`, with an
-/// optional fraction and `Z` or a `+01:00` offset.
-fn unix(s: &str) -> Option<u32> {
-    let num = |at: usize, len: usize| s.get(at..at + len)?.parse::<i64>().ok();
-    let days = days_from_civil(num(0, 4)?, num(5, 2)?, num(8, 2)?);
-    let seconds = num(11, 2)? * 3600 + num(14, 2)? * 60 + num(17, 2)?;
-    let zone = s.get(19..)?.trim_start_matches(|c: char| c == '.' || c.is_ascii_digit());
-    let offset = match zone {
-        "" | "Z" => 0,
-        z => {
-            let sign = match z.as_bytes()[0] {
-                b'+' => 1,
-                b'-' => -1,
-                _ => return None,
-            };
-            sign * (z.get(1..3)?.parse::<i64>().ok()? * 3600 + z.get(4..6)?.parse::<i64>().ok()? * 60)
-        }
-    };
-    u32::try_from(days * 86_400 + seconds - offset).ok()
-}
-
 fn broadcast(slot: Slot) -> Option<Broadcast> {
     let details = slot.embeds.details;
     let url = details.as_ref().and_then(|d| {
@@ -154,8 +124,8 @@ fn broadcast(slot: Slot) -> Option<Broadcast> {
     };
     Some(Broadcast {
         title: prose(&slot.broadcast_title),
-        start: unix(&slot.start_timestamp)?,
-        end: unix(&slot.end_timestamp)?,
+        start: unix_time(&slot.start_timestamp)?,
+        end: unix_time(&slot.end_timestamp)?,
         location,
         description,
         genres: genres.into_iter().filter_map(|g| text(Some(prose(&g.value)))).collect(),
@@ -319,19 +289,6 @@ impl Nts {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn reads_timestamps() {
-        assert_eq!(unix("1970-01-01T00:00:00Z"), Some(0));
-        assert_eq!(unix("2000-03-01T00:00:00Z"), Some(951_868_800));
-        assert_eq!(unix("2024-02-29T23:59:59Z"), Some(1_709_251_199));
-        assert_eq!(unix("2026-10-30T11:00:00Z"), Some(1_793_358_000));
-        assert_eq!(unix("2026-10-30T11:00:00.000Z"), Some(1_793_358_000));
-        assert_eq!(unix("2026-10-30T11:00:00+00:00"), Some(1_793_358_000));
-        assert_eq!(unix("2026-10-30T12:00:00+01:00"), Some(1_793_358_000));
-        assert_eq!(unix("2026-10-30"), None);
-        assert_eq!(unix("garbage"), None);
-    }
 
     const LIVE: &str = r#"{"results": [
         {"channel_name": "2",

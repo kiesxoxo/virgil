@@ -2,7 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { appearsOn, artistParts, artists, find, genres, NO_GENRE_NAME, splitGenres } from './browse.ts';
+import { appearsOn, artistParts, artists, find, genres, NO_GENRE_NAME, splitGenres, totals } from './browse.ts';
 import type { Album } from './types/Album.ts';
 
 let n = 0;
@@ -75,4 +75,10 @@ test('artists: one entry per album artist, albums oldest first; collaborations a
 	// The same album also tagged under the member's name is listed once, under their albums.
 	const both = [...list, album('Alessandro Cortini', null, 2020, 'Illusion Of Time [WEB]')];
 	assert.deepEqual(appearsOn(both, a[0].key), []);
+});
+
+test('totals: songs and running time of some albums', () => {
+	const albums = [{ ...album('A', null), tracks: 3, duration: 60 }, { ...album('B', null), tracks: 1, duration: 30 }];
+	assert.deepEqual(totals(albums), { tracks: 4, seconds: 90 });
+	assert.deepEqual(totals([]), { tracks: 0, seconds: 0 });
 });

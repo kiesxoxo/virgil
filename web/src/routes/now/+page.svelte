@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { Airplay, ChevronDown, Disc3, ExternalLink, ListMusic } from '@lucide/svelte';
-	import { afterNavigate, goto } from '$app/navigation';
 	import Cover from '#lib/components/Cover.svelte';
 	import NowCover from '#lib/components/NowCover.svelte';
 	import OnAir from '#lib/components/OnAir.svelte';
@@ -9,6 +8,7 @@
 	import SignalPathCard from '#lib/components/SignalPathCard.svelte';
 	import Transport from '#lib/components/Transport.svelte';
 	import { api } from '#lib/api.ts';
+	import { goBack } from '#lib/back.ts';
 	import { fitTitle } from '#lib/fit.ts';
 	import { hhmm } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
@@ -23,17 +23,7 @@
 	let titleHeight = $state(0);
 	let controlsHeight = $state(0);
 
-	/** Opened by a link in the app, so going back stays in the app; unknown after a reload or a jump through history. */
-	let fromApp = false;
-	afterNavigate((navigation) => {
-		// On the first load `from` is there too, with no route.
-		if (navigation.type !== 'popstate') fromApp = !!navigation.from?.route.id;
-	});
-
-	function close() {
-		if (fromApp) history.back();
-		else goto('/');
-	}
+	const close = () => goBack('/');
 </script>
 
 <svelte:head><title>{shown ? `${shown.title} · ${shown.subtitle}` : 'Now playing'} · Virgil</title></svelte:head>

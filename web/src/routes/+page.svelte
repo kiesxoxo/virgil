@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { ArrowDown, ArrowUp } from '@lucide/svelte';
 	import AlbumGrid from '#lib/components/AlbumGrid.svelte';
 	import AlbumList, { LIST_COLUMNS_MIN_WIDTH, listColumns } from '#lib/components/AlbumList.svelte';
 	import AlbumTuner from '#lib/components/AlbumTuner.svelte';
+	import ColumnHeads from '#lib/components/ColumnHeads.svelte';
 	import Cover from '#lib/components/Cover.svelte';
 	import Equalizer from '#lib/components/Equalizer.svelte';
 	import LibraryBar from '#lib/components/LibraryBar.svelte';
@@ -164,27 +164,7 @@
 	{/snippet}
 	{#snippet heads()}
 		{#if view === 'list' && wide && library.albums.length}
-			<div class="flex h-8 items-stretch border-t border-line" role="row">
-				<div class="grid min-w-0 flex-1 items-center gap-x-4 {listArt ? '' : 'pl-3'}" style:grid-template-columns={listColumns(listArt)}>
-					{#if listArt}<span></span>{/if}
-					{#each columns as column (column.key)}
-						{@const active = sort.key === column.key}
-						<button
-							type="button"
-							role="columnheader"
-							aria-sort={active ? (sort.desc ? 'descending' : 'ascending') : 'none'}
-							class="label flex items-center gap-1 text-[10.5px] {column.numeric ? 'justify-end' : ''} {active ? 'text-accent' : 'text-muted hover:text-fg'}"
-							onclick={() => sortBy(column.key)}
-						>
-							{column.label}
-							{#if active}
-								{#if sort.desc}<ArrowDown class="size-3" />{:else}<ArrowUp class="size-3" />{/if}
-							{/if}
-						</button>
-					{/each}
-				</div>
-				<span class="w-11 shrink-0"></span>
-			</div>
+			<ColumnHeads {columns} template={listColumns(listArt)} art={listArt} {sort} onsort={sortBy} />
 		{/if}
 	{/snippet}
 </LibraryBar>

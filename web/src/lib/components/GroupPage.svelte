@@ -1,12 +1,13 @@
 <script lang="ts">
-	import { ChevronLeft, ListEnd } from '@lucide/svelte';
+	import { ListEnd } from '@lucide/svelte';
 	import { queue } from '../api.ts';
-	import type { Group } from '../browse.ts';
+	import { totals, type Group } from '../browse.ts';
 	import { fitTitle } from '../fit.ts';
-	import { span } from '../format.ts';
+	import { plural, span } from '../format.ts';
 	import { library } from '../library.svelte.ts';
 	import type { Album } from '../types/Album.ts';
 	import AlbumGrid from './AlbumGrid.svelte';
+	import BackLink from './BackLink.svelte';
 	import Glyph from './Glyph.svelte';
 
 	// One artist's or genre's albums, with Play / Add to queue for all of them.
@@ -19,13 +20,8 @@
 
 	let albums = $derived(group?.albums ?? []);
 	let meta = $derived.by(() => {
-		const tracks = albums.reduce((n, a) => n + a.tracks, 0);
-		const seconds = albums.reduce((n, a) => n + a.duration, 0);
-		return [
-			`${albums.length} ${albums.length === 1 ? 'album' : 'albums'}`,
-			`${tracks.toLocaleString()} ${tracks === 1 ? 'song' : 'songs'}`,
-			seconds ? span(seconds) : null
-		].filter(Boolean);
+		const { tracks, seconds } = totals(albums);
+		return [plural(albums.length, 'album'), plural(tracks, 'song'), seconds ? span(seconds) : null].filter(Boolean);
 	});
 	let ids = $derived(albums.map((a) => a.id));
 	let back = $derived(kind === 'artist' ? { href: '/artists', label: 'Artists' } : { href: '/genres', label: 'Genres' });
@@ -35,10 +31,7 @@
 <svelte:head><title>{group?.name ?? name} · Virgil</title></svelte:head>
 
 <div class="pt-safe">
-	<a href={back.href} data-back class="press label flex h-11 items-center gap-1 border-b border-line pl-2 text-[11px] lg:hidden">
-		<ChevronLeft class="size-4" />
-		{back.label}
-	</a>
+	<BackLink href={back.href} label={back.label} class="h-11 border-b border-line" />
 
 	{#if !group && library.loaded}
 		<div class="px-3">

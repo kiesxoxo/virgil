@@ -13,11 +13,6 @@
 	let left = $derived(Math.max(8, Math.min(menu.alignRight ? menu.x - WIDTH : menu.x, width - WIDTH - 8)));
 	let estimated = $derived(menu.items.length * ITEM + (menu.header ? 48 : 0) + 12);
 	let top = $derived(menu.y + estimated > height - 8 ? Math.max(8, menu.yAbove - estimated) : menu.y);
-
-	/** The finger that long-pressed lifts onto the backdrop; don't treat that as "dismiss". */
-	function dismiss() {
-		if (performance.now() - menu.openedAt > 350) menu.close();
-	}
 </script>
 
 <svelte:window
@@ -29,7 +24,7 @@
 
 {#if menu.open}
 	{#if sheet}
-		<div class="fixed inset-0 z-50 bg-black/60" role="presentation" onclick={dismiss}></div>
+		<div class="fixed inset-0 z-50 bg-black/60" role="presentation" onclick={() => menu.close()}></div>
 		<div class="pb-safe fixed inset-x-0 bottom-0 z-50 border-t border-line bg-bg" role="menu" tabindex="-1">
 			{#if menu.header}
 				<div class="flex items-center border-b border-line">
@@ -61,7 +56,7 @@
 		<div
 			class="fixed inset-0 z-50"
 			role="presentation"
-			onclick={dismiss}
+			onclick={() => menu.close()}
 			oncontextmenu={(e) => {
 				e.preventDefault();
 				menu.close();
