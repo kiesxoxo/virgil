@@ -3,6 +3,7 @@
 	import Masthead from '#lib/components/Masthead.svelte';
 	import SignalPathCard from '#lib/components/SignalPathCard.svelte';
 	import { api } from '#lib/api.ts';
+	import { Confirm } from '#lib/confirm.svelte.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { theme, type ThemeMode } from '#lib/theme.svelte.ts';
 	import { toasts } from '#lib/toast.svelte.ts';
@@ -61,19 +62,8 @@
 	let airplay = $derived(hub.source.available.includes('airplay'));
 
 	let homekit = $derived(hub.homekit);
-	let confirmReset = $state(false);
-	let confirmTimer: ReturnType<typeof setTimeout> | undefined;
-
-	function resetHomekit() {
-		if (!confirmReset) {
-			confirmReset = true;
-			clearTimeout(confirmTimer);
-			confirmTimer = setTimeout(() => (confirmReset = false), 3000);
-			return;
-		}
-		confirmReset = false;
-		api.resetHomekit().then(() => toasts.done('Virgil can be added to a home again'));
-	}
+	const resetting = new Confirm();
+	const resetHomekit = () => api.resetHomekit().then(() => toasts.done('Virgil can be added to a home again'));
 
 	let download = $derived(hub.library.artDownload);
 	let downloading = $derived(!!download && !download.error && download.done < download.total);
@@ -254,10 +244,10 @@
 				</div>
 				<button
 					type="button"
-					class="label shrink-0 border-l border-line px-3 text-[10.5px] whitespace-nowrap {confirmReset ? 'press bg-accent text-accent-fg' : 'press'}"
-					onclick={resetHomekit}
+					class="label shrink-0 border-l border-line px-3 text-[10.5px] whitespace-nowrap {resetting.armed ? 'press bg-accent text-accent-fg' : 'press'}"
+					onclick={() => resetting.press(resetHomekit)}
 				>
-					{confirmReset ? 'Confirm' : 'Reset'}
+					{resetting.armed ? 'Confirm' : 'Reset'}
 				</button>
 			</div>
 		{/if}

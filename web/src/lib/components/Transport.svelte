@@ -9,7 +9,7 @@
 	let big = $derived(size === 'lg');
 	let RepeatIcon = $derived(hub.player.repeat && hub.player.single ? Repeat1 : Repeat);
 	let disabled = $derived(!hub.player.online || hub.queue.items.length === 0);
-	let cell = $derived(`grid place-items-center border-l border-line first:border-l-0`);
+	const cell = 'grid place-items-center border-l border-line first:border-l-0';
 </script>
 
 <div class="grid grid-cols-[1fr_1.15fr_1.5fr_1.15fr_1fr] {big ? 'h-[88px]' : 'h-10'}">

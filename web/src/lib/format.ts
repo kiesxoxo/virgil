@@ -2,6 +2,11 @@ import type { AudioFormat } from './types/AudioFormat.ts';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
+/** "1 song", "1,204 songs". */
+export function plural(n: number, word: string): string {
+	return `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
+}
+
 /** 3:07, or 1:02:03 past an hour. */
 export function clock(seconds: number): string {
 	const s = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0;

@@ -1,13 +1,14 @@
 <script lang="ts">
-	import { ArrowDown, ArrowUp, ListEnd, Play } from '@lucide/svelte';
+	import { ListEnd, Play } from '@lucide/svelte';
 	import { queue } from '../api.ts';
-	import { NO_GENRE, type Group } from '../browse.ts';
-	import { TILE, fold, span } from '../format.ts';
+	import { NO_GENRE, totals as sum, type Group } from '../browse.ts';
+	import { TILE, fold, plural, span } from '../format.ts';
 	import { library } from '../library.svelte.ts';
 	import { contextMenu, type MenuItem } from '../menu.svelte.ts';
 	import { search } from '../search.svelte.ts';
 	import { isBoolean, isView, store, stored, type View } from '../stored.ts';
 	import { Rows } from '../virtual.svelte.ts';
+	import ColumnHeads from './ColumnHeads.svelte';
 	import GroupArt from './GroupArt.svelte';
 	import LibraryBar from './LibraryBar.svelte';
 	import Masthead from './Masthead.svelte';
@@ -53,15 +54,8 @@
 	}
 
 	// Songs and running time per group.
-	let totals = $derived(
-		new Map(
-			groups.map((g) => [
-				g.key,
-				{ tracks: g.albums.reduce((n, a) => n + a.tracks, 0), length: g.albums.reduce((n, a) => n + a.duration, 0) }
-			])
-		)
-	);
-	const stat = (g: Group, key: 'tracks' | 'length') => totals.get(g.key)?.[key] ?? 0;
+	let totals = $derived(new Map(groups.map((g) => [g.key, sum(g.albums)])));
+	const stat = (g: Group, key: 'tracks' | 'seconds') => totals.get(g.key)?.[key] ?? 0;
 
 	let shown = $derived.by(() => {
 		const terms = fold(search.query).split(/\s+/).filter(Boolean);
@@ -69,9 +63,9 @@
 		// Groups arrive A–Z; "No genre" stays last whatever the order.
 		const last = list.filter((g) => g.key === NO_GENRE);
 		list = list.filter((g) => g.key !== NO_GENRE);
-		const key = sort.key;
-		if (key === 'albums') list = list.toSorted((a, b) => a.albums.length - b.albums.length);
-		else if (key !== 'name') list = list.toSorted((a, b) => stat(a, key) - stat(b, key));
+		if (sort.key === 'albums') list = list.toSorted((a, b) => a.albums.length - b.albums.length);
+		else if (sort.key === 'tracks') list = list.toSorted((a, b) => stat(a, 'tracks') - stat(b, 'tracks'));
+		else if (sort.key === 'length') list = list.toSorted((a, b) => stat(a, 'seconds') - stat(b, 'seconds'));
 		if (sort.desc) list = list.toReversed();
 		return [...list, ...last];
 	});
@@ -98,8 +92,7 @@
 		{ label: 'Play', icon: Play, run: () => queue.playAlbums(ids(g)) },
 		{ label: 'Add to end of queue', icon: ListEnd, run: () => queue.albumsLast(ids(g)) }
 	];
-	const count = (n: number, word: string) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
-	const header = (g: Group) => ({ title: g.name, subtitle: count(g.albums.length, 'album') });
+	const header = (g: Group) => ({ title: g.name, subtitle: plural(g.albums.length, 'album') });
 </script>
 
 <svelte:head><title>{title} · Virgil</title></svelte:head>
@@ -120,27 +113,7 @@
 	{/snippet}
 	{#snippet heads()}
 		{#if view === 'list' && wide && shown.length}
-			<div class="flex h-8 items-stretch border-t border-line" role="row">
-				<div class="grid min-w-0 flex-1 items-center gap-x-4 {listArt ? '' : 'pl-3'}" style:grid-template-columns={listColumns(listArt)}>
-					{#if listArt}<span></span>{/if}
-					{#each columns as column (column.key)}
-						{@const active = sort.key === column.key}
-						<button
-							type="button"
-							role="columnheader"
-							aria-sort={active ? (sort.desc ? 'descending' : 'ascending') : 'none'}
-							class="label flex items-center gap-1 text-[10.5px] {column.numeric ? 'justify-end' : ''} {active ? 'text-accent' : 'text-muted hover:text-fg'}"
-							onclick={() => sortBy(column.key)}
-						>
-							{column.label}
-							{#if active}
-								{#if sort.desc}<ArrowDown class="size-3" />{:else}<ArrowUp class="size-3" />{/if}
-							{/if}
-						</button>
-					{/each}
-				</div>
-				<span class="w-11 shrink-0"></span>
-			</div>
+			<ColumnHeads {columns} template={listColumns(listArt)} art={listArt} {sort} onsort={sortBy} />
 		{/if}
 	{/snippet}
 </LibraryBar>
@@ -183,15 +156,15 @@
 							<span role="cell" class="wide truncate text-[13px] {none ? 'text-muted' : ''}">{group.name}</span>
 							<span role="cell" class="label text-right text-[11px] text-muted">{group.albums.length.toLocaleString()}</span>
 							<span role="cell" class="label text-right text-[11px] text-muted">{stat(group, 'tracks').toLocaleString()}</span>
-							<span role="cell" class="label text-right text-[11px] text-muted">{span(stat(group, 'length'))}</span>
+							<span role="cell" class="label text-right text-[11px] text-muted">{span(stat(group, 'seconds'))}</span>
 						{:else}
 							<span role="cell" class="min-w-0 flex-1">
 								<span class="wide block truncate text-[13px] leading-[18px] {none ? 'text-muted' : ''}">{group.name}</span>
 								<span class="block truncate text-xs leading-4 text-muted">
-									{count(group.albums.length, 'album')} · {count(stat(group, 'tracks'), 'song')}
+									{plural(group.albums.length, 'album')} · {plural(stat(group, 'tracks'), 'song')}
 								</span>
 							</span>
-							<span role="cell" class="label shrink-0 text-[11px] text-muted">{span(stat(group, 'length'))}</span>
+							<span role="cell" class="label shrink-0 text-[11px] text-muted">{span(stat(group, 'seconds'))}</span>
 						{/if}
 					</a>
 					<div role="cell" class="flex shrink-0">
@@ -215,7 +188,7 @@
 						<GroupArt {group} {kind} size={TILE} />
 						<div class="px-2 pt-2 {kind === 'artist' ? '' : 'px-2.5'}">
 							<div class="wide line-clamp-2 leading-[15px] [overflow-wrap:anywhere] {kind === 'artist' ? 'text-[11.5px]' : 'text-[12.5px]'} {group.key === NO_GENRE ? 'text-muted' : ''}">{group.name}</div>
-							<div class="label mt-1 truncate text-[10px] leading-3 text-muted">{count(group.albums.length, 'album')}</div>
+							<div class="label mt-1 truncate text-[10px] leading-3 text-muted">{plural(group.albums.length, 'album')}</div>
 						</div>
 					</a>
 				</li>

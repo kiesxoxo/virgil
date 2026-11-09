@@ -93,7 +93,10 @@ offline, use *Reset* in Settings so it can be added again.
 crates/core        wire types; `cargo test -p virgil-core` regenerates web/src/lib/types/*.ts
 crates/engine-mpd  MPD protocol client and typed commands (the playback-engine seam)
 crates/library     MPD database → SQLite projection, search, artwork cache
-crates/virgild       the daemon: HTTP API, WebSocket, DAC arbitration, signal path, embedded UI
+crates/radio       NTS: live channels, Infinite Mixtapes, HLS relay
+crates/tags        reading and writing tags in the files
+crates/homekit     the Apple Home switch (HAP over IP)
+crates/virgild     the daemon: HTTP API, WebSocket, DAC arbitration, signal path, embedded UI
 web/               SvelteKit 3 app (Tailwind 4, Lucide icons)
 deploy/            native install: mpd.conf, shairport-sync.conf, virgild.toml, systemd unit, boot config
 docker/            container install: compose.yaml, entrypoint, AirPlay config and D-Bus policy
@@ -225,7 +228,7 @@ GET    /api/library/albums/{id}
 GET    /api/library/search?q=…
 POST   /api/library/rescan
 POST   /api/sources/{name}/{acquire,release}
-GET    /art/{key}-{300,600}.jpg     immutable
+GET    /art/{key}-{300,600,1000}.jpg     immutable
 ```
 
 The API has no authentication; keep the Pi on a trusted network.

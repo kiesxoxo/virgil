@@ -274,13 +274,12 @@ impl MpdEngine {
     }
 
     pub async fn set_modes(&self, modes: &ModesRequest) -> Result<()> {
-        let flag = |b: bool| if b { 1 } else { 0 };
         let mut commands = Vec::new();
         for (name, value) in
             [("repeat", modes.repeat), ("random", modes.random), ("single", modes.single), ("consume", modes.consume)]
         {
             if let Some(value) = value {
-                commands.push(format!("{name} {}", flag(value)));
+                commands.push(format!("{name} {}", u8::from(value)));
             }
         }
         self.mpd.run_list(&commands).await.map(drop)
@@ -374,7 +373,7 @@ impl MpdEngine {
         for command in ["albumart", "readpicture"] {
             match self.read_binary(command, uri).await {
                 Ok(Some(data)) => return Ok(Some(data)),
-                Ok(None) | Err(Error::Ack { .. }) => continue,
+                Ok(None) | Err(Error::Ack { .. }) => {}
                 Err(e) => return Err(e),
             }
         }

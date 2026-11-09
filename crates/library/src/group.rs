@@ -2,7 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use virgil_core::{AudioFormat, Disc};
+use virgil_core::{AudioFormat, Disc, unix_time};
 use virgil_engine_mpd::Song;
 
 pub struct AlbumGroup {
@@ -28,7 +28,7 @@ pub fn fnv1a64(bytes: &[u8]) -> u64 {
     hash
 }
 
-fn parent_dir(uri: &str) -> &str {
+pub fn parent_dir(uri: &str) -> &str {
     uri.rsplit_once('/').map_or("", |(dir, _)| dir)
 }
 
@@ -212,31 +212,12 @@ pub fn group(songs: Vec<Song>) -> Vec<AlbumGroup> {
                 genre: tracks.iter().find_map(|t| t.genre.clone()),
                 duration: tracks.iter().map(|t| t.duration).sum(),
                 format,
-                added: tracks
-                    .iter()
-                    .filter_map(|t| t.last_modified.as_deref().and_then(parse_rfc3339))
-                    .max()
-                    .unwrap_or(0),
+                added: tracks.iter().filter_map(|t| t.last_modified.as_deref().and_then(unix_time)).max().unwrap_or(0),
                 discs,
                 tracks,
             }
         })
         .collect()
-}
-
-/// `2024-03-01T12:34:56Z` → Unix seconds. MPD always prints UTC.
-pub fn parse_rfc3339(s: &str) -> Option<u32> {
-    let num = |range: std::ops::Range<usize>| s.get(range)?.parse::<i64>().ok();
-    let (y, mo, d) = (num(0..4)?, num(5..7)?, num(8..10)?);
-    let (h, mi, se) = (num(11..13)?, num(14..16)?, num(17..19)?);
-    // Days from civil, after Howard Hinnant.
-    let y = if mo <= 2 { y - 1 } else { y };
-    let era = y.div_euclid(400);
-    let yoe = y - era * 400;
-    let doy = (153 * ((mo + 9) % 12) + 2) / 5 + d - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    let days = era * 146_097 + doe - 719_468;
-    u32::try_from(days * 86_400 + h * 3_600 + mi * 60 + se).ok()
 }
 
 /// Sort key: case-insensitive, leading "The " ignored.
@@ -409,13 +390,6 @@ mod tests {
         // Two copies of the same disc are versions, not discs.
         let groups = group(vec![tagged("A/FLAC/01.flac", "Same", 1), tagged("A/MP3/01.mp3", "Same", 1)]);
         assert_eq!(groups.len(), 2);
-    }
-
-    #[test]
-    fn parses_mpd_timestamps() {
-        assert_eq!(parse_rfc3339("1970-01-01T00:00:00Z"), Some(0));
-        assert_eq!(parse_rfc3339("2024-03-01T12:34:56Z"), Some(1_709_296_496));
-        assert_eq!(parse_rfc3339("nope"), None);
     }
 
     #[test]

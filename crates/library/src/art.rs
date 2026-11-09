@@ -9,8 +9,8 @@ use image::imageops::FilterType;
 
 use crate::group::fnv1a64;
 
-/// Edge lengths in pixels: grid tiles (and lists), the same on Retina screens, and the album page
-/// and the cover flow's middle cover on a phone's 3x screen.
+/// Edge lengths in pixels, smallest first: grid tiles (and lists), the same on Retina screens, and
+/// the album page and Now Playing on a phone's 3x screen.
 pub const SIZES: [u32; 3] = [300, 600, 1000];
 
 /// The key a cover's thumbnails are stored under: a hash of its bytes.
@@ -27,20 +27,18 @@ pub fn complete(dir: &Path, key: &str) -> bool {
 /// source bytes, so identical covers are stored once and URLs never go stale.
 pub fn make_thumbs(dir: &Path, source: &[u8]) -> anyhow::Result<String> {
     let key = key(source);
-    let path = |size: u32| dir.join(format!("{key}-{size}.jpg"));
     if complete(dir, &key) {
         return Ok(key);
     }
-    let image = image::load_from_memory(source)?;
-    for size in SIZES {
-        let scaled = if image.width() > size || image.height() > size {
-            image.resize(size, size, FilterType::CatmullRom)
-        } else {
-            image.clone()
-        };
+    // Largest first, each size from the one before: only the first has a whole scan to go through.
+    let mut image = DynamicImage::ImageRgb8(image::load_from_memory(source)?.into_rgb8());
+    for &size in SIZES.iter().rev() {
+        if image.width() > size || image.height() > size {
+            image = image.resize(size, size, FilterType::CatmullRom);
+        }
         let mut jpeg = Vec::new();
-        DynamicImage::ImageRgb8(scaled.to_rgb8()).write_with_encoder(JpegEncoder::new_with_quality(&mut jpeg, 85))?;
-        let target = path(size);
+        image.write_with_encoder(JpegEncoder::new_with_quality(&mut jpeg, 85))?;
+        let target = dir.join(format!("{key}-{size}.jpg"));
         let tmp = target.with_extension("tmp");
         std::fs::write(&tmp, &jpeg)?;
         std::fs::rename(&tmp, &target)?;
@@ -71,6 +69,23 @@ mod tests {
         assert!(!complete(&dir, &key));
         assert_eq!(make_thumbs(&dir, &png).unwrap(), key);
         assert_eq!(image::image_dimensions(&large).unwrap(), (1000, 1000));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn scales_down_to_each_size_but_never_up() {
+        let dir = std::env::temp_dir().join(format!("virgil-art-sizes-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut png = Vec::new();
+        DynamicImage::new_rgba8(800, 400)
+            .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .unwrap();
+
+        let key = make_thumbs(&dir, &png).unwrap();
+        let size = |edge: u32| image::image_dimensions(dir.join(format!("{key}-{edge}.jpg"))).unwrap();
+        assert_eq!(size(1000), (800, 400));
+        assert_eq!(size(600), (600, 300));
+        assert_eq!(size(300), (300, 150));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

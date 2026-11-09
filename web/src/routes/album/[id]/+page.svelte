@@ -1,17 +1,19 @@
 <script lang="ts">
-	import { ChevronLeft, ListChecks, ListEnd, ListPlus, Square, SquareCheck, Tags } from '@lucide/svelte';
+	import { ListChecks, ListEnd, ListPlus, Square, SquareCheck, Tags } from '@lucide/svelte';
 	import { SvelteSet } from 'svelte/reactivity';
-	import { afterNavigate, goto } from '$app/navigation';
+	import BackLink from '#lib/components/BackLink.svelte';
 	import Cover from '#lib/components/Cover.svelte';
 	import Equalizer from '#lib/components/Equalizer.svelte';
 	import Glyph from '#lib/components/Glyph.svelte';
 	import Menu from '#lib/components/Menu.svelte';
 	import { trackHeader, trackItems } from '#lib/actions.ts';
 	import { api, queue } from '#lib/api.ts';
+	import { goBack, swapTo } from '#lib/back.ts';
+	import { splitGenres } from '#lib/browse.ts';
 	import { contextMenu } from '#lib/menu.svelte.ts';
 	import { pullBack } from '#lib/swipeback.ts';
 	import { fitTitle } from '#lib/fit.ts';
-	import { clock, formatLong, formatShort, isHiRes, span } from '#lib/format.ts';
+	import { clock, formatLong, formatShort, isHiRes, plural, span } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
 	import { tagEditor } from '#lib/tageditor.svelte.ts';
@@ -20,21 +22,6 @@
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
-
-	/** The page this one was opened from, when it was a link in the app; unknown after a reload or a jump through history. */
-	let from = $state<string | null>(null);
-	afterNavigate((navigation) => {
-		if (navigation.type === 'popstate') return;
-		// Switching version replaces this page in history, so it was still opened from the same place.
-		if (versions.some((version) => version.id === navigation.from?.params?.id)) return;
-		from = navigation.from?.route.id ?? null;
-	});
-
-	/** Back to where the album was opened from, as it was left (the grid scrolled); else to the albums. */
-	function back() {
-		if (from) history.back();
-		else goto('/');
-	}
 
 	let detail = $state<AlbumDetail | null>(null);
 	let missing = $state(false);
@@ -154,7 +141,7 @@
 			? [
 					album.year,
 					album.discs > 1 && `${album.discs} discs`,
-					`${album.tracks} ${album.tracks === 1 ? 'track' : 'tracks'}`,
+					plural(album.tracks, 'track'),
 					span(album.duration),
 					album.format && formatShort(album.format)
 				].filter(Boolean)
@@ -175,25 +162,18 @@
 	<!-- clip, not hidden: it can't be scrolled sideways by focus, and the selection bar can stick. -->
 	<div class="pt-safe relative isolate overflow-clip" {@attach pullBack}>
 		<div class="flex h-11 items-stretch border-b border-line">
-			<a
-				href="/"
-				data-back
-				class="press label flex shrink-0 items-center gap-1 pr-4 pl-2 text-[11px]"
-				onclick={(e) => {
-					if (!from || e.metaKey || e.ctrlKey || e.shiftKey) return;
-					e.preventDefault();
-					back();
-				}}
-			>
-				<ChevronLeft class="size-4" /> {from && from !== '/' ? 'Back' : 'Albums'}
-			</a>
-			<span class="label ml-auto flex min-w-0 items-center px-3 text-[11px] text-muted"><span class="truncate">{album?.genre ?? ''}</span></span>
+			<BackLink href="/" label="Albums" class="shrink-0 pr-4" />
+			<nav class="ml-auto flex min-w-0" aria-label="Genres">
+				{#each splitGenres(album?.genre ?? null) as genre (genre)}
+					<a href="/genre/{encodeURIComponent(genre)}" class="press label flex min-w-0 items-center border-l border-line px-3 text-[11px] text-muted"><span class="truncate">{genre}</span></a>
+				{/each}
+			</nav>
 		</div>
 
 		<div class="md:grid md:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:grid-cols-[minmax(0,32rem)_minmax(0,1fr)]">
 			<header class="top-safe md:sticky md:self-start md:border-r md:border-line">
 				<!-- The cover goes back. -->
-				<button type="button" class="block w-full cursor-pointer" aria-label="Back" title="Back" onclick={back}>
+				<button type="button" class="block w-full cursor-pointer" aria-label="Back" title="Back" onclick={() => goBack('/')}>
 					<Cover art={album?.art} size={1000} eager class="w-full" />
 				</button>
 				<div class="border-t border-line px-3 pt-3 pb-3" bind:clientWidth={room}>
@@ -212,7 +192,11 @@
 							{@const active = version.id === data.id}
 							<a
 								href="/album/{version.id}"
-								data-sveltekit-replacestate
+								onclick={(e) => {
+									if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+									e.preventDefault();
+									if (!active) swapTo(`/album/${version.id}`);
+								}}
 								role="radio"
 								aria-checked={active}
 								title={version.title}
@@ -342,9 +326,7 @@
 		<div class="min-w-0 flex-1 self-center px-3 py-1.5">
 			<h2 class="label truncate text-[11px] {onDisc ? 'text-accent' : ''}" title={side.title ?? undefined}>{side.title ?? label}</h2>
 			<p class="label truncate text-[10px] text-muted">
-				{[side.title && label, `${side.tracks.length} ${side.tracks.length === 1 ? 'track' : 'tracks'}`, span(side.duration)]
-					.filter(Boolean)
-					.join(' / ')}
+				{[side.title && label, plural(side.tracks.length, 'track'), span(side.duration)].filter(Boolean).join(' / ')}
 			</p>
 		</div>
 		{#if selecting}

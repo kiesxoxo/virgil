@@ -6,7 +6,7 @@ import { goto } from '$app/navigation';
 import { page } from '$app/state';
 
 /** The pages the search filters. */
-export const isLibraryPage = (path: string) => path === '/' || path === '/artists' || path === '/genres';
+const isLibraryPage = (path: string) => path === '/' || path === '/artists' || path === '/genres';
 
 class Search {
 	query = $state('');

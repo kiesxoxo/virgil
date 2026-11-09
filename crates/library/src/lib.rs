@@ -21,10 +21,11 @@ use tracing::{debug, info, warn};
 use virgil_core::{Album, AlbumDetail, ArtOutcome, ArtProgress, LibraryStatus, SearchResults};
 use virgil_engine_mpd::{Entry, MpdEngine, Song};
 
-pub use art::SIZES as ART_SIZES;
-
-/// Artwork changes are published in batches of this many albums.
+/// Artwork changes are published in batches of this many albums: each batch has every open page
+/// fetch the album list again.
 const ART_BATCH: usize = 50;
+/// The same for covers from the internet, which come in slowly (a second or more each).
+const DOWNLOAD_BATCH: usize = 5;
 
 #[derive(Clone)]
 pub struct Library {
@@ -254,16 +255,18 @@ impl Library {
         let started = Instant::now();
         let songs = self.walk().await?;
         let count = songs.len();
-        let (changed, status, index) = self
+        let changed = self
             .db(move |conn| {
-                let changed = db::project(conn, songs)?;
-                Ok((changed, db::status(conn)?, db::load_index(conn)?))
+                if !db::project(conn, songs)? {
+                    return Ok(None);
+                }
+                Ok(Some((db::status(conn)?, db::load_index(conn)?)))
             })
             .await?;
-        if changed {
+        if let Some((status, index)) = changed {
             *self.inner.index.write().expect("index lock") = index;
-            self.publish(status.clone());
             info!("library: {} albums, {count} tracks in {:.1?}", status.albums, started.elapsed());
+            self.publish(status);
         } else {
             debug!("library unchanged ({count} tracks, {:.1?})", started.elapsed());
         }
@@ -295,15 +298,7 @@ impl Library {
         info!("artwork: checking {} albums", todo.len());
         let mut pending = 0;
         for (album_id, uri) in todo {
-            let picture = match self.inner.mpd.picture(&uri).await {
-                Ok(picture) => picture,
-                Err(e) if e.is_connection() => return Err(e.into()),
-                Err(e) => {
-                    debug!("no artwork for {uri}: {e}");
-                    None
-                }
-            };
-            let key = match picture {
+            let key = match self.picture(&uri).await? {
                 Some(bytes) => match self.thumbs(bytes).await {
                     Ok(key) => Some(key),
                     Err(e) => {
@@ -341,16 +336,8 @@ impl Library {
             info!("artwork: adding sizes to {} covers", todo.len());
         }
         for (uri, key) in todo {
-            let picture = match self.inner.mpd.picture(&uri).await {
-                Ok(picture) => picture,
-                Err(e) if e.is_connection() => return Err(e.into()),
-                Err(e) => {
-                    debug!("no artwork for {uri}: {e}");
-                    None
-                }
-            };
             // A cover that has changed since is the next artwork pass's to redo.
-            if let Some(bytes) = picture.filter(|bytes| art::key(bytes) == key)
+            if let Some(bytes) = self.picture(&uri).await?.filter(|bytes| art::key(bytes) == key)
                 && let Err(e) = self.thumbs(bytes).await
             {
                 debug!("unreadable artwork for {uri}: {e:#}");
@@ -358,6 +345,19 @@ impl Library {
         }
         self.inner.sizes_completed.store(true, Ordering::Relaxed);
         Ok(())
+    }
+
+    /// The picture MPD has for a song. MPD having none, or refusing, is no picture; only not
+    /// reaching MPD is an error.
+    async fn picture(&self, uri: &str) -> anyhow::Result<Option<Vec<u8>>> {
+        match self.inner.mpd.picture(uri).await {
+            Ok(picture) => Ok(picture),
+            Err(e) if e.is_connection() => Err(e.into()),
+            Err(e) => {
+                debug!("no artwork for {uri}: {e}");
+                Ok(None)
+            }
+        }
     }
 
     async fn thumbs(&self, bytes: Vec<u8>) -> anyhow::Result<String> {
@@ -428,7 +428,7 @@ impl Library {
         let Some(music_dir) = &self.inner.music_dir else {
             bail!("music_dir is not set in virgild's config, so covers can't be saved");
         };
-        Ok(music_dir.join(uri.rsplit_once('/').map_or("", |(dir, _)| dir)))
+        Ok(music_dir.join(group::parent_dir(uri)))
     }
 
     /// Saves an image the user picked as the album's cover.<ext>, replacing
@@ -469,6 +469,7 @@ impl Library {
         let mut progress = ArtProgress { done: 0, total: ids.len() as u32, saved: 0, failed: 0, error: None };
         self.set_progress(Some(progress.clone()));
         info!("artwork: downloading covers for {} albums", progress.total);
+        let mut pending = 0;
         for id in ids {
             match self.download_one(&id).await {
                 Ok(outcome) => {
@@ -476,7 +477,11 @@ impl Library {
                         progress.saved += 1;
                     }
                     if outcome != ArtOutcome::NotFound {
+                        pending += 1;
+                    }
+                    if pending == DOWNLOAD_BATCH {
                         let _ = self.bump().await;
+                        pending = 0;
                     }
                 }
                 // No internet: every other album would fail the same way, so stop and say why.
@@ -484,6 +489,9 @@ impl Library {
                     warn!("artwork download stopped: {e:#}");
                     progress.error = Some(format!("{e:#}"));
                     self.set_progress(Some(progress));
+                    if pending > 0 {
+                        let _ = self.bump().await;
+                    }
                     return;
                 }
                 // One folder failing (e.g. not writable) doesn't stop the rest.
@@ -498,7 +506,9 @@ impl Library {
         info!("artwork: saved {} of {} covers, {} failed", progress.saved, progress.total, progress.failed);
         // Failures stay on screen; a clean run clears the progress.
         self.set_progress((progress.failed > 0).then_some(progress));
-        let _ = self.bump().await;
+        if pending > 0 {
+            let _ = self.bump().await;
+        }
     }
 
     fn set_progress(&self, progress: Option<ArtProgress>) {

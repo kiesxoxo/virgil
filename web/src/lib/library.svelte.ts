@@ -9,7 +9,7 @@ import type { Album } from './types/Album.ts';
  * title once case, accents, punctuation and bracketed tags such as "[WEB]",
  * "(2014)" or "(Remastered)" are ignored.
  */
-export function versionKey(album: Album): string {
+function versionKey(album: Album): string {
 	// A title that is all brackets ("[Untitled]") keeps its text.
 	const clean = (s: string) => bare(s) || fold(s).trim();
 	return `${clean(album.artist)}\u001f${clean(album.title)}`;
@@ -97,11 +97,14 @@ class Library {
 		if (revision === this.#revision) return;
 		this.#revision = revision;
 		try {
-			this.albums = await api.albums();
+			const albums = await api.albums();
+			// A newer list is on its way.
+			if (revision !== this.#revision) return;
+			this.albums = albums;
 			this.loaded = true;
-			idb.set('albums', this.albums);
+			idb.set('albums', albums);
 		} catch {
-			this.#revision = -1;
+			if (revision === this.#revision) this.#revision = -1;
 		}
 	}
 }

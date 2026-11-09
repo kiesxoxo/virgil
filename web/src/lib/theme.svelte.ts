@@ -14,7 +14,6 @@ function stored(): ThemeMode {
 
 class Theme {
 	mode = $state<ThemeMode>(stored());
-	dark = $state(false);
 
 	constructor() {
 		media?.addEventListener('change', () => this.apply());
@@ -33,11 +32,11 @@ class Theme {
 
 	apply() {
 		if (typeof document === 'undefined') return;
-		this.dark = this.mode === 'dark' || (this.mode === 'system' && !!media?.matches);
+		const dark = this.mode === 'dark' || (this.mode === 'system' && !!media?.matches);
 		const root = document.documentElement;
-		root.classList.toggle('dark', this.dark);
-		root.style.colorScheme = this.dark ? 'dark' : 'light';
-		document.querySelector('meta[name="theme-color"]')?.setAttribute('content', this.dark ? '#000000' : '#eceae4');
+		root.classList.toggle('dark', dark);
+		root.style.colorScheme = dark ? 'dark' : 'light';
+		document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#000000' : '#eceae4');
 	}
 }
 
