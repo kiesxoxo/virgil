@@ -43,10 +43,17 @@ COPY .cargo .cargo
 COPY crates crates
 COPY --from=web /src/web/build web/build
 # The registry cache is shared by the parallel arm64/amd64 builds; lock it so
-# they don't unpack the same crates at once.
+# they don't unpack the same crates at once. The target cache is shared by every
+# checkout that builds here (branches, worktrees), and the copied sources don't
+# carry times cargo can trust, so it could take another branch's build of one of
+# our crates as up to date: those are rebuilt every time (dependencies stay
+# cached), and one build at a time uses the cache.
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
-	--mount=type=cache,target=/src/target,id=virgil-target-$TARGETARCH \
+	--mount=type=cache,target=/src/target,id=virgil-target-$TARGETARCH,sharing=locked \
 	. /cross.env \
+	&& for crate in $(sed -n 's/^name = "\(.*\)"/\1/p' crates/*/Cargo.toml); do \
+		cargo clean --release --target "$TRIPLE" -p "$crate" 2>/dev/null || true; \
+	done \
 	&& cargo build --release --locked -p virgild --target "$TRIPLE" \
 	&& install -D "target/$TRIPLE/release/virgild" /out/virgild
 
