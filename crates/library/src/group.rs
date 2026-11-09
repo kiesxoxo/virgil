@@ -33,19 +33,62 @@ fn parent_dir(uri: &str) -> &str {
 }
 
 /// Bumped whenever [`album_key`] or the disc handling changes, so existing libraries are regrouped.
-pub const GROUPING_VERSION: u32 = 3;
+pub const GROUPING_VERSION: u32 = 4;
 
-/// Words that, followed by a number, name one disc of a release.
-const DISC_WORDS: [&str; 5] = ["cd", "disc", "disk", "lp", "vinyl"];
+/// What one disc of a release is called: the generic words, and the medium formats that
+/// Lidarr names disc folders after (`CD 01`, `12" Vinyl 02`, `Cassette 03`, `Digital Media 01`).
+const MEDIA: [&str; 26] = [
+    "cd",
+    "disc",
+    "disk",
+    "lp",
+    "vinyl",
+    "cassette",
+    "tape",
+    "digital media",
+    "enhanced cd",
+    "copy control cd",
+    "blu-spec cd",
+    "shm-cd",
+    "hqcd",
+    "hdcd",
+    "data cd",
+    "cd-r",
+    "sacd",
+    "hybrid sacd",
+    "dualdisc",
+    "dvd",
+    "dvd-audio",
+    "dvd-video",
+    "blu-ray",
+    "bluray",
+    "minidisc",
+    "shellac",
+];
 
-/// `CD1`, `Disc 2`, `disk_03`, `LP 2 of 2`: a name that is just a disc, and its number.
+/// `cd`, `cassette`, `12" vinyl`, `8cm cd`: a medium, possibly after its size.
+fn is_medium(name: &str) -> bool {
+    let after_size = name.trim_start_matches(|c: char| c.is_ascii_digit());
+    let name = if after_size.len() < name.len() {
+        let unit = after_size.trim_start_matches(['"', '″', '\'']);
+        let unit = ["-inch", "inch", "in", "cm"].iter().find_map(|u| unit.strip_prefix(u)).unwrap_or(unit);
+        unit.trim_start_matches([' ', '-'])
+    } else {
+        name
+    };
+    MEDIA.contains(&name)
+}
+
+/// `CD1`, `Disc 2`, `disk_03`, `LP 2 of 2`, `Cassette 01`, `12" Vinyl 02`: a name that is just
+/// one disc of a release, and its number.
 fn disc_number(name: &str) -> Option<u32> {
-    let lower = name.trim().to_lowercase();
-    let rest = DISC_WORDS.iter().find_map(|word| lower.strip_prefix(word))?;
-    let rest = rest.trim_start_matches([' ', '_', '-', '.', '#']);
-    let (n, total) = rest.split_once(" of ").unwrap_or((rest, "1"));
+    let lower = name.trim().to_lowercase().replace('_', " ");
+    let (head, total) = lower.split_once(" of ").unwrap_or((&lower, "1"));
+    let medium = head.trim_end_matches(|c: char| c.is_ascii_digit());
+    let n = &head[medium.len()..];
+    let medium = medium.trim_end_matches([' ', '-', '.', '#']);
     let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
-    if digits(n) && digits(total) { n.parse().ok().filter(|&n| n > 0) } else { None }
+    if digits(n) && digits(total) && is_medium(medium) { n.parse().ok().filter(|&n| n > 0) } else { None }
 }
 
 /// "Box (Disc 2)", "Box [CD2]", "Box - LP 2": the name before a trailing disc
@@ -292,6 +335,56 @@ mod tests {
         assert_eq!(album_dir("A/B/CD2/01.flac"), "A/B");
         assert_eq!(album_dir("A/B/01.flac"), "A/B");
         assert_eq!(album_dir("A/Box (Disc 2)/01.flac"), "A/Box");
+    }
+
+    #[test]
+    fn recognises_lidarr_medium_folders() {
+        for (name, n) in [
+            ("CD 01", 1),
+            ("Cassette 03", 3),
+            ("12 Vinyl 02", 2),
+            ("12\" Vinyl 01", 1),
+            ("7in Vinyl 2", 2),
+            ("Digital Media 01", 1),
+            ("Enhanced CD 02", 2),
+            ("Hybrid SACD 1", 1),
+            ("Blu-ray 01", 1),
+            ("8cm CD 3", 3),
+        ] {
+            assert_eq!(disc_number(name), Some(n), "{name}");
+        }
+        // Numbered folders that aren't one disc of something.
+        for name in ["Forse 1", "Part 2", "Volume 3", "Side 1", "Greatest Hits CD 2", "12 34", "Tape"] {
+            assert_eq!(disc_number(name), None, "{name}");
+        }
+        assert_eq!(album_dir("A/Fantasy (2025)/Cassette 02/01.flac"), "A/Fantasy (2025)");
+        assert_eq!(album_dir("A/Forse 1 (2013)/12 Vinyl 01/01.flac"), "A/Forse 1 (2013)");
+    }
+
+    #[test]
+    fn untagged_discs_in_medium_folders_make_one_album() {
+        // Fantasy: three cassettes, numbered 1–40 straight through, no disc tags.
+        let dir = "DJ Sabrina/Fantasy (2025)";
+        let groups = group(vec![
+            song(&format!("{dir}/Cassette 03/01.flac"), Some("Fantasy"), None, "DJ Sabrina", 30),
+            song(&format!("{dir}/Cassette 01/02.flac"), Some("Fantasy"), None, "DJ Sabrina", 2),
+            song(&format!("{dir}/Cassette 02/01.flac"), Some("Fantasy"), None, "DJ Sabrina", 15),
+            song(&format!("{dir}/Cassette 01/01.flac"), Some("Fantasy"), None, "DJ Sabrina", 1),
+        ]);
+        assert_eq!(groups.len(), 1);
+        let order: Vec<_> = groups[0].tracks.iter().map(|t| (t.disc, t.track)).collect();
+        assert_eq!(order, [(Some(1), Some(1)), (Some(1), Some(2)), (Some(2), Some(15)), (Some(3), Some(30))]);
+        assert_eq!(groups[0].discs.len(), 3);
+        assert_eq!(groups[0].title, "Fantasy");
+    }
+
+    #[test]
+    fn numbered_albums_side_by_side_stay_apart() {
+        let groups = group(vec![
+            song("Cortini/Forse 1/01.flac", Some("Forse 1"), None, "Cortini", 1),
+            song("Cortini/Forse 2/01.flac", Some("Forse 2"), None, "Cortini", 1),
+        ]);
+        assert_eq!(groups.len(), 2);
     }
 
     #[test]
