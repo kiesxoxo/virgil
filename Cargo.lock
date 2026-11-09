@@ -2414,6 +2414,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "virgil-fetch"
+version = "0.14.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "reqwest",
+ "rustls",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "virgil-homekit"
 version = "0.14.0"
 dependencies = [
@@ -2480,6 +2494,7 @@ dependencies = [
  "tracing-subscriber",
  "virgil-core",
  "virgil-engine-mpd",
+ "virgil-fetch",
  "virgil-homekit",
  "virgil-library",
  "virgil-radio",

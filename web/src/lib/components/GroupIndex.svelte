@@ -8,6 +8,7 @@
 	import { search } from '../search.svelte.ts';
 	import { isBoolean, isView, store, stored, type View } from '../stored.ts';
 	import { Rows } from '../virtual.svelte.ts';
+	import CatalogSearch from './CatalogSearch.svelte';
 	import ColumnHeads from './ColumnHeads.svelte';
 	import GroupArt from './GroupArt.svelte';
 	import LibraryBar from './LibraryBar.svelte';
@@ -194,5 +195,10 @@
 				</li>
 			{/each}
 		</ul>
+	{/if}
+
+	<!-- After the library's own results: what isn't here comes second. -->
+	{#if kind === 'artist'}
+		<CatalogSearch query={search.query} />
 	{/if}
 </div>

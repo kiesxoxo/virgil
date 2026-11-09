@@ -30,6 +30,7 @@ docker pull ghcr.io/kiesxoxo/virgil:0.14.0
   home screen.
 - **The music** is only read. Tags, covers and files are another tool's job (Lidarr, say): covers
   come from a `cover.*` image in the album folder or a picture embedded in the files, as MPD reads them.
+  With Lidarr set up, Virgil can still ask for music it doesn't have (see [Downloads](#downloads)).
 
 ## Bit-perfect, verified
 
@@ -124,6 +125,44 @@ letters on a square of their colour, which marks everything they request.
 Who picked what is kept in `party.json` in the data directory, and survives restarts of MPD and
 Virgil. There are no passwords: like the rest of the API, it trusts the network it is on.
 
+## Downloads
+
+With [Lidarr](https://lidarr.audio) set up, Virgil can get music the library doesn't have, and
+with [slskdpp](https://github.com/kiesxoxo/slskdpp) single songs too. Virgil still never writes to
+the music: Lidarr finds, tags, names and files everything, and Virgil rescans the folder once it's in
+(a network share tells MPD nothing).
+
+- **Search** the library (albums or artists) and, below the results, *Find “…” to download* looks
+  the words up in Lidarr's catalogue (MusicBrainz, through Lidarr's metadata server): artists and
+  albums. An artist Lidarr doesn't follow yet shows their albums once you ask (*Show their albums*
+  adds them to Lidarr, wanting nothing).
+- **Artist pages** list *Not in library*: the albums Lidarr knows by them that you have none of.
+- **Album pages** list the songs that are *Missing*, when Lidarr says the album has more.
+
+An album downloads whole: Lidarr adds it (and its artist, set to want only this album), searches its
+indexers (Soulseek through slskdpp, torrents, whatever it has) and grabs the best release for its
+quality profile. Lidarr only deals in albums, so a single song comes from Soulseek: slskdpp searches,
+Virgil picks the file (the title, the length within three seconds, the formats you allow, the album's
+own folder, then a free slot and a fast connection), and Lidarr's manual import files it into its
+album. Anyone may start a download, guests on the request line too; *Settings › Downloads* shows how
+each is going. Downloads are kept in `downloads.json` in the data directory and pick up where they
+were after a restart.
+
+Lidarr's root folder has to be the folder MPD plays from, under any name, and Lidarr has to see
+slskdpp's downloads (its remote path mapping for slskdpp). For Docker, set in `compose.yaml`:
+
+| Variable | |
+|---|---|
+| `LIDARR_URL` | e.g. `http://nas:8686`; downloads are off without it |
+| `LIDARR_API_KEY` | Lidarr › Settings › General › API Key |
+| `LIDARR_ROOT` | Lidarr's root folder for this library, if it has more than one |
+| `SLSKDPP_URL` | e.g. `http://nas:5030`; single songs are off without it |
+| `SLSKDPP_API_KEY` | slskdpp › Settings › API keys |
+| `SLSKDPP_DOWNLOADS` | slskdpp's downloads folder as Lidarr sees it, e.g. `/data/Downloads/slskdpp` |
+| `SLSKDPP_FORMATS` | file types to take, best first (`flac`; `flac,mp3` for more luck) |
+
+Natively, the `[lidarr]` and `[slskdpp]` sections of [deploy/virgild.toml](deploy/virgild.toml) do the same.
+
 ## Layout
 
 ```
@@ -131,6 +170,7 @@ crates/core        wire types; `cargo test -p virgil-core` regenerates web/src/l
 crates/engine-mpd  MPD protocol client and typed commands (the playback-engine seam)
 crates/library     MPD database → SQLite projection, search, artwork cache
 crates/radio       NTS: live channels, Infinite Mixtapes, HLS relay
+crates/fetch       Lidarr and slskdpp clients; which Soulseek file is the song
 crates/homekit     the Apple Home switch (HAP over IP)
 crates/virgild     the daemon: HTTP API, WebSocket, DAC arbitration, signal path, embedded UI
 web/               SvelteKit 3 app (Tailwind 4, Lucide icons)
@@ -263,6 +303,17 @@ GET    /api/library/albums          all albums (ETag = revision)
 GET    /api/library/albums/{id}
 GET    /api/library/search?q=…
 POST   /api/library/rescan
+GET    /api/library/albums/{id}/missing   the album as Lidarr has it: every track, `have` or not
+GET    /api/catalog/search?q=…            artists and albums in Lidarr's catalogue
+GET    /api/catalog/artists/{mbid}        every album Lidarr has of an artist
+POST   /api/catalog/artists/{mbid}        the same, having Lidarr follow them (wanting nothing) to list them
+GET    /api/catalog/artist?name=…         Lidarr's albums by an artist that the library has none of
+GET    /api/catalog/albums/{mbid}         one album (MusicBrainz release group), tracks once Lidarr has it
+POST   /api/catalog/albums/{mbid}/tracks  the same, having Lidarr add it (wanting nothing) to read its tracks
+GET    /api/downloads
+POST   /api/downloads                     {"album": "<mbid>", "track": <Lidarr track id>?}   202
+POST   /api/downloads/{id}/retry
+DELETE /api/downloads/{id}                (off the list; stops a song's transfer)
 DELETE /api/queue/requests/{request}   (what is left of a request)
 GET    /api/people/me             PUT {"name", "sign", "color", "join"?}
 POST   /api/people/me/link        {"person": "<id>"}

@@ -1,0 +1,156 @@
+[
+ {
+  "id": 1,
+  "title": "Ash",
+  "disambiguation": "",
+  "foreignAlbumId": "d634ee6a-f96a-4178-a6a8-b46d78ef2f53",
+  "monitored": true,
+  "anyReleaseOk": true,
+  "profileId": 0,
+  "duration": 992000,
+  "albumType": "EP",
+  "secondaryTypes": [],
+  "mediumCount": 1,
+  "releaseDate": "2023-10-20T00:00:00Z",
+  "releases": [
+   {
+    "id": 1,
+    "albumId": 1,
+    "foreignReleaseId": "69ecd636-24df-499d-a643-cae4fac6ff04",
+    "title": "Ash",
+    "status": "Official",
+    "duration": 992000,
+    "trackCount": 6,
+    "media": [
+     {
+      "mediumNumber": 1,
+      "mediumName": "",
+      "mediumFormat": "Digital Media"
+     }
+    ],
+    "mediumCount": 1,
+    "format": "Digital Media",
+    "monitored": true
+   }
+  ],
+  "genres": [
+   "Electronic",
+   "Experimental"
+  ],
+  "media": [
+   {
+    "mediumNumber": 1,
+    "mediumName": "",
+    "mediumFormat": "Digital Media"
+   }
+  ],
+  "artistId": 1,
+  "images": [
+   {
+    "coverType": "cover",
+    "url": "/MediaCover/Albums/1/cover.jpg?lastWrite=639289947092639376",
+    "remoteUrl": "https://images.lidarr.audio/cache/https://coverartarchive.org/release/69ecd636-24df-499d-a643-cae4fac6ff04/36640287443-1200.jpg",
+    "extension": ".jpg"
+   }
+  ],
+  "statistics": {
+   "trackFileCount": 6,
+   "trackCount": 6,
+   "totalTrackCount": 6,
+   "sizeOnDisk": 131857970,
+   "percentOfTracks": 100
+  }
+ },
+ {
+  "id": 158,
+  "title": "Emptyset",
+  "disambiguation": "",
+  "foreignAlbumId": "0cabe2ec-43d7-49dc-bb91-5a3bd1eb2a7a",
+  "monitored": true,
+  "anyReleaseOk": true,
+  "profileId": 2,
+  "duration": 0,
+  "albumType": "Album",
+  "secondaryTypes": [],
+  "mediumCount": 2,
+  "releaseDate": "2009-10-26T00:00:00Z",
+  "releases": [
+   {
+    "id": 744,
+    "albumId": 158,
+    "foreignReleaseId": "946409c6-3a5a-403c-8c1b-f8c890e316f9",
+    "title": "Emptyset",
+    "status": "Official",
+    "duration": 0,
+    "trackCount": 10,
+    "media": [
+     {
+      "mediumNumber": 1,
+      "mediumName": "",
+      "mediumFormat": "12\" Vinyl"
+     },
+     {
+      "mediumNumber": 2,
+      "mediumName": "",
+      "mediumFormat": "12\" Vinyl"
+     }
+    ],
+    "mediumCount": 2,
+    "format": "2x12\" Vinyl",
+    "monitored": true
+   },
+   {
+    "id": 745,
+    "albumId": 158,
+    "foreignReleaseId": "66e3e2b8-f2dd-4725-9460-97818259dfbf",
+    "title": "Emptyset",
+    "status": "Official",
+    "duration": 2233317,
+    "trackCount": 10,
+    "media": [
+     {
+      "mediumNumber": 1,
+      "mediumName": "",
+      "mediumFormat": "CD"
+     }
+    ],
+    "mediumCount": 1,
+    "format": "CD",
+    "monitored": false
+   }
+  ],
+  "genres": [
+   "Drone",
+   "Electronic",
+   "Techno"
+  ],
+  "media": [
+   {
+    "mediumNumber": 1,
+    "mediumName": "",
+    "mediumFormat": "12\" Vinyl"
+   },
+   {
+    "mediumNumber": 2,
+    "mediumName": "",
+    "mediumFormat": "12\" Vinyl"
+   }
+  ],
+  "artistId": 1,
+  "images": [
+   {
+    "coverType": "cover",
+    "url": "/MediaCover/Albums/158/cover.jpg?lastWrite=639289947528617115",
+    "remoteUrl": "https://images.lidarr.audio/cache/https://coverartarchive.org/release/8ebafa08-a913-4bfc-816c-ec379daae484/17131743787-1200.jpg",
+    "extension": ".jpg"
+   }
+  ],
+  "statistics": {
+   "trackFileCount": 0,
+   "trackCount": 10,
+   "totalTrackCount": 10,
+   "sizeOnDisk": 0,
+   "percentOfTracks": 0
+  }
+ }
+]

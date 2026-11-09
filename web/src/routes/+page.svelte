@@ -2,6 +2,7 @@
 	import AlbumGrid from '#lib/components/AlbumGrid.svelte';
 	import AlbumList, { LIST_COLUMNS_MIN_WIDTH, listColumns } from '#lib/components/AlbumList.svelte';
 	import AlbumTuner from '#lib/components/AlbumTuner.svelte';
+	import CatalogSearch from '#lib/components/CatalogSearch.svelte';
 	import ColumnHeads from '#lib/components/ColumnHeads.svelte';
 	import Cover from '#lib/components/Cover.svelte';
 	import Equalizer from '#lib/components/Equalizer.svelte';
@@ -228,4 +229,7 @@
 	{:else}
 		<AlbumGrid albums={filtered} {reveal} />
 	{/if}
+
+	<!-- After the library's own results: what isn't here comes second. -->
+	<CatalogSearch query={search.query} />
 </div>

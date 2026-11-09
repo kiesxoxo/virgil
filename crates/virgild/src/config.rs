@@ -27,6 +27,11 @@ pub struct Config {
     pub sources: BTreeMap<String, SourceConfig>,
     /// Appear in Apple Home as a switch, so Siri can stop playback. Off without this section.
     pub homekit: Option<HomekitConfig>,
+    /// Lidarr, to find and download albums the library doesn't have. Off without this section.
+    pub lidarr: Option<LidarrConfig>,
+    /// slskdpp, to download single songs from Soulseek; Lidarr files them into their album, so
+    /// this needs `[lidarr]` too.
+    pub slskdpp: Option<SlskdppConfig>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -43,6 +48,37 @@ pub struct HomekitConfig {
     pub name: String,
     /// HAP's TCP port. Controllers find it through mDNS; 51826 is Homebridge's.
     pub port: u16,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LidarrConfig {
+    /// Where Lidarr answers, e.g. `http://nas:8686`.
+    pub url: String,
+    /// Settings › General › API Key in Lidarr.
+    pub api_key: String,
+    /// Lidarr's root folder for this library, which must be the folder MPD plays from. Defaults to
+    /// Lidarr's only root folder.
+    #[serde(default)]
+    pub root: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SlskdppConfig {
+    /// Where slskdpp answers, e.g. `http://nas:5030`.
+    pub url: String,
+    /// An API key from slskdpp's Settings › API keys.
+    pub api_key: String,
+    /// slskdpp's downloads directory as Lidarr sees it (its remote path mapping for slskdpp).
+    pub downloads: String,
+    /// File types to take, best first.
+    #[serde(default = "default_formats")]
+    pub formats: Vec<String>,
+}
+
+fn default_formats() -> Vec<String> {
+    vec!["flac".into()]
 }
 
 impl Default for HomekitConfig {
@@ -62,6 +98,8 @@ impl Default for Config {
             asound_dir: "/proc/asound".into(),
             sources: BTreeMap::new(),
             homekit: None,
+            lidarr: None,
+            slskdpp: None,
         }
     }
 }
@@ -93,6 +131,18 @@ mod tests {
         let homekit = config.homekit.expect("deploy config enables HomeKit");
         assert_eq!((homekit.name.as_str(), homekit.port), ("Virgil", 51827));
         assert!(config.old_music_dir.is_none());
+    }
+
+    #[test]
+    fn reads_lidarr_and_slskdpp() {
+        let text = "[lidarr]\nurl = \"http://nas:8686\"\napi_key = \"k\"\n\n[slskdpp]\nurl = \"http://nas:5030\"\napi_key = \"s\"\ndownloads = \"/data/Downloads/slskdpp\"\n";
+        let config: Config = toml::from_str(text).unwrap();
+        let lidarr = config.lidarr.unwrap();
+        assert_eq!((lidarr.url.as_str(), lidarr.root), ("http://nas:8686", None));
+        let slskdpp = config.slskdpp.unwrap();
+        assert_eq!(slskdpp.downloads, "/data/Downloads/slskdpp");
+        assert_eq!(slskdpp.formats, ["flac"]);
+        assert!(toml::from_str::<Config>("[lidarr]\nurl = \"http://nas:8686\"\n").is_err(), "the key is needed");
     }
 
     #[test]

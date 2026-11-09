@@ -1,0 +1,44 @@
+[
+ {
+  "id": 1201,
+  "artistId": 1,
+  "albumId": 158,
+  "title": "Emptyset - Emptyset (2009) [FLAC]",
+  "size": 400000000.0,
+  "sizeleft": 300000000.0,
+  "timeleft": "00:04:10",
+  "status": "downloading",
+  "trackedDownloadStatus": "ok",
+  "trackedDownloadState": "downloading",
+  "statusMessages": [],
+  "downloadId": "slskd-1",
+  "protocol": "soulseek",
+  "downloadClient": "slskd",
+  "indexer": "slskd",
+  "outputPath": "/data/Downloads/slskdpp/Emptyset"
+ },
+ {
+  "id": 1202,
+  "artistId": 1,
+  "albumId": 159,
+  "title": "Emptyset - Demiurge",
+  "size": 250000000.0,
+  "sizeleft": 0.0,
+  "status": "completed",
+  "trackedDownloadStatus": "warning",
+  "trackedDownloadState": "importBlocked",
+  "statusMessages": [
+   {
+    "title": "Demiurge",
+    "messages": [
+     "Has missing tracks.",
+     "Album match is not close enough"
+    ]
+   }
+  ],
+  "downloadId": "slskd-2",
+  "protocol": "soulseek",
+  "downloadClient": "slskd",
+  "indexer": "slskd"
+ }
+]

@@ -6,6 +6,7 @@
 	import Equalizer from '#lib/components/Equalizer.svelte';
 	import Glyph from '#lib/components/Glyph.svelte';
 	import Menu from '#lib/components/Menu.svelte';
+	import MissingTracks from '#lib/components/MissingTracks.svelte';
 	import { trackHeader, trackItems } from '#lib/actions.ts';
 	import { api } from '#lib/api.ts';
 	import { queue } from '#lib/request.svelte.ts';
@@ -326,6 +327,7 @@
 						{/each}
 					{/each}
 				</ol>
+				<MissingTracks albumId={data.id} />
 			</div>
 		</div>
 	</div>

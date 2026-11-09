@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, broadcast};
 use tracing::{info, warn};
 use virgil_core::{
-    AddMode, Added, HomekitStatus, LOCAL_SOURCE, Outputs, Party, PlayState, PlayerState, Queue, QueueItem, ServerEvent,
-    SignalPath, SourceState,
+    AddMode, Added, Downloads, HomekitStatus, LOCAL_SOURCE, Outputs, Party, PlayState, PlayerState, Queue, QueueItem,
+    ServerEvent, SignalPath, SourceState,
 };
 use virgil_engine_mpd::MpdEngine;
 use virgil_homekit::Switch;
@@ -15,6 +15,7 @@ use virgil_radio::Nts;
 
 use crate::api::ApiError;
 use crate::config::Config;
+use crate::downloads::Fetcher;
 use crate::party::{Caller, PartyStore};
 use crate::signal::{Hw, card_label, parse_cards, read_hw};
 use crate::turns;
@@ -29,6 +30,7 @@ struct Snapshot {
     outputs: Outputs,
     homekit: Option<HomekitStatus>,
     party: Party,
+    downloads: Option<Downloads>,
 }
 
 /// Serializes hand-overs of the DAC between local playback and external sources.
@@ -51,6 +53,8 @@ pub struct Inner {
     pub events: broadcast::Sender<ServerEvent>,
     /// The request line: people, who picked what, votes.
     pub party: PartyStore,
+    /// Downloads through Lidarr and slskdpp, when set up.
+    pub fetch: Option<Fetcher>,
     snapshot: RwLock<Snapshot>,
     arbiter: Mutex<Arbiter>,
     /// Held across every change to the queue, so requests from several phones at once don't
@@ -79,10 +83,11 @@ impl Deref for App {
 }
 
 impl App {
-    pub fn new(config: Config, library: Library, radio: Nts, homekit: Option<Switch>) -> Self {
+    pub fn new(config: Config, library: Library, radio: Nts, homekit: Option<Switch>, fetch: Option<Fetcher>) -> Self {
         let source = SourceState { active: LOCAL_SOURCE.into(), available: config.sources.keys().cloned().collect() };
         let party = PartyStore::load(config.data_dir.join("party.json"));
-        let snapshot = Snapshot { source, party: party.party(), ..Snapshot::default() };
+        let downloads = fetch.as_ref().map(Fetcher::downloads);
+        let snapshot = Snapshot { source, party: party.party(), downloads, ..Snapshot::default() };
         App(Arc::new(Inner {
             mpd: MpdEngine::new(&config.mpd),
             library,
@@ -90,6 +95,7 @@ impl App {
             homekit,
             events: broadcast::channel(256).0,
             party,
+            fetch,
             snapshot: RwLock::new(snapshot),
             arbiter: Mutex::default(),
             queue_edit: Mutex::default(),
@@ -117,6 +123,7 @@ impl App {
             outputs: s.outputs.clone(),
             homekit: s.homekit.clone(),
             party: s.party.clone(),
+            downloads: s.downloads.clone(),
         }
     }
 
@@ -242,6 +249,10 @@ impl App {
         let player = self.player();
         self.party.now_playing(self.current().as_ref(), player.state == PlayState::Play, player.elapsed);
         self.refresh_party();
+    }
+
+    pub fn set_downloads(&self, downloads: Downloads) {
+        self.update(|s| &mut s.downloads, Some(downloads), |d| ServerEvent::Downloads(d.expect("just set")));
     }
 
     pub fn set_homekit(&self, status: HomekitStatus) {

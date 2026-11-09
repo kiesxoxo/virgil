@@ -1,11 +1,22 @@
-<script lang="ts">
-	// A sheet from the bottom of the screen (centred on a larger one), over a dimmed page.
-	import type { Snippet } from 'svelte';
-
-	let { onclose, label, children }: { onclose: () => void; label: string; children: Snippet } = $props();
+<script lang="ts" module>
+	/** Open sheets, the last on top: Escape closes only that one. */
+	const open: symbol[] = [];
 </script>
 
-<svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />
+<script lang="ts">
+	// A sheet from the bottom of the screen (centred on a larger one), over a dimmed page.
+	import { onMount, type Snippet } from 'svelte';
+
+	let { onclose, label, children }: { onclose: () => void; label: string; children: Snippet } = $props();
+
+	const me = Symbol();
+	onMount(() => {
+		open.push(me);
+		return () => open.splice(open.indexOf(me), 1);
+	});
+</script>
+
+<svelte:window onkeydown={(e) => e.key === 'Escape' && open.at(-1) === me && onclose()} />
 
 <div class="fixed inset-0 z-50 bg-black/60" role="presentation" onclick={onclose}></div>
 <div

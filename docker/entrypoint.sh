@@ -3,7 +3,7 @@
 # the container stops and Docker's restart policy brings both back.
 #
 # Configuration comes from the environment (VIRGIL_PORT, ALSA_CARD, MPD_DOP,
-# AIRPLAY, HOMEKIT). To take full control, mount your own files at /config/mpd.conf
+# AIRPLAY, HOMEKIT, and LIDARR_* / SLSKDPP_* for downloads). To take full control, mount your own files at /config/mpd.conf
 # and/or /config/virgild.toml.
 set -euo pipefail
 
@@ -96,6 +96,33 @@ EOF
 # Apple Home: a switch for Siri, advertised through the host's avahi-daemon.
 [homekit]
 EOF
+	fi
+	if [ -n "${LIDARR_URL:-}" ]; then
+		cat >> "$virgil_conf" <<EOF
+
+# Downloads: albums through Lidarr, which files them into the library.
+[lidarr]
+url = "${LIDARR_URL}"
+api_key = "${LIDARR_API_KEY:-}"
+EOF
+		if [ -n "${LIDARR_ROOT:-}" ]; then
+			echo "root = \"${LIDARR_ROOT}\"" >> "$virgil_conf"
+		fi
+		if [ -n "${SLSKDPP_URL:-}" ]; then
+			# "flac,mp3" → ["flac", "mp3"]
+			formats=$(echo "${SLSKDPP_FORMATS:-flac}" | sed 's/ //g; s/[^,][^,]*/"&"/g; s/,/, /g')
+			cat >> "$virgil_conf" <<EOF
+
+# Single songs from Soulseek through slskdpp; Lidarr files them into their album.
+[slskdpp]
+url = "${SLSKDPP_URL}"
+api_key = "${SLSKDPP_API_KEY:-}"
+downloads = "${SLSKDPP_DOWNLOADS:-}"
+formats = [${formats}]
+EOF
+		fi
+		# It holds API keys now.
+		chmod 600 "$virgil_conf"
 	fi
 fi
 

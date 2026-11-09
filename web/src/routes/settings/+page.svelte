@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Check, House, LoaderCircle, RefreshCw, RotateCw, TriangleAlert, Usb } from '@lucide/svelte';
+	import DownloadsPanel from '#lib/components/DownloadsPanel.svelte';
 	import LinePanel from '#lib/components/LinePanel.svelte';
 	import Masthead from '#lib/components/Masthead.svelte';
 	import YouPanel from '#lib/components/YouPanel.svelte';
@@ -229,6 +230,11 @@
 			</div>
 		</div>
 	</div>
+
+	{#if hub.downloads}
+		{@render section('Downloads')}
+		<DownloadsPanel />
+	{/if}
 
 	{#if airplay}
 		{@render section('AirPlay')}

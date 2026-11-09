@@ -408,6 +408,161 @@ pub struct Radio {
     pub mixtapes: Vec<Station>,
 }
 
+/// An album as Lidarr knows it: in the library, partly, or not at all.
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CatalogAlbum {
+    /// MusicBrainz release group: how a download names the album.
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+    pub year: Option<u32>,
+    /// "Album", "EP", "Single", "Album · Live"…
+    pub kind: String,
+    /// Cover art on the web.
+    pub cover: Option<String>,
+    /// Tracks in the library, of `total`; both 0 while Lidarr doesn't have the album.
+    pub have: u32,
+    pub total: u32,
+    /// Lidarr is looking out for it.
+    pub wanted: bool,
+    /// Virgil's album, when some of it is in the library.
+    pub album_id: Option<String>,
+    /// Only when asked for, and once Lidarr has the album.
+    pub tracks: Vec<CatalogTrack>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CatalogTrack {
+    /// Lidarr's track id: how a download names the song.
+    pub id: u32,
+    pub title: String,
+    pub disc: u32,
+    pub number: u32,
+    /// Seconds.
+    pub duration: f64,
+    /// In the library already.
+    pub have: bool,
+}
+
+/// An artist in Lidarr's catalogue.
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct CatalogArtist {
+    /// MusicBrainz artist id.
+    pub id: String,
+    pub name: String,
+    /// What tells namesakes apart: "UK dubstep".
+    pub disambiguation: String,
+    /// Lidarr follows them, so their albums can be listed.
+    pub known: bool,
+}
+
+/// `GET /api/catalog/search`: artists and albums.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct CatalogResults {
+    pub artists: Vec<CatalogArtist>,
+    pub albums: Vec<CatalogAlbum>,
+}
+
+/// What Lidarr knows by an artist that the library has none of.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct ArtistCatalog {
+    /// Lidarr follows the artist; when not, nothing is listed.
+    pub known: bool,
+    pub albums: Vec<CatalogAlbum>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum DownloadKind {
+    /// A whole album, through Lidarr.
+    Album,
+    /// One song from Soulseek, filed into its album by Lidarr.
+    Song,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum DownloadState {
+    /// Lidarr is adding the album and reading its tracklist.
+    Adding,
+    /// Looking for it: Lidarr through its indexers, or Soulseek.
+    Searching,
+    /// In someone's upload queue.
+    Waiting,
+    Downloading,
+    /// Lidarr is filing it into the library.
+    Importing,
+    Done,
+    /// Nowhere to be found for now; Lidarr keeps a wanted album on its list.
+    NotFound,
+    Failed,
+}
+
+impl DownloadState {
+    /// Nothing more will happen unless it is tried again.
+    pub fn finished(self) -> bool {
+        matches!(self, Self::Done | Self::NotFound | Self::Failed)
+    }
+}
+
+/// Getting an album or a song the library doesn't have.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Download {
+    pub id: u32,
+    pub kind: DownloadKind,
+    /// The album, as in `CatalogAlbum::id`.
+    pub album: String,
+    /// The song, as in `CatalogTrack::id`.
+    pub track: Option<u32>,
+    /// The song's title, or the album's.
+    pub title: String,
+    pub artist: String,
+    pub album_title: String,
+    pub cover: Option<String>,
+    pub state: DownloadState,
+    /// 0 to 1, while downloading.
+    pub progress: Option<f32>,
+    /// More about the state: a place in a queue, what went wrong.
+    pub note: Option<String>,
+    /// `Person::id` of whoever asked for it.
+    pub by: Option<String>,
+    /// Virgil's album, once the music is in.
+    pub album_id: Option<String>,
+    /// Unix times.
+    pub started: u32,
+    pub updated: u32,
+}
+
+/// Downloads from Lidarr and slskdpp, when Virgil is set up for them.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct Downloads {
+    /// Single songs can be downloaded too (slskdpp is set up).
+    pub songs: bool,
+    /// Newest first.
+    pub jobs: Vec<Download>,
+}
+
+/// `POST /api/downloads`: an album, or one song of it.
+#[derive(Debug, Clone, Deserialize, TS)]
+#[ts(export)]
+pub struct DownloadRequest {
+    pub album: String,
+    #[ts(optional)]
+    pub track: Option<u32>,
+}
+
 /// Pushed over `/api/ws`. `hello` carries the full state; the rest replace one slice of it.
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(tag = "type", rename_all = "camelCase")]
@@ -424,6 +579,8 @@ pub enum ServerEvent {
         outputs: Outputs,
         homekit: Option<HomekitStatus>,
         party: Party,
+        /// None when Virgil isn't set up to download.
+        downloads: Option<Downloads>,
     },
     Player(PlayerState),
     Outputs(Outputs),
@@ -433,6 +590,7 @@ pub enum ServerEvent {
     Library(LibraryStatus),
     Homekit(HomekitStatus),
     Party(Party),
+    Downloads(Downloads),
     /// A moment for everyone in the room: someone called in, the room voted a song off.
     Shout {
         text: String,

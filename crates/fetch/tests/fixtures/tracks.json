@@ -1,0 +1,47 @@
+[
+ {
+  "artistId": 1,
+  "foreignTrackId": "47cc85fb-5e8d-4577-89de-1664c8ba4791",
+  "foreignRecordingId": "8732e7fa-6529-4d03-a20d-d3f55987acb7",
+  "trackFileId": 126,
+  "albumId": 1,
+  "explicit": false,
+  "absoluteTrackNumber": 1,
+  "trackNumber": "1",
+  "title": "Flint",
+  "duration": 169000,
+  "mediumNumber": 1,
+  "hasFile": true,
+  "id": 1
+ },
+ {
+  "artistId": 1,
+  "foreignTrackId": "0f0a4bcb-0197-4a5d-b57d-47260123860f",
+  "foreignRecordingId": "224a6e8d-2f3b-4c4e-8a23-74dfb8a9de31",
+  "trackFileId": 309,
+  "albumId": 1,
+  "explicit": false,
+  "absoluteTrackNumber": 2,
+  "trackNumber": "2",
+  "title": "Flame",
+  "duration": 134000,
+  "mediumNumber": 1,
+  "hasFile": true,
+  "id": 2
+ },
+ {
+  "artistId": 1,
+  "foreignTrackId": "dd945801-472e-4d72-ab73-232a3ca7ffc5",
+  "foreignRecordingId": "cd7098d3-915a-4d52-95bc-b1dfc82d3a17",
+  "trackFileId": 0,
+  "albumId": 1,
+  "explicit": false,
+  "absoluteTrackNumber": 3,
+  "trackNumber": "3",
+  "title": "Ember",
+  "duration": 132000,
+  "mediumNumber": 1,
+  "hasFile": false,
+  "id": 3
+ }
+]
