@@ -5,6 +5,8 @@
 	import { api } from '#lib/api.ts';
 	import { hhmm } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
+	import { line } from '#lib/party.svelte.ts';
+	import { toasts } from '#lib/toast.svelte.ts';
 	import { radio } from '#lib/radio.svelte.ts';
 	import type { Station } from '#lib/types/Station.ts';
 
@@ -22,6 +24,8 @@
 	});
 
 	async function tune(station: Station) {
+		// A station plays at once, ahead of everyone's requests: the host's call.
+		if (!line.host) return toasts.show('The host tunes the radio tonight', 'done');
 		// Tapping what's playing stops it (radio stops rather than pauses).
 		if (current?.id === station.id && hub.playing) return hub.toggle();
 		pending = station.id;

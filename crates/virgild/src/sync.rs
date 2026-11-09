@@ -10,6 +10,7 @@ pub async fn run_mpd(app: App) {
     while let Some(event) = events.recv().await {
         match event {
             Event::Connected { .. } => {
+                app.party.mpd_reconnected();
                 app.refresh(true).await;
                 app.refresh_outputs().await;
                 app.library.request_sync();
@@ -41,5 +42,14 @@ pub async fn run_library(app: App) {
             app.reenrich_queue();
         }
         let _ = app.events.send(ServerEvent::Library(current));
+    }
+}
+
+/// People who closed Virgil a while ago leave the room; the request line is re-sent when they do.
+pub async fn run_party(app: App) {
+    let mut tick = tokio::time::interval(std::time::Duration::from_secs(60));
+    loop {
+        tick.tick().await;
+        app.refresh_party();
     }
 }

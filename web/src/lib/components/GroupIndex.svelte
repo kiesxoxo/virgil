@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { ListEnd, Play } from '@lucide/svelte';
-	import { queue } from '../api.ts';
+	import { queue } from '../request.svelte.ts';
 	import { NO_GENRE, totals as sum, type Group } from '../browse.ts';
 	import { TILE, fold, plural, span } from '../format.ts';
 	import { library } from '../library.svelte.ts';

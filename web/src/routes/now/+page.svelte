@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { Airplay, ChevronDown, Disc3, ExternalLink, ListMusic } from '@lucide/svelte';
+	import { Airplay, ChevronDown, Disc3, ExternalLink, Heart, ListMusic } from '@lucide/svelte';
 	import Cover from '#lib/components/Cover.svelte';
 	import NowCover from '#lib/components/NowCover.svelte';
 	import OnAir from '#lib/components/OnAir.svelte';
 	import Scrubber from '#lib/components/Scrubber.svelte';
+	import Sign from '#lib/components/Sign.svelte';
 	import SignalBadge from '#lib/components/SignalBadge.svelte';
 	import SignalPathCard from '#lib/components/SignalPathCard.svelte';
 	import Transport from '#lib/components/Transport.svelte';
@@ -12,13 +13,25 @@
 	import { fitTitle } from '#lib/fit.ts';
 	import { hhmm } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
+	import { line } from '#lib/party.svelte.ts';
+	import { blocks } from '#lib/requests.ts';
 	import { isStream, radio } from '#lib/radio.svelte.ts';
 
 	let item = $derived(hub.current);
 	let shown = $derived(item ? radio.show(item) : null);
 	let station = $derived(shown?.station ?? null);
 	let stream = $derived(item ? isStream(item.uri) : false);
-	let upNext = $derived(hub.currentIndex >= 0 ? hub.queue.items.slice(hub.currentIndex + 1, hub.currentIndex + 4) : []);
+	// With the line open, what's next is the next three requests (an album is one), not songs.
+	let upNext = $derived(
+		hub.currentIndex < 0
+			? []
+			: line.open
+				? blocks(hub.queue.items.slice(hub.currentIndex + 1)).slice(0, 3).map((b) => b.items[0])
+				: hub.queue.items.slice(hub.currentIndex + 1, hub.currentIndex + 4)
+	);
+	let picker = $derived(line.signs ? line.person(item?.pick) : undefined);
+	let note = $derived(line.signs ? item?.pick?.note : null);
+	let cheers = $derived(hub.party.votes.cheer.length);
 	let room = $state(0);
 	let titleHeight = $state(0);
 	let controlsHeight = $state(0);
@@ -61,8 +74,8 @@
 					<NowCover
 						art={item.art}
 						src={shown?.large ?? null}
-						canPrevious={!stream && hub.currentIndex > 0}
-						canNext={!stream && hub.currentIndex < hub.queue.items.length - 1}
+						canPrevious={!stream && line.host && hub.currentIndex > 0}
+						canNext={!stream && line.host && hub.currentIndex < hub.queue.items.length - 1}
 						onclose={close}
 					/>
 				{:else}
@@ -81,7 +94,9 @@
 				</div>
 				<button type="button" class="press-lit wide h-14 bg-fg text-[15px] text-bg uppercase" onclick={() => api.play()}>Play from library here</button>
 			{:else}
-				<div class="px-3 pt-3.5 pb-3" bind:clientWidth={room} bind:clientHeight={titleHeight}>
+				<!-- Measured whole (the cover gives way to it on a phone): the title, and who asked for it. -->
+				<div bind:clientHeight={titleHeight}>
+				<div class="px-3 pt-3.5 pb-3" bind:clientWidth={room}>
 					<h1 class="wide -mb-[0.16em] line-clamp-3 pb-[0.16em] leading-[1.03]" style:font-size="{room ? fitTitle(shown?.title ?? 'Not playing', room - 24, { scale: 1.1, max: 72, lines: 3 }) : 24}px">
 						{shown?.title ?? 'Not playing'}
 					</h1>
@@ -94,6 +109,35 @@
 					{:else}
 						<p class="mt-2 truncate text-[15px] text-muted">{shown?.subtitle ?? 'Pick an album or a station'}</p>
 					{/if}
+					{#if note}
+						<p class="wide mt-3 text-[clamp(20px,6vw,32px)] leading-[1.05] [overflow-wrap:anywhere]">“{note}”</p>
+					{/if}
+				</div>
+				{#if item && (picker || line.open)}
+					<div class="flex h-14 items-stretch border-t border-line">
+						<div class="flex min-w-0 flex-1 items-center gap-2.5 px-3">
+							{#if picker}
+								<Sign person={picker} size="md" />
+								<span class="min-w-0">
+									<span class="label block text-[10px] leading-3 text-muted">Requested by</span>
+									<span class="block truncate text-[15px] font-medium">{picker.name}</span>
+								</span>
+							{:else}
+								<span class="label text-[11px] text-muted">On the house</span>
+							{/if}
+						</div>
+						{#if line.open}
+							<button
+								type="button"
+								class="label flex w-28 shrink-0 items-center justify-center gap-2 border-l border-line text-[11px] {line.cheered ? 'press-lit bg-accent text-accent-fg' : 'press'}"
+								aria-pressed={line.cheered}
+								onclick={() => api.cheer()}
+							>
+								<Heart class="size-4" fill={line.cheered ? 'currentColor' : 'none'} /> Cheer{cheers ? ` ${cheers}` : ''}
+							</button>
+						{/if}
+					</div>
+				{/if}
 				</div>
 			{/if}
 
@@ -137,13 +181,15 @@
 						<ul>
 							{#each upNext as next (next.id)}
 								{@const shownNext = radio.show(next)}
+								{@const whole = line.open && next.pick && hub.queue.items.filter((i) => i.pick?.request === next.pick?.request).length > 1}
 								<li class="border-t border-line">
-									<button type="button" class="press flex w-full items-center gap-3 pr-3 text-left" onclick={() => api.playItem(next.id)}>
+									<button type="button" class="flex w-full items-center gap-3 pr-3 text-left {line.host ? 'press' : 'cursor-default'}" onclick={() => line.host && api.playItem(next.id)}>
 										<Cover art={shownNext.art} src={shownNext.src} class="size-14 shrink-0" />
-										<span class="min-w-0">
-											<span class="wide block truncate text-[13px] leading-[18px]">{shownNext.title}</span>
-											<span class="block truncate text-xs leading-4 text-muted">{shownNext.subtitle}</span>
+										<span class="min-w-0 flex-1">
+											<span class="wide block truncate text-[13px] leading-[18px]">{whole ? next.album : shownNext.title}</span>
+											<span class="block truncate text-xs leading-4 text-muted">{whole ? `${next.artist} · album` : shownNext.subtitle}</span>
 										</span>
+										{#if line.signs}<Sign person={line.person(next.pick)} />{/if}
 									</button>
 								</li>
 							{/each}
@@ -158,7 +204,7 @@
 						{#if stream}
 							<OnAir {station} />
 						{:else}
-							<Scrubber value={hub.elapsed} max={hub.player.duration} disabled={!item} onseek={(s) => hub.seek(s)} />
+							<Scrubber value={hub.elapsed} max={hub.player.duration} disabled={!item || !line.host} onseek={(s) => hub.seek(s)} />
 						{/if}
 					</div>
 					<div class="border-t border-line">

@@ -88,6 +88,42 @@ virgild speaks HAP (HomeKit Accessory Protocol) on TCP port 51827 itself, and ad
 the Pi's avahi-daemon over D-Bus. If the accessory was removed from the Home app while Virgil was
 offline, use *Reset* in Settings so it can be added again.
 
+## The request line
+
+Friends can queue music from their own phones. Open the line from the Queue page (the phone key) or
+*Settings › Request line*; guests scan its QR code, say who's calling, and get a **call sign**, their
+letters on a square of their colour, which marks everything they request.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/request-line-dark.png">
+    <img src="docs/screenshots/request-line-light.png" alt="The request line on a phone: a guest calling in, the queue with everyone's call signs and an album request as one block, Now Playing with a dedication and who asked for it, and the Aircheck with the night's awards and set list">
+  </picture>
+</p>
+
+- **Requests take turns.** Each request is one turn, one per person per round, so nobody's album
+  buries everyone else's songs. An album stays whole and shows in the queue as one block.
+- **Hosts and guests.** Devices that were using Virgil before the line opened are hosts and keep every
+  control. Guests request, take back their own requests, cheer, and vote to skip (half the room, at
+  least two); whoever picked a song can always skip it. Hosts choose the rules: take turns or not,
+  whether guests may pause, and how skipping works. While the line is open nothing replaces the
+  queue: PLAY becomes REQUEST, and hosts' menus add *Play now*.
+- **Dedications** come with a request and show big on Now Playing when it comes on.
+- **Big screen** (`/screen`) is for an iPad on a stand: what's on, who asked for it, what's next,
+  and the code to scan.
+- **Aircheck** (`/aircheck`) is the night's set list, with who picked what and a few awards, and copies
+  as text for the group chat.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/big-screen-dark.png">
+    <img src="docs/screenshots/big-screen-light.png" alt="The big screen on an iPad: the song on air with its dedication and who requested it, the next requests with their call signs, and a QR code to scan to request">
+  </picture>
+</p>
+
+Who picked what is kept in `party.json` in the data directory, and survives restarts of MPD and
+Virgil. There are no passwords: like the rest of the API, it trusts the network it is on.
+
 ## Layout
 
 ```
@@ -217,7 +253,7 @@ POST   /api/player/{play,pause,toggle,stop,next,previous}
 POST   /api/player/seek            {"seconds": 42}
 POST   /api/player/modes           {"repeat": true, "random": false, "single": false, "consume": false}
 GET    /api/queue
-POST   /api/queue                  {"album": "<id>", "uris": [], "mode": "append|next|replace", "play": true, "start": "<uri>"}
+POST   /api/queue                  {"album": "<id>", "uris": [], "mode": "append|next|replace", "play": true, "start": "<uri>", "note": "…"}
 DELETE /api/queue                  (clear)
 DELETE /api/queue/{id}
 POST   /api/queue/{id}/play
@@ -227,8 +263,18 @@ GET    /api/library/albums          all albums (ETag = revision)
 GET    /api/library/albums/{id}
 GET    /api/library/search?q=…
 POST   /api/library/rescan
+DELETE /api/queue/requests/{request}   (what is left of a request)
+GET    /api/people/me             PUT {"name", "sign", "color", "join"?}
+POST   /api/people/me/link        {"person": "<id>"}
+POST   /api/people/{id}/host      {"host": true}
+DELETE /api/people/{id}
+POST   /api/party                 {"open": true, "rules": {"takeTurns": true, "guestsPause": true, "skip": "vote|free|off"}}
+POST   /api/party/{skip,cheer}
+GET    /api/party/aircheck
 POST   /api/sources/{name}/{acquire,release}
 GET    /art/{key}-{300,600,1000}.jpg     immutable
 ```
 
-The API has no authentication; keep the Pi on a trusted network.
+Each browser sends a random device token in `x-virgil-token` (`?token=` on the WebSocket); that is
+how the request line knows who is who. `POST /api/queue` answers with where the songs landed
+(`{"ids", "position", "ahead"}`). The API has no authentication; keep the Pi on a trusted network.

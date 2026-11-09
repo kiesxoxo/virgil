@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { ChevronLeft, ListEnd } from '@lucide/svelte';
-	import { queue } from '../api.ts';
+	import { ChevronLeft, ListEnd, Phone } from '@lucide/svelte';
+	import { line } from '../party.svelte.ts';
+	import { queue } from '../request.svelte.ts';
 	import { totals, type Group } from '../browse.ts';
 	import { fitTitle } from '../fit.ts';
 	import { plural, span } from '../format.ts';
@@ -57,7 +58,11 @@
 					disabled={!ids.length}
 					onclick={() => queue.playAlbums(ids)}
 				>
-					<Glyph name="play" class="size-4" /> PLAY
+					{#if line.open}
+						<Phone class="size-4" strokeWidth={2.5} /> REQUEST
+					{:else}
+						<Glyph name="play" class="size-4" /> PLAY
+					{/if}
 				</button>
 				<button
 					type="button"

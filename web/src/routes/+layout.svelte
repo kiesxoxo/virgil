@@ -5,6 +5,9 @@
 	import { afterNavigate } from '$app/navigation';
 	import { page } from '$app/state';
 	import ContextMenu from '#lib/components/ContextMenu.svelte';
+	import DedicationSheet from '#lib/components/DedicationSheet.svelte';
+	import JoinSheet from '#lib/components/JoinSheet.svelte';
+	import LineSheet from '#lib/components/LineSheet.svelte';
 	import Logotype from '#lib/components/Logotype.svelte';
 	import PlayerBar from '#lib/components/PlayerBar.svelte';
 	import ReachRail from '#lib/components/ReachRail.svelte';
@@ -15,6 +18,7 @@
 	import { hub } from '#lib/hub.svelte.ts';
 	import { keyboard } from '#lib/keyboard.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
+	import { line } from '#lib/party.svelte.ts';
 	import { reach } from '#lib/reach.svelte.ts';
 	import { swipeBack } from '#lib/swipeback.ts';
 	import { isStream, radio } from '#lib/radio.svelte.ts';
@@ -23,6 +27,8 @@
 	let { children }: { children: Snippet } = $props();
 
 	trackOpeners();
+	// Who this device is, and its moments on the request line.
+	line.watch();
 
 	const shelves = [
 		{ href: '/', label: 'Albums', active: (id: string) => id === '/' || id.startsWith('/album/') },
@@ -39,7 +45,8 @@
 
 	let routeId = $derived(page.route.id ?? '');
 	afterNavigate(() => (reach.panel = false));
-	let fullscreen = $derived(routeId === '/now');
+	// Now Playing and the big screen take the whole screen.
+	let fullscreen = $derived(routeId === '/now' || routeId === '/screen');
 
 	/** Which of the library's pages was seen last. */
 	let shelf = $state('/');
@@ -155,4 +162,7 @@
 
 <Shortcuts />
 <ContextMenu />
+<LineSheet />
+<JoinSheet />
+<DedicationSheet />
 <Toaster />

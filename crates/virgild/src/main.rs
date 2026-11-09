@@ -3,8 +3,10 @@ mod app;
 mod config;
 mod ctl;
 mod homekit;
+mod party;
 mod signal;
 mod sync;
+mod turns;
 mod web;
 mod ws;
 
@@ -69,6 +71,7 @@ async fn serve(config: Config, listener: TcpListener) -> anyhow::Result<()> {
 
     tokio::spawn(sync::run_mpd(app.clone()));
     tokio::spawn(sync::run_library(app.clone()));
+    tokio::spawn(sync::run_party(app.clone()));
     tokio::spawn(signal::run(app.clone()));
     if let Some(writes) = writes {
         tokio::spawn(homekit::run(app.clone(), writes));

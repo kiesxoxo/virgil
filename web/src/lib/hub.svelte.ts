@@ -1,7 +1,10 @@
 import { api } from './api.ts';
+import { toasts } from './toast.svelte.ts';
+import { token } from './token.ts';
 import type { HomekitStatus } from './types/HomekitStatus.ts';
 import type { LibraryStatus } from './types/LibraryStatus.ts';
 import type { Outputs } from './types/Outputs.ts';
+import type { Party } from './types/Party.ts';
 import type { PlayerState } from './types/PlayerState.ts';
 import type { Queue } from './types/Queue.ts';
 import type { QueueItem } from './types/QueueItem.ts';
@@ -51,6 +54,14 @@ class Hub {
 	outputs = $state.raw<Outputs>({ outputs: [], newCards: [] });
 	/** The Apple Home switch; null when HomeKit is off. */
 	homekit = $state.raw<HomekitStatus | null>(null);
+	/** The request line: open or not, its rules, people, who is here, votes on the song playing. */
+	party = $state.raw<Party>({
+		open: false,
+		rules: { takeTurns: true, guestsPause: true, skip: 'vote' },
+		people: [],
+		here: [],
+		votes: { songId: null, skip: [], cheer: [], need: 1 }
+	});
 
 	#receivedAt = $state(0);
 	#now = $state(0);
@@ -78,7 +89,8 @@ class Hub {
 	connect() {
 		if (this.#ws || typeof window === 'undefined') return;
 		const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
-		const ws = new WebSocket(`${scheme}://${location.host}/api/ws`);
+		// The device's token, so its person counts as here while the page is open.
+		const ws = new WebSocket(`${scheme}://${location.host}/api/ws?token=${token}`);
 		this.#ws = ws;
 		ws.onopen = () => {
 			this.connected = true;
@@ -114,6 +126,7 @@ class Hub {
 				this.library = event.library;
 				this.outputs = event.outputs;
 				this.homekit = event.homekit;
+				this.party = event.party;
 				this.ready = true;
 				break;
 			case 'outputs': {
@@ -151,6 +164,14 @@ class Hub {
 				this.homekit = homekit;
 				break;
 			}
+			case 'party': {
+				const { type: _, ...party } = event;
+				this.party = party;
+				break;
+			}
+			case 'shout':
+				toasts.show(event.text, 'done', 3000);
+				break;
 		}
 	}
 

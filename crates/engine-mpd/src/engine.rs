@@ -1,5 +1,5 @@
 use tokio::sync::mpsc;
-use virgil_core::{AddMode, AudioFormat, ModesRequest, Output, PlayState, PlayerState, QueueItem};
+use virgil_core::{AudioFormat, ModesRequest, Output, PlayState, PlayerState, QueueItem};
 
 use crate::client::{self, Event, Mpd};
 use crate::proto::{Error, Result, quote};
@@ -230,6 +230,7 @@ impl MpdEngine {
                     uri: song.uri,
                     album_id: None,
                     art: None,
+                    pick: None,
                 }),
                 _ => None,
             })
@@ -285,28 +286,24 @@ impl MpdEngine {
         self.mpd.run_list(&commands).await.map(drop)
     }
 
-    /// Adds `uris` in one command list and returns the queue position of the first.
-    pub async fn add(&self, uris: &[String], mode: AddMode) -> Result<u32> {
-        let status = self.status().await?;
+    /// Adds `uris` in one command list, at queue position `at` onwards or else at the end, and
+    /// returns their queue ids. `clear` empties the queue first.
+    pub async fn add_ids(&self, uris: &[String], at: Option<u32>, clear: bool) -> Result<Vec<u32>> {
         let mut commands = Vec::with_capacity(uris.len() + 1);
-        let first = match (mode, status.song_pos) {
-            (AddMode::Replace, _) => {
-                commands.push("clear".to_string());
-                commands.extend(uris.iter().map(|uri| format!("add {}", quote(uri))));
-                0
-            }
-            // "+N" is relative to the current song (MPD 0.23+).
-            (AddMode::Next, Some(current)) => {
-                commands.extend(uris.iter().enumerate().map(|(i, uri)| format!("add {} +{i}", quote(uri))));
-                current + 1
-            }
-            (AddMode::Append | AddMode::Next, _) => {
-                commands.extend(uris.iter().map(|uri| format!("add {}", quote(uri))));
-                status.queue_length
-            }
-        };
-        self.mpd.run_list(&commands).await?;
-        Ok(first)
+        if clear {
+            commands.push("clear".to_string());
+        }
+        commands.extend(uris.iter().enumerate().map(|(i, uri)| match at {
+            Some(at) => format!("addid {} {}", quote(uri), at + i as u32),
+            None => format!("addid {}", quote(uri)),
+        }));
+        let response = self.mpd.run_list(&commands).await?;
+        let ids: Vec<u32> =
+            response.pairs.iter().filter(|(k, _)| k == "Id").filter_map(|(_, v)| v.parse().ok()).collect();
+        if ids.len() != uris.len() {
+            return Err(Error::Protocol(format!("added {} songs but got {} ids", uris.len(), ids.len())));
+        }
+        Ok(ids)
     }
 
     pub async fn delete_id(&self, id: u32) -> Result<()> {
@@ -428,6 +425,14 @@ mod tests {
     /// A one-connection fake MPD that answers `status` with `status` and
     /// records every other line until the command list ends.
     async fn fake_mpd(status: &'static str) -> (String, tokio::task::JoinHandle<Vec<String>>) {
+        fake_mpd_replying(status, "").await
+    }
+
+    /// Like `fake_mpd`, answering the command list with `reply` (`key: value` lines).
+    async fn fake_mpd_replying(
+        status: &'static str,
+        reply: &'static str,
+    ) -> (String, tokio::task::JoinHandle<Vec<String>>) {
         use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap().to_string();
@@ -437,12 +442,18 @@ mod tests {
             let mut lines = BufReader::new(read).lines();
             write.write_all(b"OK MPD 0.24.0\n").await.unwrap();
             let mut seen = Vec::new();
+            let mut in_list = false;
             while let Some(line) = lines.next_line().await.unwrap() {
                 match line.as_str() {
                     "status" => write.write_all(format!("{status}\nOK\n").as_bytes()).await.unwrap(),
+                    "command_list_begin" => {
+                        in_list = true;
+                        seen.push(line);
+                    }
+                    "clear" if in_list => seen.push(line),
                     "command_list_end" | "clear" => {
                         seen.push(line);
-                        write.write_all(b"OK\n").await.unwrap();
+                        write.write_all(format!("{reply}OK\n").as_bytes()).await.unwrap();
                         break;
                     }
                     _ => seen.push(line),
@@ -466,6 +477,24 @@ mod tests {
         let (addr, server) = fake_mpd("state: stop\nsong: 1\nplaylistlength: 3").await;
         MpdEngine::new(&addr).clear_except_current().await.unwrap();
         assert_eq!(server.await.unwrap(), ["clear"]);
+    }
+
+    #[tokio::test]
+    async fn adding_returns_the_new_ids() {
+        let (addr, server) = fake_mpd_replying("", "Id: 41\nId: 42\n").await;
+        let uris = ["A/1.flac".to_string(), "A/\"2\".flac".to_string()];
+        assert_eq!(MpdEngine::new(&addr).add_ids(&uris, Some(3), false).await.unwrap(), [41, 42]);
+        assert_eq!(
+            server.await.unwrap(),
+            ["command_list_begin", r#"addid "A/1.flac" 3"#, r#"addid "A/\"2\".flac" 4"#, "command_list_end"]
+        );
+
+        let (addr, server) = fake_mpd_replying("", "Id: 7\n").await;
+        assert_eq!(MpdEngine::new(&addr).add_ids(&uris[..1], None, true).await.unwrap(), [7]);
+        assert_eq!(server.await.unwrap(), ["command_list_begin", "clear", r#"addid "A/1.flac""#, "command_list_end"]);
+
+        let (addr, _server) = fake_mpd_replying("", "Id: 7\n").await;
+        assert!(MpdEngine::new(&addr).add_ids(&uris, None, false).await.is_err());
     }
 
     #[test]

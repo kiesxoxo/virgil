@@ -3,6 +3,7 @@
 	import { api } from '../api.ts';
 	import { clock } from '../format.ts';
 	import { hub } from '../hub.svelte.ts';
+	import { line } from '../party.svelte.ts';
 	import { isStream, radio } from '../radio.svelte.ts';
 	import { keyboard } from '../keyboard.svelte.ts';
 	import { reach } from '../reach.svelte.ts';
@@ -12,11 +13,15 @@
 	import OnAir from './OnAir.svelte';
 	import MobileSearch from './MobileSearch.svelte';
 	import Scrubber from './Scrubber.svelte';
+	import Sign from './Sign.svelte';
 	import SignalBadge from './SignalBadge.svelte';
 	import Transport from './Transport.svelte';
 
 	let item = $derived(hub.current);
 	let shown = $derived(item ? radio.show(item) : null);
+	/** Who asked for the song playing, while call signs show. */
+	let picker = $derived(line.signs ? line.person(item?.pick) : undefined);
+	let vote = $derived(line.skipKey === 'vote');
 	let stream = $derived(item ? isStream(item.uri) : false);
 	// Radio: how far through the show on air.
 	let showProgress = $derived(shown?.station ? radio.progress(shown.station) : null);
@@ -51,7 +56,10 @@
 			<a href="/now" class="touch-menu flex min-w-0 flex-1 items-center">
 				<Cover art={shown?.art} src={shown?.src} class="size-[62px] shrink-0" />
 				<div class="min-w-0 px-3">
-					<div class="wide truncate text-[13px] leading-4">{shown?.title ?? 'Not playing'}</div>
+					<div class="flex items-center gap-1.5">
+						{#if picker}<Sign person={picker} />{/if}
+						<div class="wide min-w-0 truncate text-[13px] leading-4">{shown?.title ?? 'Not playing'}</div>
+					</div>
 					<div class="mt-0.5 truncate text-xs leading-4 text-muted">{shown ? shown.subtitle : 'Pick an album or a station'}</div>
 				</div>
 			</a>
@@ -59,19 +67,23 @@
 				type="button"
 				class="press grid w-14 shrink-0 place-items-center border-l border-line disabled:text-faint rail:hidden"
 				aria-label={hub.playing ? 'Pause' : 'Play'}
-				disabled={!item}
+				disabled={!item || !line.canPause}
 				onclick={() => hub.toggle()}
 			>
 				<Glyph name={hub.playing ? 'pause' : 'play'} class="size-6" />
 			</button>
 			<button
 				type="button"
-				class="press grid w-14 shrink-0 place-items-center border-l border-line disabled:text-faint rail:hidden"
-				aria-label="Next"
-				disabled={!item}
-				onclick={() => api.next()}
+				class="grid w-14 shrink-0 place-items-center border-l border-line disabled:text-faint rail:hidden {vote && line.votedSkip ? 'press-lit bg-fg text-bg' : 'press'}"
+				aria-label={vote ? 'Vote to skip' : 'Next'}
+				aria-pressed={vote ? line.votedSkip : undefined}
+				disabled={!item || line.skipKey === 'none'}
+				onclick={() => line.skip()}
 			>
-				<Glyph name="next" class="size-[22px]" />
+				<span class="grid justify-items-center gap-0.5">
+					<Glyph name="next" class="size-[22px]" />
+					{#if vote}<span class="label text-[9px] leading-none">{hub.party.votes.skip.length}/{hub.party.votes.need}</span>{/if}
+				</span>
 			</button>
 		{/if}
 		<!-- The arc's dial sits here, over the corner. -->
@@ -97,7 +109,10 @@
 		{:else if item && shown}
 			<a href="/now" class="shrink-0"><Cover art={shown.art} src={shown.src} class="size-[70px]" /></a>
 			<div class="min-w-0 px-3">
-				<a href="/now" class="wide block truncate text-[13px] leading-4 hover:underline">{shown.title}</a>
+				<a href="/now" class="flex items-center gap-1.5 hover:underline">
+					{#if picker}<Sign person={picker} />{/if}
+					<span class="wide min-w-0 truncate text-[13px] leading-4">{shown.title}</span>
+				</a>
 				{#if item.albumId}
 					<a href="/album/{item.albumId}" class="mt-0.5 block truncate text-xs leading-4 text-muted hover:text-fg">{item.artist} — {item.album}</a>
 				{:else if shown.station}
@@ -122,7 +137,7 @@
 				{:else}
 					<span class="label w-10 text-right text-[11px] text-muted">{clock(hub.elapsed)}</span>
 					<div class="flex-1">
-						<Scrubber value={hub.elapsed} max={hub.player.duration} disabled={!item} times={false} onseek={(s) => hub.seek(s)} />
+						<Scrubber value={hub.elapsed} max={hub.player.duration} disabled={!item || !line.host} times={false} onseek={(s) => hub.seek(s)} />
 					</div>
 					<span class="label w-10 text-[11px] text-muted">{clock(hub.player.duration)}</span>
 				{/if}
