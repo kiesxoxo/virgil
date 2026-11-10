@@ -12,7 +12,7 @@ AirPlay 2 (multi-room, no subscription).
 </p>
 
 ```sh
-docker pull ghcr.io/kiesxoxo/virgil:0.15.1
+docker pull ghcr.io/kiesxoxo/virgil:0.16.0
 ```
 
 ```
