@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { ChevronDown, ChevronRight, Phone, Radio as RadioIcon } from '@lucide/svelte';
+	import { ChevronDown, ChevronRight, GripVertical, Phone, Radio as RadioIcon } from '@lucide/svelte';
+	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import Cover from '#lib/components/Cover.svelte';
 	import Equalizer from '#lib/components/Equalizer.svelte';
@@ -24,6 +25,62 @@
 	let played = $derived(cur > 0 ? items.slice(0, cur) : []);
 	let remaining = $derived(upNext.reduce((sum, i) => sum + i.duration, 0));
 
+	// Dragging a song of Up next to another place: the row follows the finger and the ones it passes
+	// make room, no easing. Every row is ROW px tall.
+	const ROW = 56;
+	let drag = $state<{ id: number; from: number; offset: number; y: number; settled: boolean } | null>(null);
+	/** Where Up next starts in the queue. */
+	let base = $derived(cur >= 0 ? cur + 1 : 0);
+	let target = $derived(drag ? Math.min(upNext.length - 1, Math.max(0, drag.from + Math.round(drag.offset / ROW))) : 0);
+	let order = $derived(items.map((i) => i.id).join());
+	// The new order has come in: the rows are where they belong.
+	$effect(() => {
+		void order;
+		if (untrack(() => drag?.settled)) drag = null;
+	});
+
+	function shift(k: number): number {
+		if (!drag) return 0;
+		if (k === drag.from) return drag.offset;
+		if (drag.from < target && k > drag.from && k <= target) return -ROW;
+		if (drag.from > target && k >= target && k < drag.from) return ROW;
+		return 0;
+	}
+
+	function grab(e: PointerEvent, k: number, item: QueueItem) {
+		if (drag || e.button > 0) return;
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+		drag = { id: item.id, from: k, offset: 0, y: e.clientY, settled: false };
+	}
+
+	function pull(e: PointerEvent) {
+		if (!drag || drag.settled) return;
+		const offset = e.clientY - drag.y;
+		drag = { ...drag, offset: Math.min((upNext.length - 1 - drag.from) * ROW, Math.max(-drag.from * ROW, offset)) };
+	}
+
+	function drop() {
+		if (!drag || drag.settled) return;
+		const { id, from } = drag;
+		if (target === from) {
+			drag = null;
+			return;
+		}
+		// Stays where it was dropped until the queue says so.
+		const to = target;
+		drag = { ...drag, offset: (to - from) * ROW, settled: true };
+		api.move(id, base + to).catch(() => (drag = null));
+		setTimeout(() => drag?.id === id && drag.settled && (drag = null), 2000);
+	}
+
+	/** Without a finger: the arrow keys on a focused grip move a song one place. */
+	function nudge(e: KeyboardEvent, k: number, item: QueueItem) {
+		const by = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
+		if (!by || k + by < 0 || k + by >= upNext.length) return;
+		e.preventDefault();
+		api.move(item.id, base + k + by);
+	}
+
 	const clearing = new Confirm();
 	const clear = () => api.clear().then(() => toasts.done(hub.current ? 'Queue cleared; this song keeps playing' : 'Queue cleared'));
 
@@ -43,10 +100,11 @@
 
 <svelte:head><title>Queue · Virgil</title></svelte:head>
 
-{#snippet row(item: QueueItem, dim: boolean)}
+{#snippet row(item: QueueItem, dim: boolean, k?: number)}
 	{@const shown = radio.show(item)}
 	<li
-		class="flex items-stretch border-b border-line hover:bg-surface [contain-intrinsic-size:auto_56px] [content-visibility:auto] {dim ? 'opacity-55 hover:opacity-100' : ''}"
+		class="flex items-stretch border-b border-line hover:bg-surface [contain-intrinsic-size:auto_56px] [content-visibility:auto] {dim ? 'opacity-55 hover:opacity-100' : ''} {k !== undefined && drag?.from === k ? 'relative z-10 bg-surface-2' : ''}"
+		style:transform={k !== undefined && drag && shift(k) ? `translateY(${shift(k)}px)` : undefined}
 		{@attach contextMenu(
 			() => actions(item),
 			() => queueHeader(item)
@@ -67,6 +125,20 @@
 				<span class="label text-[11px] text-muted">{clock(item.duration)}</span>
 			{/if}
 		</button>
+		{#if k !== undefined && line.host && upNext.length > 1}
+			<button
+				type="button"
+				class="grid w-9 shrink-0 cursor-grab touch-none place-items-center self-stretch text-muted hover:text-fg"
+				aria-label="Move {shown.title}"
+				onpointerdown={(e) => grab(e, k, item)}
+				onpointermove={pull}
+				onpointerup={drop}
+				onpointercancel={() => !drag?.settled && (drag = null)}
+				onkeydown={(e) => nudge(e, k, item)}
+			>
+				<GripVertical class="size-[18px]" />
+			</button>
+		{/if}
 		<Menu items={() => actions(item)} header={queueHeader(item)} />
 	</li>
 {/snippet}
@@ -188,8 +260,8 @@
 						{/if}
 					{/each}
 				{:else}
-					{#each upNext as item (item.id)}
-						{@render row(item, false)}
+					{#each upNext as item, k (item.id)}
+						{@render row(item, false, k)}
 					{/each}
 				{/if}
 			</ul>
