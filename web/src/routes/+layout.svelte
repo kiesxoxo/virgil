@@ -82,6 +82,11 @@
 		};
 	});
 
+	// app.css and the Tuner make room while searching.
+	$effect(() => {
+		document.documentElement.toggleAttribute('data-searching', reach.searching);
+	});
+
 	$effect(() => {
 		if (hub.ready) library.sync(hub.library.revision);
 	});

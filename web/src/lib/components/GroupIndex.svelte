@@ -5,6 +5,7 @@
 	import { TILE, fold, plural, span } from '../format.ts';
 	import { library } from '../library.svelte.ts';
 	import { contextMenu, type MenuItem } from '../menu.svelte.ts';
+	import { reach } from '../reach.svelte.ts';
 	import { search } from '../search.svelte.ts';
 	import { isBoolean, isView, store, stored, type View } from '../stored.ts';
 	import { Rows } from '../virtual.svelte.ts';
@@ -100,7 +101,7 @@
 <svelte:window bind:innerWidth={screenWidth} />
 
 <div class="pt-safe">
-	<Masthead word={kind === 'artist' ? 'ARTISTS' : 'GENRES'} />
+	{#if !reach.searching}<Masthead word={kind === 'artist' ? 'ARTISTS' : 'GENRES'} />{/if}
 </div>
 
 <LibraryBar placeholder="Search {title.toLowerCase()}" count={library.loaded ? shown.length : null}>

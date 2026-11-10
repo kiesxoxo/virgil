@@ -109,6 +109,10 @@
 	--libbar: 85px;
 	--now-head: 3rem;
 }
+:root[data-searching] {
+	/* The tabs row alone: the sort words are put away. */
+	--libbar: 47px;
+}
 :root[data-reach='deck'] {
 	--reach-row: 56px;
 	--libbar: 44px;

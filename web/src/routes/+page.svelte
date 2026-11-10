@@ -6,6 +6,7 @@
 	import ColumnHeads from '#lib/components/ColumnHeads.svelte';
 	import Cover from '#lib/components/Cover.svelte';
 	import Equalizer from '#lib/components/Equalizer.svelte';
+	import GroupArt from '#lib/components/GroupArt.svelte';
 	import LibraryBar from '#lib/components/LibraryBar.svelte';
 	import Masthead from '#lib/components/Masthead.svelte';
 	import SortWord from '#lib/components/SortWord.svelte';
@@ -13,10 +14,11 @@
 	import { trackHeader, trackItems } from '#lib/actions.ts';
 	import { api } from '#lib/api.ts';
 	import { queue } from '#lib/request.svelte.ts';
-	import { clock, fold, qualityRank } from '#lib/format.ts';
+	import { clock, fold, plural, qualityRank } from '#lib/format.ts';
 	import { hub } from '#lib/hub.svelte.ts';
 	import { library } from '#lib/library.svelte.ts';
 	import { contextMenu } from '#lib/menu.svelte.ts';
+	import { reach } from '#lib/reach.svelte.ts';
 	import { search } from '#lib/search.svelte.ts';
 	import { isAlbumView, isBoolean, store, stored, type AlbumView } from '#lib/stored.ts';
 	import type { Album } from '#lib/types/Album.ts';
@@ -87,6 +89,13 @@
 	let songs = $state<TrackHit[]>([]);
 	let contentWidth = $state(0);
 	let wide = $derived(contentWidth >= LIST_COLUMNS_MIN_WIDTH);
+	// On a phone the results are few rows tall at best: three songs, so that albums are in reach.
+	let songRows = $derived(contentWidth < 640 ? 3 : 6);
+	/** Artists matching the words typed: their pages come before songs. */
+	let artists = $derived.by(() => {
+		const terms = fold(search.query).split(/\s+/).filter(Boolean);
+		return terms.length ? library.artists.filter((g) => terms.every((t) => g.key.includes(t))).slice(0, 3) : [];
+	});
 
 	function sortBy(key: SortKey) {
 		sort = sort.key === key ? { key, desc: !sort.desc } : { key, desc: startsDesc[key] };
@@ -152,7 +161,7 @@
 <svelte:head><title>Albums · Virgil</title></svelte:head>
 
 <div class="pt-safe" bind:this={masthead}>
-	<Masthead word="ALBUMS" />
+	{#if !reach.searching}<Masthead word="ALBUMS" />{/if}
 </div>
 
 <LibraryBar placeholder="Albums, artists, songs" count={library.loaded ? filtered.length : null}>
@@ -172,11 +181,30 @@
 </LibraryBar>
 
 <div bind:clientWidth={contentWidth}>
+	{#if artists.length}
+		<section class="border-b border-line">
+			<h2 class="label flex h-9 items-center border-b border-line px-3 text-[11px] text-muted">Artists</h2>
+			<ul class="grid sm:grid-cols-2 xl:grid-cols-3">
+				{#each artists as group (group.key)}
+					<li class="border-b border-line last:border-b-0">
+						<a href="/artist/{encodeURIComponent(group.name)}" class="press flex items-center gap-3 pr-3">
+							<GroupArt {group} kind="artist" class="size-14 shrink-0" />
+							<span class="min-w-0 flex-1">
+								<span class="wide block truncate text-[13px] leading-[18px]">{group.name}</span>
+								<span class="block truncate text-xs leading-4 text-muted">{plural(group.albums.length, 'album')}</span>
+							</span>
+						</a>
+					</li>
+				{/each}
+			</ul>
+		</section>
+	{/if}
+
 	{#if songs.length}
 		<section class="border-b border-line">
 			<h2 class="label flex h-9 items-center border-b border-line px-3 text-[11px] text-muted">Songs</h2>
 			<ul class="grid sm:grid-cols-2 xl:grid-cols-3">
-				{#each songs as hit (hit.track.uri)}
+				{#each songs.slice(0, songRows) as hit (hit.track.uri)}
 					{@const current = hub.current?.uri === hit.track.uri}
 					<li
 						class="border-b border-line last:border-b-0"

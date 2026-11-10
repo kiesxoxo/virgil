@@ -282,6 +282,9 @@
 		--masthead: calc((100vw - var(--side-l) - var(--side-r) - 24px) / 9 + 22px);
 		height: max(26rem, calc(100dvh - var(--top) - var(--masthead) - var(--libbar) - var(--nav-h) - 4rem - env(safe-area-inset-bottom)));
 	}
+	:global(:root[data-searching]) .tuner {
+		--masthead: 0px;
+	}
 	@media (min-width: 1024px) {
 		.tuner {
 			--masthead: calc(min(56rem, 100vw - 15rem - 24px) / 9 + 22px);

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { reach } from '../reach.svelte.ts';
+	import { search } from '../search.svelte.ts';
 	import LibraryTabs from './LibraryTabs.svelte';
 	import SearchField from './SearchField.svelte';
 
@@ -15,6 +16,15 @@
 	}: { placeholder: string; count?: number | null; controls: Snippet; order: Snippet; heads?: Snippet } = $props();
 
 	let bar: HTMLElement;
+
+	// A new search starts at the top of its results, not wherever the old list was scrolled to.
+	let seen = search.query;
+	$effect(() => {
+		const query = search.query;
+		if (query === seen) return;
+		seen = query;
+		scrollTo({ top: 0, behavior: 'instant' });
+	});
 	let onCall = $derived(reach.active === 'rail' || reach.active === 'arc');
 
 	/** On call, a touch anywhere else puts it away, unless that's the key that calls it. */
@@ -39,8 +49,10 @@
 		{/if}
 		{@render controls()}
 	</div>
+	{#if !reach.searching}
 	<div class="flex h-9 items-stretch gap-3.5 border-t border-line px-3 reach:order-1 reach:h-11 reach:min-w-0 reach:flex-1 reach:overflow-x-auto rail:flex-none reach:border-t-0 reach:px-2 reach:[scrollbar-width:none]" data-swipe>
 		{@render order()}
 	</div>
+	{/if}
 	{@render heads?.()}
 </div>

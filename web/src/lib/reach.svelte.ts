@@ -7,6 +7,7 @@
 // It shows as data-reach and data-hand on <html>, for app.css and the deck:, rail:, arc: and
 // reach: variants. Larger screens have room and two hands, so they never get one.
 
+import { search } from './search.svelte.ts';
 import { store, stored } from './stored.ts';
 
 export type ReachMode = 'off' | 'deck' | 'rail' | 'arc';
@@ -26,6 +27,9 @@ class Reach {
 
 	/** The layout in force: this is a phone, and one is chosen. */
 	active = $derived<ReachMode>(this.#phone ? this.mode : 'off');
+
+	/** A phone's default layout with the search bar open: the page gives its room to the results. */
+	searching = $derived(search.open && this.active === 'off');
 
 	constructor() {
 		if (!browser) return;
