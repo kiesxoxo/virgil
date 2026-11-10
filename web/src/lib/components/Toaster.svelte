@@ -8,17 +8,28 @@
 	aria-live="polite"
 >
 	{#each toasts.items as toast (toast.id)}
-		<button
-			type="button"
-			class="pointer-events-auto flex min-h-11 w-full items-center gap-2.5 border-t border-bg bg-fg px-3 py-2 text-left text-sm font-medium text-bg"
-			onclick={() => toasts.dismiss(toast.id)}
-		>
-			{#if toast.kind === 'done'}
-				<Check class="size-4 shrink-0" />
-			{:else}
-				<CircleAlert class="size-4 shrink-0 text-accent" />
+		<div class="pointer-events-auto flex min-h-11 w-full items-stretch border-t border-bg bg-fg text-bg">
+			<button type="button" class="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2 text-left text-sm font-medium" onclick={() => toasts.dismiss(toast.id)}>
+				{#if toast.kind === 'done'}
+					<Check class="size-4 shrink-0" />
+				{:else}
+					<CircleAlert class="size-4 shrink-0 text-accent" />
+				{/if}
+				<span class="truncate">{toast.message}</span>
+			</button>
+			{#if toast.action}
+				{@const action = toast.action}
+				<button
+					type="button"
+					class="press-lit wide shrink-0 border-l border-bg px-4 text-[11px] uppercase"
+					onclick={() => {
+						toasts.dismiss(toast.id);
+						action.run();
+					}}
+				>
+					{action.label}
+				</button>
 			{/if}
-			<span class="truncate">{toast.message}</span>
-		</button>
+		</div>
 	{/each}
 </div>

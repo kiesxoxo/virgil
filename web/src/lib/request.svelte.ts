@@ -3,8 +3,10 @@
 // Hosts still have Play now and Play next.
 
 import { api } from './api.ts';
+import { hub } from './hub.svelte.ts';
 import { span } from './format.ts';
 import { line, ordinal } from './party.svelte.ts';
+import { isStream } from './radio.svelte.ts';
 import { toasts } from './toast.svelte.ts';
 import type { Added } from './types/Added.ts';
 import type { AddRequest } from './types/AddRequest.ts';
@@ -29,6 +31,26 @@ async function request(what: What, note?: string) {
 	return added;
 }
 
+/**
+ * Replaces the queue with `req`'s songs, and offers to put the old queue back: its songs, the one
+ * that was playing, and how far into it. (A tap on a song of a long list is easy to get wrong.)
+ */
+async function replace(req: AddRequest) {
+	const before = hub.queue.items.map((item) => item.uri);
+	const playing = hub.current;
+	const elapsed = hub.elapsed;
+	const wasPlaying = hub.playing;
+	const added = await api.add(req);
+	if (before.length && line.host) {
+		toasts.undoable('Queue replaced', async () => {
+			await api.add({ uris: before, mode: 'replace', play: !!playing, start: playing?.uri });
+			if (playing && !isStream(playing.uri) && elapsed > 1) await api.seek(elapsed);
+			if (playing && !wasPlaying) await api.toggle();
+		});
+	}
+	return added;
+}
+
 export const queue = {
 	request,
 
@@ -36,7 +58,7 @@ export const queue = {
 	playAlbum: (album: string, start?: string) =>
 		line.open
 			? request(start ? { uris: [start] } : { album })
-			: api.add({ uris: [], album, start, mode: 'replace', play: true }),
+			: replace({ uris: [], album, start, mode: 'replace', play: true }),
 	/** Hosts, with the line open: plays it right away and keeps the queue. */
 	playNow: (what: What) => api.add({ ...body(what), mode: 'replace', play: true }),
 	albumNext: (album: string) => next({ album }),
