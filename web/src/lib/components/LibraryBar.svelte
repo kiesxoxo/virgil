@@ -39,7 +39,7 @@
 		{/if}
 		{@render controls()}
 	</div>
-	<div class="flex h-9 items-stretch gap-1 border-t border-line px-3 reach:order-1 reach:h-11 reach:min-w-0 reach:flex-1 reach:overflow-x-auto rail:flex-none reach:border-t-0 reach:px-2 reach:[scrollbar-width:none]" data-swipe>
+	<div class="flex h-9 items-stretch gap-3.5 border-t border-line px-3 reach:order-1 reach:h-11 reach:min-w-0 reach:flex-1 reach:overflow-x-auto rail:flex-none reach:border-t-0 reach:px-2 reach:[scrollbar-width:none]" data-swipe>
 		{@render order()}
 	</div>
 	{@render heads?.()}

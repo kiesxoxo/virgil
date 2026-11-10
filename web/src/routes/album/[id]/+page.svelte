@@ -235,7 +235,7 @@
 							title="Request with a dedication"
 							onclick={() => album && line.dedicate({ title: album.title, subtitle: album.artist, send: (note) => queue.request({ album: album.id }, note) })}
 						>
-							<MessageSquareHeart class="size-5" />
+							<span class="grid justify-items-center gap-0.5"><MessageSquareHeart class="size-5" /><span class="label text-[9px] leading-none">Dedicate</span></span>
 						</button>
 					{:else}
 						<button
@@ -246,7 +246,7 @@
 							title="Play next"
 							onclick={() => album && queue.albumNext(album.id)}
 						>
-							<ListPlus class="size-5" />
+							<span class="grid justify-items-center gap-0.5"><ListPlus class="size-5" /><span class="label text-[9px] leading-none">Next</span></span>
 						</button>
 					{/if}
 					<button
@@ -257,7 +257,7 @@
 						title={line.open && line.host ? 'Play next' : 'Add to queue'}
 						onclick={() => album && (line.open && line.host ? queue.albumNext(album.id) : queue.albumLast(album.id))}
 					>
-						{#if line.open && line.host}<ListPlus class="size-5" />{:else}<ListEnd class="size-5" />{/if}
+						<span class="grid justify-items-center gap-0.5">{#if line.open && line.host}<ListPlus class="size-5" />{:else}<ListEnd class="size-5" />{/if}<span class="label text-[9px] leading-none">{line.open && line.host ? 'Next' : 'Last'}</span></span>
 					</button>
 					<button
 						type="button"
@@ -268,7 +268,7 @@
 						title="Select tracks to queue or edit"
 						onclick={() => (selecting ? stopSelecting() : (selecting = true))}
 					>
-						<ListChecks class="size-5" />
+						<span class="grid justify-items-center gap-0.5"><ListChecks class="size-5" /><span class="label text-[9px] leading-none">Select</span></span>
 					</button>
 				</div>
 			</header>

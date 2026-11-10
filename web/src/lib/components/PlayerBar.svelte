@@ -91,7 +91,7 @@
 	</div>
 	<MobileSearch />
 	{#if !hub.external && !search.open}
-		<div class="absolute inset-x-0 -top-[1.5px] h-[3px] overflow-hidden">
+		<div class="absolute inset-x-0 bottom-0 h-[3px] overflow-hidden">
 			<div class="h-full bg-accent" style:transform="translateX({progress - 100}%)"></div>
 		</div>
 	{/if}
