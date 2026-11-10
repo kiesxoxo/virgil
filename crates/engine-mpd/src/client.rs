@@ -6,6 +6,10 @@ use tracing::{debug, info, warn};
 
 use crate::proto::{Connection, Error, Response, Result};
 
+/// How long MPD gets to accept a connection: every command waits behind one being opened, so a
+/// host that doesn't answer mustn't hold them for the minutes TCP would.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// A shared, lazily (re)connecting command connection.
 ///
 /// MPD drops idle clients after `connection_timeout`, so a failed command is
@@ -54,30 +58,36 @@ impl Mpd {
         let mut slot = self.conn.lock().await;
         let mut retried = false;
         loop {
-            if slot.is_none() {
-                *slot = Some(self.open().await?);
-            }
-            let conn = slot.as_mut().expect("connected above");
+            // Out of the slot while a command runs on it: if this future is dropped half way (the
+            // HTTP client that asked hung up), the connection goes with it, rather than answer the
+            // next command with the rest of this one's response.
+            let mut conn = match slot.take() {
+                Some(conn) => conn,
+                None => self.open().await?,
+            };
             let result = match request {
                 Request::One(command) => conn.run(command).await,
                 Request::List(commands) => conn.run_list(commands).await,
             };
             match result {
                 Err(e) if e.is_connection() => {
-                    *slot = None;
                     if retried {
                         return Err(e);
                     }
                     debug!("mpd connection lost ({e}), reconnecting");
                     retried = true;
                 }
-                other => return other,
+                other => {
+                    *slot = Some(conn);
+                    return other;
+                }
             }
         }
     }
 
     async fn open(&self) -> Result<Connection> {
-        let mut conn = Connection::connect(&self.addr).await?;
+        let connecting = tokio::time::timeout(CONNECT_TIMEOUT, Connection::connect(&self.addr));
+        let mut conn = connecting.await.map_err(|_| std::io::Error::from(std::io::ErrorKind::TimedOut))??;
         if let Some(limit) = self.binary_limit {
             // Needs MPD 0.22.4+; older servers just keep the 8 KiB default.
             if let Err(e @ Error::Ack { .. }) = conn.run(&format!("binarylimit {limit}")).await {
@@ -147,4 +157,47 @@ pub fn watch(addr: &str) -> mpsc::Receiver<Event> {
         }
     });
     rx
+}
+
+#[cfg(test)]
+mod tests {
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    use tokio::net::TcpListener;
+
+    use super::*;
+
+    /// A command given up on half way (its caller went away) must not leave the rest of its
+    /// response to be read as the next command's.
+    #[tokio::test]
+    async fn an_abandoned_command_takes_its_connection_with_it() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap().to_string();
+        let server = tokio::spawn(async move {
+            // The first connection answers half of `playlistinfo` and stalls.
+            let (first, _) = listener.accept().await.unwrap();
+            let (read, mut write) = first.into_split();
+            let mut lines = BufReader::new(read).lines();
+            write.write_all(b"OK MPD 0.24.0\n").await.unwrap();
+            assert_eq!(lines.next_line().await.unwrap().as_deref(), Some("playlistinfo"));
+            write.write_all(b"file: a.flac\n").await.unwrap();
+
+            // The next command comes on a connection of its own.
+            let (second, _) = listener.accept().await.unwrap();
+            let (read, mut write) = second.into_split();
+            let mut lines = BufReader::new(read).lines();
+            write.write_all(b"OK MPD 0.24.0\n").await.unwrap();
+            assert_eq!(lines.next_line().await.unwrap().as_deref(), Some("status"));
+            write.write_all(b"state: play\nOK\n").await.unwrap();
+            // Keep both open until the client is done.
+            let _ = lines.next_line().await;
+        });
+
+        let mpd = Mpd::new(&addr);
+        let abandoned = tokio::time::timeout(Duration::from_millis(200), mpd.run("playlistinfo")).await;
+        assert!(abandoned.is_err(), "the command was still waiting for its response");
+        let status = mpd.run("status").await.unwrap();
+        assert_eq!(status.pairs, [("state".to_string(), "play".to_string())]);
+        drop(mpd);
+        server.await.unwrap();
+    }
 }

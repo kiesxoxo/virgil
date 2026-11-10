@@ -60,6 +60,13 @@ struct Presence {
     seen: Option<Instant>,
 }
 
+impl Presence {
+    /// A page of theirs is open, or they used Virgil lately.
+    fn here(&self, now: Instant) -> bool {
+        self.sockets > 0 || self.seen.is_some_and(|seen| now.duration_since(seen) < HERE_FOR)
+    }
+}
+
 struct State {
     saved: Saved,
     presence: HashMap<String, Presence>,
@@ -144,10 +151,7 @@ impl State {
         let mut here: Vec<String> = self
             .presence
             .iter()
-            .filter(|(id, p)| {
-                self.person(id).is_some()
-                    && (p.sockets > 0 || p.seen.is_some_and(|seen| now.duration_since(seen) < HERE_FOR))
-            })
+            .filter(|(id, p)| p.here(now) && self.person(id).is_some())
             .map(|(id, _)| id.clone())
             .collect();
         here.sort();
@@ -240,9 +244,11 @@ impl PartyStore {
         let person = token.filter(|t| valid_token(t)).and_then(|t| state.member(t)).map(|m| m.person.clone());
         let mut changed = false;
         if let Some(person) = &person {
-            let before = state.here();
-            state.presence.entry(person.id.clone()).or_default().seen = Some(Instant::now());
-            changed = state.here() != before;
+            // Every request comes through here: only their own presence can have changed.
+            let now = Instant::now();
+            let presence = state.presence.entry(person.id.clone()).or_default();
+            changed = !presence.here(now);
+            presence.seen = Some(now);
         }
         let open = state.saved.open;
         let host = !open || person.as_ref().is_some_and(|p| p.host);

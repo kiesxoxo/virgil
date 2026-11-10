@@ -192,7 +192,7 @@ async fn play(State(app): State<App>, caller: Caller) -> ApiResult {
 
 async fn pause(State(app): State<App>, caller: Caller) -> ApiResult {
     may_pause(&caller)?;
-    app.mpd.pause(true).await?;
+    app.pause_local().await?;
     Ok(DONE)
 }
 
@@ -426,12 +426,20 @@ async fn library(State(app): State<App>) -> Json<LibraryStatus> {
     Json(app.library.status())
 }
 
+/// Whether `If-None-Match` names `etag`. Compared weakly, as the header is: a proxy that
+/// compresses the list sends the tag back as `W/"7"`, and a cache may send several.
+fn etag_matches(if_none_match: &HeaderValue, etag: &str) -> bool {
+    if_none_match.to_str().is_ok_and(|tags| {
+        tags.split(',').map(str::trim).any(|tag| tag == "*" || tag.strip_prefix("W/").unwrap_or(tag) == etag)
+    })
+}
+
 /// The whole album list in one response; the client filters and sorts locally.
 /// The library revision is the ETag, so unchanged libraries cost a 304.
 async fn albums(State(app): State<App>, headers: HeaderMap) -> ApiResult<Response> {
     let etag = format!("\"{}\"", app.library.status().revision);
-    if headers.get(header::IF_NONE_MATCH).is_some_and(|v| v.as_bytes() == etag.as_bytes()) {
-        return Ok(StatusCode::NOT_MODIFIED.into_response());
+    if headers.get(header::IF_NONE_MATCH).is_some_and(|v| etag_matches(v, &etag)) {
+        return Ok((StatusCode::NOT_MODIFIED, [(header::ETAG, etag)]).into_response());
     }
     let albums = app.library.albums().await?;
     Ok(([(header::ETAG, etag), (header::CACHE_CONTROL, "no-cache".into())], Json(albums)).into_response())
@@ -478,11 +486,7 @@ struct ArtistParams {
 async fn catalog_artist(State(app): State<App>, Query(params): Query<ArtistParams>) -> ApiResult<Json<ArtistCatalog>> {
     let fetcher = fetcher(&app)?;
     // The artist's folder in the music directory, from one of their albums here.
-    let album = app.library.albums().await?.into_iter().find(|a| a.artist == params.name);
-    let uri = match album {
-        Some(album) => app.library.album_uris(album.id).await?.into_iter().next(),
-        None => None,
-    };
+    let uri = app.library.artist_uri(params.name.clone()).await?;
     let folder = uri.as_deref().map(virgil_fetch::paths::artist_folder);
     catalog::artist(fetcher, &params.name, folder).await.map(Json).map_err(ApiError::upstream)
 }
@@ -619,4 +623,20 @@ async fn homekit_reset(State(app): State<App>, caller: Caller) -> ApiResult {
     let homekit = app.homekit.as_ref().ok_or_else(|| ApiError::not_found("HomeKit is off"))?;
     homekit.reset()?;
     Ok(DONE)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn etags_match_weakly() {
+        let sent = |value: &'static str| HeaderValue::from_static(value);
+        assert!(etag_matches(&sent("\"7\""), "\"7\""));
+        assert!(etag_matches(&sent("W/\"7\""), "\"7\""), "a proxy compressed the list");
+        assert!(etag_matches(&sent("\"6\", W/\"7\""), "\"7\""));
+        assert!(etag_matches(&sent("*"), "\"7\""));
+        assert!(!etag_matches(&sent("\"70\""), "\"7\""));
+        assert!(!etag_matches(&sent(""), "\"7\""));
+    }
 }

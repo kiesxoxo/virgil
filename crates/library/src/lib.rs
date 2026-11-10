@@ -116,6 +116,11 @@ impl Library {
         self.db(move |conn| db::album_uris(conn, &id)).await
     }
 
+    /// A song by `artist` (as an album's artist reads), if the library has any: where their music is.
+    pub async fn artist_uri(&self, artist: String) -> anyhow::Result<Option<String>> {
+        self.db(move |conn| db::artist_uri(conn, &artist)).await
+    }
+
     pub async fn search(&self, query: String) -> anyhow::Result<SearchResults> {
         self.db(move |conn| db::search(conn, &query)).await
     }
@@ -135,8 +140,11 @@ impl Library {
     }
 
     fn publish(&self, status: LibraryStatus) {
-        self.inner.status.send_modify(|current| {
-            *current = LibraryStatus { scanning: current.scanning, ..status };
+        self.inner.status.send_if_modified(|current| {
+            let status = LibraryStatus { scanning: current.scanning, ..status };
+            let changed = *current != status;
+            *current = status;
+            changed
         });
     }
 
@@ -223,10 +231,10 @@ impl Library {
                 },
                 None => None,
             };
-            if key.is_some() {
+            // A cover that came, went or changed; one looked at again and found the same is no news.
+            if self.record_art(album_id, key).await? {
                 pending += 1;
             }
-            self.record_art(album_id, key).await?;
             if pending == ART_BATCH {
                 self.bump().await?;
                 pending = 0;
@@ -234,6 +242,10 @@ impl Library {
         }
         if pending > 0 {
             self.bump().await?;
+        } else {
+            // No cover changed, but how many albums have none may have.
+            let status = self.db(|conn| db::status(conn)).await?;
+            self.publish(status);
         }
         Ok(())
     }
@@ -280,13 +292,21 @@ impl Library {
         tokio::task::spawn_blocking(move || art::make_thumbs(&dir, &bytes)).await?
     }
 
-    /// Stores an album's artwork key; None means "checked, none found".
-    async fn record_art(&self, album_id: String, key: Option<String>) -> anyhow::Result<()> {
-        if let Some(key) = &key {
-            self.inner.index.write().expect("index lock").art_of.insert(album_id.clone(), key.clone());
-        }
+    /// Stores an album's artwork key; None means "checked, none found". Returns whether that is
+    /// another cover than it had.
+    async fn record_art(&self, album_id: String, key: Option<String>) -> anyhow::Result<bool> {
+        let changed = {
+            let mut index = self.inner.index.write().expect("index lock");
+            let previous = match &key {
+                Some(key) => index.art_of.insert(album_id.clone(), key.clone()),
+                // Its cover is gone: the queue mustn't go on showing it.
+                None => index.art_of.remove(&album_id),
+            };
+            previous != key
+        };
         let now = unix_now();
-        self.db(move |conn| db::set_art(conn, &album_id, key.as_deref(), now)).await
+        self.db(move |conn| db::set_art(conn, &album_id, key.as_deref(), now)).await?;
+        Ok(changed)
     }
 
     async fn bump(&self) -> anyhow::Result<()> {

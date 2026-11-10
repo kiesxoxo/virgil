@@ -228,6 +228,16 @@ pub fn album_uris(conn: &Connection, id: &str) -> rusqlite::Result<Vec<String>> 
     stmt.query_map([id], |row| row.get(0))?.collect()
 }
 
+/// The first song of the first album (oldest first) whose artist is exactly `artist`.
+pub fn artist_uri(conn: &Connection, artist: &str) -> rusqlite::Result<Option<String>> {
+    conn.prepare_cached(&format!(
+        "SELECT t.uri FROM albums a JOIN tracks t ON t.album_id = a.id WHERE a.artist = ?1
+         ORDER BY a.year, a.sort_title, {TRACK_ORDER} LIMIT 1"
+    ))?
+    .query_row([artist], |row| row.get(0))
+    .optional()
+}
+
 /// Every word becomes a prefix match: `pink flo` finds "Pink Floyd".
 fn fts_query(q: &str) -> Option<String> {
     let terms: Vec<String> = q
@@ -368,6 +378,8 @@ mod tests {
         assert_eq!(dsotm.discs, 1);
         assert_eq!(detail.discs, [Disc { number: 1, title: None }]);
         assert_eq!(album_uris(&conn, &dsotm.id).unwrap(), ["PF/DSOTM/01.flac", "PF/DSOTM/02.flac"]);
+        assert_eq!(artist_uri(&conn, "Pink Floyd").unwrap().as_deref(), Some("PF/DSOTM/01.flac"));
+        assert_eq!(artist_uri(&conn, "Pink").unwrap(), None);
     }
 
     #[test]

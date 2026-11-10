@@ -85,7 +85,7 @@ pub struct Fetcher {
 }
 
 /// A download, with where it is in its steps.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct Job {
     public: Download,
     step: Step,
@@ -364,9 +364,14 @@ impl Fetcher {
             let Some(mut job) = self.jobs.lock().expect("jobs lock").iter().find(|j| j.public.id == id).cloned() else {
                 continue;
             };
-            let before = job.public.clone();
+            let before = job.clone();
             self.advance(&mut job, host).await;
-            if job.public != before {
+            // Still waiting where it was: nothing to write (every few seconds, for as long as a
+            // download sits in someone's queue).
+            if job == before {
+                continue;
+            }
+            if job.public != before.public {
                 job.public.updated = now();
             }
             let mut jobs = self.jobs.lock().expect("jobs lock");
@@ -439,7 +444,6 @@ impl Fetcher {
                 if self.lidarr.tracks(album).await?.is_empty() {
                     if t.saturating_sub(since) >= p.tracks {
                         fail(job, "Lidarr couldn't read this album's tracklist".into());
-                        return Ok(Flow::Wait);
                     }
                     return Ok(Flow::Wait);
                 }
@@ -631,13 +635,17 @@ impl Fetcher {
                 let Some(item) = found.into_iter().find(|i| i.path == file) else {
                     bail!("Lidarr can't see the download at {file}; check [slskdpp] downloads in Virgil's config");
                 };
-                let release = match item.album_release_id {
-                    0 => self.lidarr.album(album).await?.monitored_release().context("Lidarr has no release")?,
-                    release => release,
-                };
-                let artist = match job.artist {
-                    Some(artist) => artist,
-                    None => self.lidarr.album(album).await?.artist_id,
+                // Lidarr's own copy of the album fills in what the file and the job don't say.
+                let (release, artist) = match (item.album_release_id, job.artist) {
+                    (release, Some(artist)) if release != 0 => (release, artist),
+                    (release, artist) => {
+                        let known = self.lidarr.album(album).await?;
+                        let release = match release {
+                            0 => known.monitored_release().context("Lidarr has no release")?,
+                            release => release,
+                        };
+                        (release, artist.unwrap_or(known.artist_id))
+                    }
                 };
                 let file = ImportFile { path: file, artist, album, release, track, quality: item.quality };
                 let command = self.lidarr.import(&file).await?;
@@ -704,7 +712,6 @@ impl Fetcher {
         }
     }
 
-    /// Lidarr has every track of the album.
     /// Track files Lidarr has of an album, and its tracks.
     async fn files(&self, album: u32) -> anyhow::Result<(u32, u32)> {
         let albums = self.lidarr.albums(&[album]).await?;

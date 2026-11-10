@@ -15,6 +15,9 @@ test('call signs come from initials or the start of a name', () => {
 	assert.equal(signFor('dj. late night owl'), 'DLN');
 	assert.equal(signFor('Łucja'), 'ŁUC');
 	assert.equal(signFor('  '), '?');
+	// Letters that take two UTF-16 units each stay whole.
+	assert.equal(signFor('𝔸𝔹𝔻𝔼'), '𝔸𝔹𝔻');
+	assert.equal(signFor('𝔸𝔹𝔻𝔼', ['𝔸𝔹𝔻']), '𝔸𝔹2');
 });
 
 test('a taken call sign gets a digit', () => {

@@ -310,6 +310,12 @@ impl MpdEngine {
         self.cmd(&format!("deleteid {id}")).await
     }
 
+    /// Removes several queue items in one command list.
+    pub async fn delete_ids(&self, ids: &[u32]) -> Result<()> {
+        let commands: Vec<String> = ids.iter().map(|id| format!("deleteid {id}")).collect();
+        self.mpd.run_list(&commands).await.map(drop)
+    }
+
     pub async fn move_id(&self, id: u32, to: u32) -> Result<()> {
         self.cmd(&format!("moveid {id} {to}")).await
     }

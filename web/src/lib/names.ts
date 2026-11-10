@@ -28,9 +28,11 @@ export function signFor(name: string, taken: readonly string[] = []): string {
 		.split(/\s+/)
 		.map((w) => w.replace(/[^\p{L}\p{N}]/gu, ''))
 		.filter(Boolean);
-	const sign = (words.length > 1 ? words.map((w) => [...w][0]).join('') : [...(words[0] ?? '?')].join('')).slice(0, 3) || '?';
+	// By letter, not by UTF-16 unit: half of a letter from beyond the basic plane is no letter.
+	const letters = (words.length > 1 ? words.map((w) => [...w][0]) : [...(words[0] ?? '?')]).slice(0, 3);
+	const sign = letters.join('');
 	if (!taken.includes(sign)) return sign;
-	const stem = sign.slice(0, Math.min(sign.length, 2));
+	const stem = letters.slice(0, 2).join('');
 	for (let n = 2; n <= 9; n++) if (!taken.includes(`${stem}${n}`)) return `${stem}${n}`;
 	return sign;
 }

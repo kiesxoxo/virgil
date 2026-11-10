@@ -14,15 +14,24 @@
 	let night = $state.raw<Aircheck | null>(null);
 	let none = $state(false);
 
-	// Again whenever a song starts or votes change, so a night in progress keeps up.
+	// Again whenever a song starts or votes change, so a night in progress keeps up. Only the
+	// latest answer counts: one asked for earlier can come back later.
+	let asked = 0;
 	$effect(() => {
 		void hub.current?.id;
 		void hub.party.votes;
 		void hub.party.open;
-		api
-			.aircheck()
-			.then((n) => (night = n))
-			.catch((e) => (none = e instanceof ApiError && e.status === 404));
+		const ask = ++asked;
+		api.aircheck().then(
+			(n) => {
+				if (ask !== asked) return;
+				night = n;
+				none = false;
+			},
+			(e) => {
+				if (ask === asked) none = e instanceof ApiError && e.status === 404;
+			}
+		);
 	});
 
 	let entries = $derived(night ? setList(night).toReversed() : []);

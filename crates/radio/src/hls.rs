@@ -14,8 +14,10 @@ use tracing::{debug, warn};
 const START_BEHIND: usize = 3;
 /// Chunks fetched ahead of what MPD has read.
 const AHEAD: usize = 2;
-/// Failed playlist fetches in a row before the stream is given up.
+/// Failed fetches in a row (of the playlist, or of a chunk) before the stream is given up.
 const RETRIES: u32 = 3;
+/// Master playlists followed to get to the chunks: one, in practice.
+const MAX_HOPS: u32 = 4;
 
 /// A media playlist: the chunks it lists and how often it is renewed.
 #[derive(Debug, PartialEq)]
@@ -58,17 +60,25 @@ fn parse(base: &Url, text: &str) -> anyhow::Result<Playlist> {
             chunks.push(url);
         }
     }
-    Ok(Playlist::Media(Media { sequence, target: Duration::from_secs_f64(target), chunks, ended }))
+    // A negative or absurd duration is a playlist gone wrong, not a reason to panic.
+    let target = Duration::try_from_secs_f64(target).context("bad target duration")?;
+    Ok(Playlist::Media(Media { sequence, target, chunks, ended }))
 }
 
 /// Index in `media.chunks` of the next chunk to send: the one after `next`
 /// (a sequence number) if it's still listed, else a few behind the live edge.
 fn start_index(media: &Media, next: Option<u64>) -> usize {
-    let live = media.chunks.len().saturating_sub(START_BEHIND);
-    match next {
-        Some(n) if n >= media.sequence => usize::try_from(n - media.sequence).unwrap_or(usize::MAX),
-        // Fell behind the playlist (or just starting): rejoin near the live edge.
-        _ => live,
+    let listed = media.chunks.len();
+    // How far into this playlist `next` is; None when it is behind it (or there is none yet).
+    let ahead = next.and_then(|n| n.checked_sub(media.sequence)).map(|n| usize::try_from(n).unwrap_or(usize::MAX));
+    match ahead {
+        Some(ahead) if ahead <= listed => ahead,
+        // A little past the end: an older copy of the playlist (a cache's), with nothing new in it.
+        Some(ahead) if ahead <= listed * 2 => listed,
+        // Far past it, the stream started over and numbers its chunks afresh: waiting for them to
+        // count back up would be hours of silence. That, falling behind the playlist and just
+        // starting all (re)join near the live edge.
+        _ => listed.saturating_sub(START_BEHIND),
     }
 }
 
@@ -105,35 +115,49 @@ async fn fetch(http: &reqwest::Client, url: &Url) -> anyhow::Result<(Url, String
     Ok((base, response.text().await?))
 }
 
+async fn fetch_chunk(http: &reqwest::Client, url: &Url) -> anyhow::Result<Vec<u8>> {
+    let bytes = http.get(url.clone()).send().await?.error_for_status()?.bytes().await?;
+    Ok(strip_id3(&bytes).to_vec())
+}
+
 async fn run(http: &reqwest::Client, url: &str, tx: &mpsc::Sender<Vec<u8>>) -> anyhow::Result<()> {
     let mut playlist = Url::parse(url)?;
     let mut next: Option<u64> = None;
     let mut failures = 0;
+    let mut hops = 0;
     loop {
-        let media = match fetch(http, &playlist).await.and_then(|(base, text)| parse(&base, &text)) {
-            Ok(Playlist::Master(variant)) => {
+        // One fetch that fails (the playlist's, or a chunk's) is tried again: the playlist is read
+        // afresh, and carries on at the chunk it got to, or near live if that one has gone.
+        let round = async {
+            let (base, text) = fetch(http, &playlist).await?;
+            let read = parse(&base, &text)?;
+            if let Playlist::Media(media) = &read {
+                for (index, chunk) in media.chunks.iter().enumerate().skip(start_index(media, next)) {
+                    if tx.send(fetch_chunk(http, chunk).await?).await.is_err() {
+                        break;
+                    }
+                    next = Some(media.sequence + index as u64 + 1);
+                }
+            }
+            anyhow::Ok(read)
+        };
+        let media = match round.await {
+            Ok(Playlist::Media(media)) => media,
+            Ok(Playlist::Master(variant)) if hops < MAX_HOPS => {
+                hops += 1;
                 playlist = variant;
                 continue;
             }
-            Ok(Playlist::Media(media)) => {
-                failures = 0;
-                media
-            }
+            Ok(Playlist::Master(_)) => bail!("playlists that only lead to more playlists"),
             Err(e) if failures < RETRIES => {
                 failures += 1;
-                debug!("HLS playlist {playlist}: {e:#}; retrying");
+                debug!("HLS stream {playlist}: {e:#}; retrying");
                 tokio::time::sleep(Duration::from_secs(2)).await;
                 continue;
             }
             Err(e) => return Err(e),
         };
-        for (index, chunk) in media.chunks.iter().enumerate().skip(start_index(&media, next)) {
-            let bytes = http.get(chunk.clone()).send().await?.error_for_status()?.bytes().await?;
-            if tx.send(strip_id3(&bytes).to_vec()).await.is_err() {
-                return Ok(());
-            }
-            next = Some(media.sequence + index as u64 + 1);
-        }
+        failures = 0;
         if media.ended || tx.is_closed() {
             return Ok(());
         }
@@ -181,6 +205,60 @@ mod tests {
         assert_eq!(start_index(&media, Some(104)), 4, "the chunk after the last one sent");
         assert_eq!(start_index(&media, Some(106)), 6, "nothing new yet");
         assert_eq!(start_index(&media, Some(90)), 3, "fell behind: rejoin near live");
+        assert_eq!(start_index(&media, Some(108)), 6, "an older copy of the playlist: nothing new");
+        assert_eq!(start_index(&media, Some(10_870)), 3, "the stream started over: rejoin near live");
+    }
+
+    #[test]
+    fn a_playlist_gone_wrong_is_an_error() {
+        for target in ["-1", "nan", "inf", "1e400", "twelve"] {
+            let text = format!("#EXTM3U\n#EXT-X-TARGETDURATION:{target}\nsegment_1.aac\n");
+            assert!(parse(&base(), &text).is_err(), "{target}");
+        }
+    }
+
+    /// A one-request-per-connection HTTP server: a playlist of two chunks that has ended, the
+    /// second of which fails the first time it is asked for.
+    async fn flaky_stream() -> String {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+        static FAILED_ONCE: AtomicBool = AtomicBool::new(false);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            while let Ok((socket, _)) = listener.accept().await {
+                tokio::spawn(async move {
+                    let (read, mut write) = socket.into_split();
+                    let mut lines = BufReader::new(read).lines();
+                    let request = lines.next_line().await.unwrap().unwrap_or_default();
+                    while lines.next_line().await.unwrap().is_some_and(|line| !line.is_empty()) {}
+                    let (status, body) = match request.split(' ').nth(1).unwrap_or_default() {
+                        "/hls.m3u8" => (
+                            "200 OK",
+                            "#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MEDIA-SEQUENCE:7\na.aac\nb.aac\n#EXT-X-ENDLIST\n",
+                        ),
+                        "/a.aac" => ("200 OK", "first"),
+                        "/b.aac" if FAILED_ONCE.swap(true, Ordering::Relaxed) => ("200 OK", "second"),
+                        "/b.aac" => ("503 Service Unavailable", ""),
+                        _ => ("404 Not Found", ""),
+                    };
+                    let head =
+                        format!("HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+                    let _ = write.write_all(format!("{head}{body}").as_bytes()).await;
+                });
+            }
+        });
+        format!("http://{addr}/hls.m3u8")
+    }
+
+    #[tokio::test]
+    async fn a_chunk_that_fails_is_asked_for_again() {
+        let nts = crate::Nts::new().unwrap();
+        let mut chunks = nts.relay_aac(&flaky_stream().await);
+        assert_eq!(chunks.recv().await.as_deref(), Some(&b"first"[..]));
+        assert_eq!(chunks.recv().await.as_deref(), Some(&b"second"[..]), "once, after the one before it");
+        assert_eq!(chunks.recv().await, None, "the playlist has ended");
     }
 
     #[test]

@@ -61,6 +61,9 @@ pub struct Inner {
     /// work from positions another one just shifted, and picks are recorded before the queue
     /// is read back.
     queue_edit: Mutex<()>,
+    /// Held from asking MPD how things are until that is stored, so of two readings taken at once
+    /// the older can't be the one that stays.
+    refreshing: Mutex<()>,
 }
 
 /// Where a request goes.
@@ -99,6 +102,7 @@ impl App {
             snapshot: RwLock::new(snapshot),
             arbiter: Mutex::default(),
             queue_edit: Mutex::default(),
+            refreshing: Mutex::default(),
             config,
         }))
     }
@@ -184,6 +188,11 @@ impl App {
         self.snapshot.read().expect("snapshot lock").queue.clone()
     }
 
+    /// One queue item, by its queue id.
+    fn queue_item(&self, id: u32) -> Option<QueueItem> {
+        self.snapshot.read().expect("snapshot lock").queue.items.iter().find(|item| item.id == id).cloned()
+    }
+
     pub fn source(&self) -> SourceState {
         self.snapshot.read().expect("snapshot lock").source.clone()
     }
@@ -195,14 +204,13 @@ impl App {
         value: T,
         event: fn(T) -> ServerEvent,
     ) {
-        {
-            let mut snapshot = self.snapshot.write().expect("snapshot lock");
-            let slot = slot(&mut snapshot);
-            if *slot == value {
-                return;
-            }
-            *slot = value.clone();
+        let mut snapshot = self.snapshot.write().expect("snapshot lock");
+        let slot = slot(&mut snapshot);
+        if *slot == value {
+            return;
         }
+        *slot = value.clone();
+        // Sent before the lock is let go, so pages hear of changes in the order they were stored.
         // No subscribers is fine.
         let _ = self.events.send(event(value));
     }
@@ -241,7 +249,8 @@ impl App {
     /// The queue item playing (or paused, or stopped at).
     pub fn current(&self) -> Option<QueueItem> {
         let s = self.snapshot.read().expect("snapshot lock");
-        s.queue.items.iter().find(|item| Some(item.id) == s.player.song_id).cloned()
+        let id = s.player.song_id?;
+        s.queue.items.iter().find(|item| item.id == id).cloned()
     }
 
     /// Lets the request line follow the song playing: votes start over, the aircheck logs it.
@@ -279,6 +288,7 @@ impl App {
 
     /// Re-reads MPD's status, and the queue if it may have changed.
     pub async fn refresh(&self, queue: bool) {
+        let _refreshing = self.refreshing.lock().await;
         let player = match self.mpd.status().await {
             Ok(player) => player,
             Err(e) => return warn!("mpd status: {e}"),
@@ -366,8 +376,7 @@ impl App {
     pub async fn remove(&self, caller: &Caller, id: u32) -> Result<(), ApiError> {
         let _edit = self.queue_edit.lock().await;
         if !caller.host {
-            let item = self.queue().items.into_iter().find(|i| i.id == id);
-            let item = item.ok_or_else(|| ApiError::not_found("that song isn't in the queue"))?;
+            let item = self.queue_item(id).ok_or_else(|| ApiError::not_found("that song isn't in the queue"))?;
             self.check_owner(caller, &item)?;
         }
         Ok(self.mpd.delete_id(id).await?)
@@ -378,20 +387,20 @@ impl App {
     pub async fn remove_request(&self, caller: &Caller, request: u32) -> Result<(), ApiError> {
         let _edit = self.queue_edit.lock().await;
         let queue = self.queue().items;
-        let from = self.current().and_then(|c| queue.iter().position(|i| i.id == c.id)).unwrap_or(0);
+        let playing = self.player().song_id;
+        let from = playing.and_then(|id| queue.iter().position(|i| i.id == id)).unwrap_or(0);
         let songs: Vec<&QueueItem> =
             queue[from..].iter().filter(|i| i.pick.as_ref().is_some_and(|p| p.request == request)).collect();
         let first = songs.first().ok_or_else(|| ApiError::not_found("that request isn't in the queue"))?;
         if !caller.host {
             self.check_owner(caller, first)?;
         }
-        if songs.iter().any(|i| Some(i.id) == self.player().song_id) {
+        if songs.iter().any(|i| Some(i.id) == playing) {
             self.party.skipping();
         }
-        for item in songs {
-            self.mpd.delete_id(item.id).await?;
-        }
-        Ok(())
+        // All at once: one round trip, and the queue is never seen with half the request gone.
+        let ids: Vec<u32> = songs.iter().map(|i| i.id).collect();
+        Ok(self.mpd.delete_ids(&ids).await?)
     }
 
     fn check_owner(&self, caller: &Caller, item: &QueueItem) -> Result<(), ApiError> {
@@ -413,10 +422,16 @@ impl App {
         Ok(self.mpd.clear_except_current().await?)
     }
 
-    /// Picks up album ids and artwork the library learned since the queue was read.
+    /// Picks up album ids and artwork the library learned since the queue was read. The queue is
+    /// held from reading it to storing it again: one read from MPD meanwhile isn't overwritten
+    /// with the older one.
     pub fn reenrich_queue(&self) {
-        let queue = self.queue();
-        self.set_queue(Queue { version: queue.version, items: self.enrich(queue.items) });
+        let mut snapshot = self.snapshot.write().expect("snapshot lock");
+        let items = self.enrich(snapshot.queue.items.clone());
+        if items != snapshot.queue.items {
+            snapshot.queue.items = items;
+            let _ = self.events.send(ServerEvent::Queue(snapshot.queue.clone()));
+        }
     }
 
     /// Starts or resumes local playback, taking the DAC back if needed.
@@ -475,13 +490,14 @@ impl App {
     /// makes way for this one instead of piling up in the queue.
     pub async fn play_stream(&self, uri: &str) -> Result<(), ApiError> {
         self.claim_local().await;
+        // Before asking where playback is: a request from another phone mustn't shift it meanwhile.
+        let _edit = self.queue_edit.lock().await;
         let status = self.mpd.status().await?;
-        let current = self.queue().items.into_iter().find(|item| Some(item.id) == status.song_id);
+        let current = status.song_id.and_then(|id| self.queue_item(id));
         if let Some(current) = current.as_ref().filter(|item| item.uri == uri) {
             // Already the current item: (re)start it, live.
             return Ok(self.mpd.play_id(current.id).await?);
         }
-        let _edit = self.queue_edit.lock().await;
         let at = status.song_pos.map(|pos| pos + 1);
         let ids = self.mpd.add_ids(&[uri.to_string()], at, false).await?;
         self.mpd.play_id(ids[0]).await?;

@@ -89,7 +89,7 @@ impl AudioFormat {
         let parts: Vec<&str> = s.split(':').collect();
         match parts.as_slice() {
             [dsd, channels] => Some(Self {
-                rate: dsd.strip_prefix("dsd")?.parse::<u32>().ok()? * 44_100,
+                rate: dsd.strip_prefix("dsd")?.parse::<u32>().ok()?.checked_mul(44_100)?,
                 format: SampleFormat::Dsd,
                 channels: channels.parse().ok()?,
             }),
@@ -102,7 +102,7 @@ impl AudioFormat {
                     "32" => (SampleFormat::S32, rate),
                     "f" => (SampleFormat::F32, rate),
                     // MPD counts DSD frames in bytes per channel.
-                    "dsd" => (SampleFormat::Dsd, rate * 8),
+                    "dsd" => (SampleFormat::Dsd, rate.checked_mul(8)?),
                     _ => return None,
                 };
                 Some(Self { rate, format, channels: channels.parse().ok()? })
@@ -852,5 +852,8 @@ mod tests {
         assert_eq!(AudioFormat::parse_mpd("44100:f:2").unwrap().format, SampleFormat::F32);
         assert_eq!(AudioFormat::parse_mpd("44100:x:2"), None);
         assert_eq!(AudioFormat::parse_mpd("garbage"), None);
+        // Rates no number can hold are no format, rather than an overflow.
+        assert_eq!(AudioFormat::parse_mpd("dsd4294967295:2"), None);
+        assert_eq!(AudioFormat::parse_mpd("4294967295:dsd:2"), None);
     }
 }
